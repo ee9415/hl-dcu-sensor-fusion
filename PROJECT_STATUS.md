@@ -33,7 +33,35 @@
 | TF | 미정 | base frame 및 sensor frame 확정 필요 |
 | Network | 미정 | 센서 IP, NIC, VLAN 여부 확인 필요 |
 
-## 4. Verification Status
+## 4. Phase Status
+
+| Phase | 목표 | 상태 | 완료 기준 |
+| --- | --- | --- | --- |
+| Phase 1 | 센서별 개별검증 | 미시작 | 센서별 topic, Hz, TF, RViz 검증 기록 |
+| Phase 2 | 4종 통합검증 | 미시작 | 통합 launch, namespace, TF tree, RViz 검증 |
+| Phase 3 | Fusion 준비 | 미시작 | 입력 topic, timestamp, QoS, calibration 기준 확정 |
+| Phase 4 | Fusion 구현 | 미시작 | fusion node build, launch, output topic 검증 |
+
+## 5. Individual Verification Status
+
+| Sensor | Package Plan | Status | Required Verification |
+| --- | --- | --- | --- |
+| Camera | `hl_camera_bringup` | 미구현 | 6대 인식, image topic, Hz, frame, RViz |
+| LiDAR | `hl_lidar_bringup` | 미구현 | point cloud topic, Hz, frame, RViz |
+| GNSS | `hl_gnss_bringup` | 미구현 | fix/status topic, timestamp, frame |
+| IMU | `hl_imu_bringup` | 미구현 | imu topic, Hz, orientation convention, frame |
+
+## 6. Integration and Fusion Status
+
+| 영역 | Package Plan | Status | Required Verification |
+| --- | --- | --- | --- |
+| Integrated bringup | `hl_sensor_bringup` | 미구현 | 4종 동시 실행, namespace 충돌 없음, TF tree 연결 |
+| Description/TF | `hl_sensor_description` | 미구현 | URDF/static TF, `view_frames` 검증 |
+| Configuration | `hl_sensor_config` | 미구현 | 센서별 config, calibration, 차량별 override |
+| Diagnostics | `hl_sensor_diagnostics` | 미구현 | node, topic, Hz, TF 상태 확인 |
+| Fusion | `hl_sensor_fusion` | 미구현 | 입력 interface 확정 후 구현 |
+
+## 7. Verification Status
 
 | 검증 항목 | 결과 | 사유 |
 | --- | --- | --- |
@@ -45,17 +73,18 @@
 | Hz | 수행 불가 | Topic 없음 |
 | RViz | 수행 불가 | RViz 설정 및 센서 데이터 없음 |
 
-## 5. Immediate Next Steps
+## 8. Immediate Next Steps
 
 1. Namespace, Topic, TF naming 기준 확정
 2. 네트워크 설계 확정
 3. 센서별 ROS2 driver 선정 및 버전 고정
-4. `src/` 하위 ROS2 패키지 생성
-5. Bringup launch 계층 설계
-6. RViz 검증 환경 추가
-7. 실제 장비 기반 Hz, TF, 데이터 수신 검증 기록
+4. 센서별 개별검증 패키지 생성
+5. 센서별 launch 및 RViz 검증 환경 추가
+6. 센서별 Hz, TF, 데이터 수신 검증 기록
+7. 4종 통합 bringup 패키지 생성
+8. Fusion 입력 interface 확정
 
-## 6. Risk
+## 9. Risk
 
 | 위험 | 영향 | 대응 |
 | --- | --- | --- |

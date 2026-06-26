@@ -13,6 +13,12 @@ docs/
 ├── architecture/
 ├── operation/
 └── verification/
+    ├── camera/
+    ├── lidar/
+    ├── gnss/
+    ├── imu/
+    ├── integration/
+    └── fusion/
 ```
 
 ## Policy

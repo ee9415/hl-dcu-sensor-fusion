@@ -9,3 +9,18 @@
 - Topic Hz result
 - TF tree result
 - RViz screenshot
+
+## Structure
+
+```text
+verification/
+├── camera/
+├── lidar/
+├── gnss/
+├── imu/
+├── integration/
+└── fusion/
+```
+
+센서별 개별검증 결과를 먼저 기록하고, 4종 통합검증과 fusion 검증 결과는 별도
+폴더에 기록한다.
