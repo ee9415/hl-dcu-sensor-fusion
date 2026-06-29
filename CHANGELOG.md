@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+### Added (2026-06-29, 작업환경 정리)
+
+- `AGENT.md` 섹션 2 "Working Directory" 추가
+  - 모든 작업 파일은 프로젝트 루트 안에 작성하도록 명문화
+  - 임시 디렉토리(`~/halla_sensor_ws` 등) 사용 금지 규칙 추가
+  - Mandatory Work Order에 8단계 "커밋 및 푸시" 추가
+- `~/halla_sensor_ws` 임시 작업 파일 삭제 (프로젝트에 이미 반영 완료)
+
 ### Added (2026-06-29)
 
 - `src/` 디렉토리 생성 및 센서별 패키지 뼈대 추가
