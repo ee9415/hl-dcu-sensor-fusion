@@ -7,6 +7,24 @@
 
 ## [Unreleased]
 
+### Added (2026-06-29, ROS2 토픽 검증)
+
+- `src/hl_camera_bringup/hl_camera_bringup/yolov6n_node.py` — ROS2 Python 노드
+  - `/oak/rgb/image_raw` (`sensor_msgs/Image`) 발행
+  - `/oak/detections` (`vision_msgs/Detection2DArray`) 발행
+  - depthai 파이프라인을 별도 스레드로 실행, ROS2 spin과 분리
+  - device_ip, blob_path 등 ROS2 파라미터로 설정 가능
+- `src/hl_camera_bringup/package.xml`, `setup.py`, `setup.cfg` — ament_python 패키지 구성
+- blob을 `share/hl_camera_bringup/blobs/`에 설치하여 `get_package_share_directory`로 접근
+
+### Verification (2026-06-29, ROS2 토픽)
+
+- `colcon build`: **통과**
+- `ros2 run hl_camera_bringup yolov6n_node`: **정상 실행**
+- `/oak/rgb/image_raw` 발행률: **29.996 Hz**
+- `/oak/detections` 발행률: **29.928 Hz**
+- `ros2 topic echo /oak/detections --once`: class_id, score, bbox 정상 수신
+
 ### Added (2026-06-29, 작업환경 정리)
 
 - `AGENT.md` 섹션 2 "Working Directory" 추가

@@ -46,7 +46,7 @@
 
 | Sensor | Package Plan | Status | Required Verification |
 | --- | --- | --- | --- |
-| Camera | `hl_camera_bringup` | 진행 중 | VPU 추론 검증 완료 / ROS2 노드, 6대 확장, TF, RViz 미완 |
+| Camera | `hl_camera_bringup` | 진행 중 | ROS2 토픽 발행 검증 완료 / 6대 확장, TF, RViz 미완 |
 | LiDAR | `hl_lidar_bringup` | 미구현 | point cloud topic, Hz, frame, RViz |
 | GNSS | `hl_gnss_bringup` | 미구현 | fix/status topic, timestamp, frame |
 | IMU | `hl_imu_bringup` | 미구현 | imu topic, Hz, orientation convention, frame |

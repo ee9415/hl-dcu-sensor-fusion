@@ -171,10 +171,79 @@ Script: `src/hl_camera_bringup/scripts/yolov6n_display.py`
 - On-device YOLOv6n detection: **working**
 - Live display with bounding boxes: **confirmed**
 
+## ROS2 Topic Publishing Test
+
+Date: 2026-06-29
+
+### Purpose
+
+Verify that YOLOv6n inference results are published as ROS2 topics and
+correctly received by a subscriber.
+
+### Node
+
+Package: `hl_camera_bringup`
+Node: `yolov6n_node`
+Entry point: `ros2 run hl_camera_bringup yolov6n_node`
+
+### Published Topics
+
+| Topic | Type | Rate |
+| --- | --- | --- |
+| `/oak/rgb/image_raw` | `sensor_msgs/Image` | ~30 Hz |
+| `/oak/detections` | `vision_msgs/Detection2DArray` | ~30 Hz |
+
+### Verification Commands
+
+```bash
+ros2 topic list
+ros2 topic hz /oak/rgb/image_raw --window 30
+ros2 topic hz /oak/detections --window 30
+ros2 topic echo /oak/detections --once
+```
+
+### Results
+
+Topic list:
+
+```
+/oak/detections
+/oak/rgb/image_raw
+/parameter_events
+/rosout
+```
+
+Publish rates:
+
+- `/oak/rgb/image_raw`: average **29.996 Hz**  (min 0.030 s, max 0.036 s)
+- `/oak/detections`:   average **29.928 Hz**  (min 0.031 s, max 0.036 s)
+
+Sample detection output (`/oak/detections`):
+
+```
+detections:
+- results: [{class_id: tvmonitor, score: 0.900}]
+  bbox: {center: {x: 116.4, y: 274.0}, size_x: 60.1, size_y: 58.3}
+- results: [{class_id: person, score: 0.899}]
+  bbox: {center: {x: 171.7, y: 306.7}, size_x: 107.4, size_y: 91.1}
+- results: [{class_id: tvmonitor, score: 0.883}]
+  bbox: {center: {x: 89.3, y: 344.3}, size_x: 57.0, size_y: 52.4}
+- results: [{class_id: laptop, score: 0.794}]
+  bbox: {center: {x: 273.9, y: 371.0}, size_x: 196.4, size_y: 88.5}
+frame_id: oak_rgb_camera_optical_frame
+```
+
+### Result
+
+- ROS2 node 실행: **확인**
+- 토픽 발행: **확인** (`/oak/rgb/image_raw`, `/oak/detections`)
+- 발행률: **~30 Hz** (안정적)
+- 수신 데이터: **정상** (class_id, score, bbox 포함)
+
 ## Recommended Next Steps
 
 - Keep `oak_poe_single_test.yaml` as the baseline functional test.
 - Use `oak_poe_rgb_low_latency.yaml` when visual display latency matters.
 - Add a formal `hl_camera_bringup` launch file after the package structure is created.
-- Wrap `yolov6n_display.py` as a ROS2 node publishing detection results.
+- ~~Wrap `yolov6n_display.py` as a ROS2 node publishing detection results.~~ **완료**
 - Record future camera mounting position, frame name, and calibration data.
