@@ -12,6 +12,16 @@ docs/
 ├── README.md
 ├── architecture/
 ├── operation/
+├── sensor_alignment/          ← 센서 정렬 및 카메라 브라켓 설계
+│   ├── README.md
+│   ├── 01_alignment_overview.md
+│   ├── 02_mechanical_design.md
+│   ├── 03_camera_bracket.md
+│   ├── 04_calibration_procedure.md
+│   ├── 05_software_calibration.md
+│   ├── 06_research_vehicle_structure.md
+│   ├── 07_vs_production.md
+│   └── 08_future_work.md
 └── verification/
     ├── camera/
     ├── lidar/
