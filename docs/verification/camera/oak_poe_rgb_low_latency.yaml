@@ -1,0 +1,27 @@
+/oak:
+  ros__parameters:
+    camera:
+      i_ip: 192.168.200.31
+      i_enable_imu: false
+      i_enable_ir: false
+      i_nn_type: none
+      i_pipeline_type: RGB
+    rgb:
+      i_resolution: '1080P'
+      i_fps: 30.0
+      i_set_isp_scale: true
+      i_isp_num: 2
+      i_isp_den: 3
+      i_width: 1280
+      i_height: 720
+      i_output_isp: true
+      i_low_bandwidth: true
+      i_low_bandwidth_frame_freq: 30
+      i_low_bandwidth_quality: 70
+      i_max_q_size: 1
+      i_publish_compressed: false
+    oak:
+      rgb:
+        image_raw:
+          enable_pub_plugins:
+            - image_transport/raw
