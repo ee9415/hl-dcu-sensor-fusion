@@ -117,9 +117,64 @@ Upgrading is advised, flashing main/factory (not user) bootloader. Available: 0.
 The camera can take extra time to reconnect after restarting the driver.
 Bootloader update should be considered before field operation.
 
+## YOLOv6n VPU Inference Test
+
+Date: 2026-06-29
+
+### Purpose
+
+Verify that on-device Myriad X VPU inference runs correctly on OAK-D Pro PoE
+using a Luxonis pre-converted YOLOv6n (COCO) blob.
+
+### Environment
+
+- depthai: `2.30.0.0`
+- blobconverter: installed (Luxonis depthai zoo accessible)
+- Model: `yolov6n_coco_416x416_openvino_2022.1_6shave.blob`
+- Source: Luxonis depthai model zoo (`zoo_type="depthai"`)
+- Shaves: 6
+- Input: 416×416 BGR
+- Classes: 80 (COCO), anchor-free
+
+### Model Parameters
+
+```
+num_classes:         80
+coordinates:         4
+anchors:             []
+anchor_masks:        {}
+iou_threshold:       0.5
+confidence_threshold: 0.5
+```
+
+### Terminal Inference Test
+
+Script: `src/hl_camera_bringup/scripts/yolov6n_infer_test.py`
+
+- Frames tested: 100
+- Total elapsed: 3.4 s
+- Average FPS: **29.8**
+- Sample detection: `chair` 0.91–0.92 confidence
+
+### Live Display Test
+
+Script: `src/hl_camera_bringup/scripts/yolov6n_display.py`
+
+- Bounding boxes rendered on RGB frame via OpenCV (`cv2.imshow`)
+- FPS overlay displayed on frame
+- Display confirmed on `DISPLAY=:0`
+- Window size: 832×832 (2× input resolution)
+
+### Result
+
+- VPU inference: **confirmed**
+- On-device YOLOv6n detection: **working**
+- Live display with bounding boxes: **confirmed**
+
 ## Recommended Next Steps
 
 - Keep `oak_poe_single_test.yaml` as the baseline functional test.
 - Use `oak_poe_rgb_low_latency.yaml` when visual display latency matters.
 - Add a formal `hl_camera_bringup` launch file after the package structure is created.
+- Wrap `yolov6n_display.py` as a ROS2 node publishing detection results.
 - Record future camera mounting position, frame name, and calibration data.

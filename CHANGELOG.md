@@ -7,7 +7,35 @@
 
 ## [Unreleased]
 
-### Added
+### Added (2026-06-29)
+
+- `src/` 디렉토리 생성 및 센서별 패키지 뼈대 추가
+  - `src/hl_camera_bringup/scripts/` — 카메라 검증 스크립트
+  - `src/hl_lidar_bringup/scripts/` — (미작성)
+  - `src/hl_gnss_bringup/scripts/` — (미작성)
+  - `src/hl_imu_bringup/scripts/` — (미작성)
+- `src/hl_camera_bringup/scripts/yolov6n_infer_test.py` — Myriad X VPU 추론 터미널 검증 스크립트
+- `src/hl_camera_bringup/scripts/yolov6n_display.py` — 바운딩박스 오버레이 라이브 디스플레이 스크립트
+- `src/hl_camera_bringup/blobs/yolov6n_coco_416x416_openvino_2022.1_6shave.blob` — Luxonis 사전변환 YOLOv6n blob (COCO 80클래스)
+
+### Changed (2026-06-29)
+
+- `PROJECT_STATUS.md` — Phase 1 상태 `미시작` → `진행 중`, Camera 상태 업데이트
+- `docs/verification/camera/oak_poe_single_test_log.md` — YOLOv6n VPU 추론 및 라이브 디스플레이 검증 결과 추가
+
+### Verification (2026-06-29)
+
+- YOLOv6n 터미널 추론: **통과** — 29.8 fps, Myriad X VPU 동작 확인
+- YOLOv6n 라이브 디스플레이: **통과** — 바운딩박스 오버레이 화면 출력 확인
+- ROS2 빌드 검증: 수행 불가 (ROS2 패키지 미완)
+
+### Compatibility
+
+- 기존 Namespace, Topic, TF, Driver 구현 없음 — 호환성 영향 없음
+
+---
+
+### Added (초기)
 
 - 프로젝트 초기 문서 구조 작성
 - `AGENT.md` 작업 기준 문서 추가
@@ -17,16 +45,16 @@
 - 센서별 개별검증, 4종 통합검증, Fusion 단계 구조 추가
 - `docs/verification/` 하위 센서별 검증 기록 폴더 추가
 
-### Changed
+### Changed (초기)
 
 - `README.md`를 ROS2 센서 통합 플랫폼 기준 문서로 확장
 - 권장 ROS2 패키지 구조를 개별검증, 통합검증, Fusion 흐름에 맞게 조정
 
-### Verification
+### Verification (초기)
 
 - ROS2 빌드 검증: 수행 불가
 - 사유: 현재 저장소에 ROS2 패키지가 없음
 
-### Compatibility
+### Compatibility (초기)
 
 - 기존 Namespace, Topic, TF, Driver 구현이 없어 호환성 변경 없음

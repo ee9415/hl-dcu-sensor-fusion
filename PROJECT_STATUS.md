@@ -13,9 +13,9 @@
 | --- | --- | --- |
 | README.md | 존재 | 저장소 루트에서 확인 |
 | AGENT.md | 작성됨 | AI 작업 기준 문서 추가 |
-| ROS2 package | 없음 | `src/` 폴더 없음 |
+| ROS2 package | 없음 | `src/` 폴더 구조 생성됨, ROS2 패키지 미완 |
 | Launch | 없음 | launch 파일 없음 |
-| Driver wrapper | 없음 | 소스 코드 없음 |
+| Driver wrapper | 없음 | 검증 스크립트 존재, ROS2 노드 미완 |
 | Sensor config | 없음 | config 파일 없음 |
 | TF definition | 없음 | TF 문서 외 구현 없음 |
 | RViz config | 없음 | rviz 파일 없음 |
@@ -37,7 +37,7 @@
 
 | Phase | 목표 | 상태 | 완료 기준 |
 | --- | --- | --- | --- |
-| Phase 1 | 센서별 개별검증 | 미시작 | 센서별 topic, Hz, TF, RViz 검증 기록 |
+| Phase 1 | 센서별 개별검증 | 진행 중 | 센서별 topic, Hz, TF, RViz 검증 기록 |
 | Phase 2 | 4종 통합검증 | 미시작 | 통합 launch, namespace, TF tree, RViz 검증 |
 | Phase 3 | Fusion 준비 | 미시작 | 입력 topic, timestamp, QoS, calibration 기준 확정 |
 | Phase 4 | Fusion 구현 | 미시작 | fusion node build, launch, output topic 검증 |
@@ -46,7 +46,7 @@
 
 | Sensor | Package Plan | Status | Required Verification |
 | --- | --- | --- | --- |
-| Camera | `hl_camera_bringup` | 미구현 | 6대 인식, image topic, Hz, frame, RViz |
+| Camera | `hl_camera_bringup` | 진행 중 | VPU 추론 검증 완료 / ROS2 노드, 6대 확장, TF, RViz 미완 |
 | LiDAR | `hl_lidar_bringup` | 미구현 | point cloud topic, Hz, frame, RViz |
 | GNSS | `hl_gnss_bringup` | 미구현 | fix/status topic, timestamp, frame |
 | IMU | `hl_imu_bringup` | 미구현 | imu topic, Hz, orientation convention, frame |
