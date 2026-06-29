@@ -1,0 +1,16 @@
+/oak:
+  ros__parameters:
+    camera:
+      i_ip: 192.168.200.31
+      i_enable_imu: true
+      i_enable_ir: false
+      i_nn_type: none
+      i_pipeline_type: RGBD
+    rgb:
+      i_low_bandwidth: true
+    left:
+      i_low_bandwidth: true
+    right:
+      i_low_bandwidth: true
+    stereo:
+      i_low_bandwidth: true
