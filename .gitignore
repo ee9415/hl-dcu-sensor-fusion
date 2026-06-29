@@ -1,0 +1,45 @@
+# colcon build artifacts
+build/
+install/
+log/
+.colcon_cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+.eggs/
+
+# C/C++ compiled objects
+*.o
+*.a
+*.so
+*.so.*
+*.out
+*.elf
+
+# ROS2
+*.devel/
+devel/
+.catkin_workspace
+
+# Logs
+*.log
+*.rosout
+ros2_log*/
+
+# IDE / OS
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Temporary
+*.tmp
+*.bak
+*.orig
