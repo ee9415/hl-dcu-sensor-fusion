@@ -2,10 +2,13 @@
 
 ## 1. Summary
 
-작성일: 2026-06-26
+작성일: 2026-06-30
 
-현재 저장소는 초기 문서화 단계이다. ROS2 패키지, launch 파일, driver 래퍼,
-센서 설정 파일, RViz 설정, TF 설정은 아직 존재하지 않는다.
+현재 저장소는 초기 문서화 단계에서 카메라 개별검증 구현 단계로 진입했다.
+`hl_camera_bringup` ament_python 패키지와 OAK-D Pro PoE YOLOv6n ROS2 노드가
+작성되었고, 2026-06-29 기준 단일 카메라 런타임 검증이 완료되었다.
+
+launch 파일, 센서 설정 파일, RViz 설정, TF 설정은 아직 존재하지 않는다.
 
 ## 2. Repository Status
 
@@ -13,9 +16,9 @@
 | --- | --- | --- |
 | README.md | 존재 | 저장소 루트에서 확인 |
 | AGENT.md | 작성됨 | AI 작업 기준 문서 추가 |
-| ROS2 package | 없음 | `src/` 폴더 구조 생성됨, ROS2 패키지 미완 |
+| ROS2 package | 일부 존재 | `src/hl_camera_bringup` ament_python 패키지 작성됨 |
 | Launch | 없음 | launch 파일 없음 |
-| Driver wrapper | 없음 | 검증 스크립트 존재, ROS2 노드 미완 |
+| Driver wrapper | 일부 존재 | `yolov6n_node.py`로 OAK-D Pro PoE + YOLOv6n ROS2 노드 작성 |
 | Sensor config | 없음 | config 파일 없음 |
 | TF definition | 없음 | TF 문서 외 구현 없음 |
 | RViz config | 없음 | rviz 파일 없음 |
@@ -24,7 +27,7 @@
 
 | 영역 | 상태 | 비고 |
 | --- | --- | --- |
-| Camera | 미구현 | OAK-D Pro PoE 6대 기준 문서화 필요 |
+| Camera | 진행 중 | OAK-D Pro PoE 1대 ROS2 노드 및 YOLOv6n VPU 검증 완료, 6대 확장 미완 |
 | LiDAR | 미구현 | Livox Mid-360S driver 연동 방식 결정 필요 |
 | GNSS | 미구현 | Septentrio Mosaic-go ROS2 연동 방식 결정 필요 |
 | IMU | 미구현 | Xsens MTi-630 ROS2 driver 연동 방식 결정 필요 |
@@ -46,7 +49,7 @@
 
 | Sensor | Package Plan | Status | Required Verification |
 | --- | --- | --- | --- |
-| Camera | `hl_camera_bringup` | 진행 중 | ROS2 토픽 발행 검증 완료 / 6대 확장, TF, RViz 미완 |
+| Camera | `hl_camera_bringup` | 진행 중 | 단일 카메라 ROS2 노드 및 YOLOv6n VPU 검증 완료 / 6대 확장, launch, TF, RViz 미완 |
 | LiDAR | `hl_lidar_bringup` | 미구현 | point cloud topic, Hz, frame, RViz |
 | GNSS | `hl_gnss_bringup` | 미구현 | fix/status topic, timestamp, frame |
 | IMU | `hl_imu_bringup` | 미구현 | imu topic, Hz, orientation convention, frame |
@@ -65,24 +68,25 @@
 
 | 검증 항목 | 결과 | 사유 |
 | --- | --- | --- |
-| Build | 수행 불가 | ROS2 패키지 없음 |
+| Build | 통과 | 2026-06-29 `hl_camera_bringup` 기준 `colcon build` 통과 기록 |
 | Launch | 수행 불가 | launch 파일 없음 |
-| Node | 수행 불가 | 실행 노드 없음 |
-| Topic | 수행 불가 | publish 노드 없음 |
+| Node | 일부 통과 | `ros2 run hl_camera_bringup yolov6n_node` 정상 실행 기록 |
+| Topic | 일부 통과 | 단일 OAK-D Pro PoE ROS2 발행 검증 기록 존재 |
 | TF | 수행 불가 | TF publisher 없음 |
-| Hz | 수행 불가 | Topic 없음 |
+| Hz | 일부 통과 | 단일 카메라 기준 약 30 Hz 발행 검증 기록 존재 |
 | RViz | 수행 불가 | RViz 설정 및 센서 데이터 없음 |
 
 ## 8. Immediate Next Steps
 
-1. Namespace, Topic, TF naming 기준 확정
-2. 네트워크 설계 확정
-3. 센서별 ROS2 driver 선정 및 버전 고정
-4. 센서별 개별검증 패키지 생성
-5. 센서별 launch 및 RViz 검증 환경 추가
-6. 센서별 Hz, TF, 데이터 수신 검증 기록
-7. 4종 통합 bringup 패키지 생성
-8. Fusion 입력 interface 확정
+1. 현재 카메라 코드 상태를 기준 문서와 동기화
+2. 카메라 6대 확장을 위한 장비별 IP, MX ID, 장착 위치 기록
+3. 카메라 launch 및 RViz 검증 환경 추가
+4. Namespace, Topic, TF naming 기준 확정
+5. 네트워크 설계 확정
+6. LiDAR, GNSS, IMU ROS2 driver 선정 및 버전 고정
+7. 센서별 개별검증 패키지 생성
+8. 4종 통합 bringup 패키지 생성
+9. Fusion 입력 interface 확정
 
 ## 9. Risk
 

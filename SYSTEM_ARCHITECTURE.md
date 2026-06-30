@@ -4,8 +4,8 @@
 
 이 문서는 HL DCU Sensor Fusion 프로젝트의 ROS2 시스템 구조를 정의한다.
 
-현재 저장소에는 구현된 ROS2 패키지가 없으므로, 본 문서는 목표 구조와 확정이
-필요한 항목을 분리하여 기록한다.
+현재 저장소에는 `hl_camera_bringup` 패키지가 구현되어 있으므로, 본 문서는
+현재 구현된 카메라 개별검증 구조와 향후 목표 구조를 분리하여 기록한다.
 
 ## 2. Current Architecture
 
@@ -23,10 +23,22 @@ hl-dcu-sensor-fusion/
 ├── TOPIC_LIST.md
 ├── SENSOR_CONFIGURATION.md
 ├── OPERATION_MANUAL.md
-└── docs/
+├── docs/
+└── src/
+    └── hl_camera_bringup/
+        ├── hl_camera_bringup/
+        │   └── yolov6n_node.py
+        ├── scripts/
+        │   ├── yolov6n_infer_test.py
+        │   └── yolov6n_display.py
+        ├── blobs/
+        ├── package.xml
+        ├── setup.py
+        └── setup.cfg
 ```
 
-ROS2 실행 아키텍처는 아직 구현되지 않았다.
+현재 ROS2 실행 아키텍처는 카메라 단일 노드 수준까지 구현되었다.
+통합 bringup, launch 계층, TF/URDF, RViz 설정은 아직 구현되지 않았다.
 
 ## 3. Development Architecture
 
@@ -88,7 +100,7 @@ src/
 
 | 패키지 | 목적 | 근거 |
 | --- | --- | --- |
-| `hl_camera_bringup` | OAK-D Pro PoE 6대 개별검증 | 카메라 수량이 많아 개별 검증 단위가 필요 |
+| `hl_camera_bringup` | OAK-D Pro PoE 개별검증 및 YOLOv6n VPU 추론 | 단일 카메라 검증 완료, 6대 확장 필요 |
 | `hl_lidar_bringup` | Livox Mid-360S 개별검증 | point cloud 수신, frame, Hz 확인 필요 |
 | `hl_gnss_bringup` | Septentrio Mosaic-go 개별검증 | 위치, 시간, 보정 데이터 확인 필요 |
 | `hl_imu_bringup` | Xsens MTi-630 개별검증 | orientation, angular velocity, acceleration 확인 필요 |
@@ -105,6 +117,9 @@ src/
 | 개별검증 | 센서별 bringup package | 해당 센서 driver, config, RViz |
 | 통합검증 | `hl_sensor_bringup` | 4종 센서 launch include, 공통 TF, RViz |
 | Fusion | `hl_sensor_fusion` | fusion node, 입력 remap, diagnostics |
+
+현재 `hl_camera_bringup`에는 launch 파일이 없으며, `ros2 run` 기반 단일 노드 실행만
+검증되어 있다. Launch 계층은 카메라 6대 확장 기준이 정리된 뒤 추가한다.
 
 ## 7. Open Decisions
 

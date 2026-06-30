@@ -5,8 +5,9 @@
 이 문서는 현장 운영자가 ROS2 센서 통합 시스템을 실행, 확인, 종료하는 절차를
 정의한다.
 
-현재 저장소에는 실행 가능한 launch 파일이 없으므로 실제 운영 절차는 아직
-제공할 수 없다.
+현재 저장소에는 실행 가능한 launch 파일은 없지만, 단일 OAK-D Pro PoE 카메라용
+`hl_camera_bringup` ROS2 노드는 작성되어 있다. 실제 현장 운영 절차는 launch와
+다중 센서 설정이 추가된 뒤 확정한다.
 
 ## 2. Pre-Operation Checklist
 
@@ -17,8 +18,8 @@
 | PoE switch 연결 | 미정 |
 | Network IP 설정 | 미정 |
 | ROS Domain ID | 미정 |
-| Driver 설치 | 미정 |
-| Workspace build | 미정 |
+| Driver 설치 | Camera 단일 검증 환경에서 확인됨 |
+| Workspace build | Camera 패키지 기준 2026-06-29 통과 기록 |
 
 ## 3. Planned Operation Flow
 
@@ -46,7 +47,15 @@
 
 ## 4. Planned Commands
 
-구현 후 아래 명령을 실제 패키지명에 맞게 확정한다.
+현재 단일 카메라 검증 노드는 다음 방식으로 실행한 기록이 있다.
+
+```bash
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 run hl_camera_bringup yolov6n_node
+```
+
+통합 운영용 launch는 구현 후 아래 명령을 실제 패키지명에 맞게 확정한다.
 
 ```bash
 source /opt/ros/humble/setup.bash

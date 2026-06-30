@@ -7,6 +7,16 @@
 
 ## [Unreleased]
 
+### Changed (2026-06-30, 문서 상태 동기화)
+
+- `README.md`, `PROJECT_STATUS.md`, `SYSTEM_ARCHITECTURE.md`를 현재 코드 상태에 맞게 갱신
+  - `hl_camera_bringup` ament_python 패키지 존재 반영
+  - OAK-D Pro PoE YOLOv6n ROS2 노드 구현 및 단일 카메라 검증 상태 반영
+  - launch, TF, RViz, 6대 확장은 미완으로 구분
+- `SENSOR_CONFIGURATION.md`, `NETWORK.md`에 단일 카메라 검증에서 확인된 장비 정보를 반영
+- `OPERATION_MANUAL.md`에 현재 실행 가능한 단일 카메라 노드 기준 명령을 추가
+- Topic 기준 문서(`TOPIC_LIST.md`)는 향후 별도 작업 대상으로 두고 변경하지 않음
+
 ### Added (2026-06-29, ROS2 토픽 검증)
 
 - `src/hl_camera_bringup/hl_camera_bringup/yolov6n_node.py` — ROS2 Python 노드
@@ -53,11 +63,11 @@
 
 - YOLOv6n 터미널 추론: **통과** — 29.8 fps, Myriad X VPU 동작 확인
 - YOLOv6n 라이브 디스플레이: **통과** — 바운딩박스 오버레이 화면 출력 확인
-- ROS2 빌드 검증: 수행 불가 (ROS2 패키지 미완)
+- ROS2 빌드 검증: **통과** — `hl_camera_bringup` ament_python 패키지 기준
 
 ### Compatibility
 
-- 기존 Namespace, Topic, TF, Driver 구현 없음 — 호환성 영향 없음
+- 기존 Namespace, TF 기준 구현 없음 — 호환성 영향 없음
 
 ---
 

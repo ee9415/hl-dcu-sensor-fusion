@@ -8,19 +8,20 @@ Jetson Orin NX 환경에서 Camera, LiDAR, GNSS, IMU 센서를 ROS2 시스템으
 
 ## 1. Project Scope
 
-현재 저장소는 프로젝트 초기 문서화 단계입니다.
+현재 저장소는 초기 문서화 단계에서 카메라 개별검증 구현 단계로 진입했습니다.
 
 확인된 구현 상태:
 
-- ROS2 패키지: 없음
+- ROS2 패키지: `hl_camera_bringup` 작성됨
 - Launch 파일: 없음
-- Driver 래퍼 코드: 없음
+- Driver 래퍼 코드: OAK-D Pro PoE YOLOv6n ROS2 노드 작성됨
 - RViz 설정: 없음
 - TF 정의 파일: 없음
 - 센서별 설정 파일: 없음
 
-따라서 본 문서는 현재 저장소 상태를 기준으로 구조, 누락 항목, 향후 유지보수
-기준을 명확히 정의하기 위한 기준 문서입니다.
+따라서 본 문서는 현재 구현 상태를 기준으로 구조, 누락 항목, 향후 유지보수
+기준을 명확히 정의하기 위한 기준 문서입니다. Topic 이름과 TF 구조는 별도 기준
+문서에서 확정하기 전까지 임의로 확장하지 않습니다.
 
 ## 2. Target Environment
 
@@ -36,7 +37,7 @@ Jetson Orin NX 환경에서 Camera, LiDAR, GNSS, IMU 센서를 ROS2 시스템으
 
 | Sensor | Model | Quantity | Status |
 | --- | --- | ---: | --- |
-| Camera | OAK-D Pro PoE | 6 | 문서화 필요 |
+| Camera | OAK-D Pro PoE | 6 | 1대 개별검증 진행, 6대 확장 필요 |
 | LiDAR | Livox Mid-360S | 1 | 문서화 필요 |
 | GNSS | Septentrio Mosaic-go | 1 | 문서화 필요 |
 | IMU | Xsens MTi-630 | 1 | 문서화 필요 |
@@ -69,9 +70,9 @@ Jetson Orin NX 환경에서 Camera, LiDAR, GNSS, IMU 센서를 ROS2 시스템으
 
 ## 6. Proposed ROS2 Workspace Structure
 
-아래 구조는 현재 구현된 구조가 아니라, 향후 유지보수를 위해 권장하는 목표
-구조입니다. 실제 패키지 추가 전에는 Namespace, Topic, TF 기준을 먼저 확정해야
-합니다.
+아래 구조는 현재 일부만 구현된 목표 구조입니다. 현재는 `hl_camera_bringup`만
+ament_python 패키지로 작성되어 있으며, 다른 패키지는 아직 미작성입니다.
+추가 패키지 구현 전에는 Namespace, Topic, TF 기준을 먼저 확정해야 합니다.
 
 ```text
 hl-dcu-sensor-fusion/
@@ -92,14 +93,14 @@ hl-dcu-sensor-fusion/
 │   └── verification/
 └── src/
     ├── hl_camera_bringup/
-    ├── hl_lidar_bringup/
-    ├── hl_gnss_bringup/
-    ├── hl_imu_bringup/
-    ├── hl_sensor_bringup/
-    ├── hl_sensor_description/
-    ├── hl_sensor_config/
-    ├── hl_sensor_diagnostics/
-    └── hl_sensor_fusion/
+    ├── hl_lidar_bringup/          # 미작성
+    ├── hl_gnss_bringup/           # 미작성
+    ├── hl_imu_bringup/            # 미작성
+    ├── hl_sensor_bringup/         # 미작성
+    ├── hl_sensor_description/     # 미작성
+    ├── hl_sensor_config/          # 미작성
+    ├── hl_sensor_diagnostics/     # 미작성
+    └── hl_sensor_fusion/          # 미작성
 ```
 
 구조 원칙:
@@ -123,7 +124,9 @@ hl-dcu-sensor-fusion/
 - TF tree 연결 상태
 - RViz 표시 상태
 
-현재는 ROS2 패키지가 없으므로 빌드 및 런타임 검증은 수행할 수 없습니다.
+현재 `hl_camera_bringup` 패키지는 2026-06-29 기준 `colcon build` 통과와
+OAK-D Pro PoE 1대 런타임 검증이 기록되어 있습니다. 다만 launch, TF, RViz,
+다중 카메라 확장 검증은 아직 수행되지 않았습니다.
 
 ## 8. Maintenance Rule
 
