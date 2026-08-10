@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OAK-D 6 Camera Console</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #071019;
+      --panel: #0d1b27;
+      --line: #24384a;
+      --text: #ecf4fa;
+      --muted: #8ca2b5;
+      --accent: #27c2a3;
+      --record: #ef5350;
+      --warning: #ffbd4a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: radial-gradient(circle at top, #102535 0, var(--bg) 42rem);
+      color: var(--text);
+      font-family: Inter, "Noto Sans KR", system-ui, sans-serif;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 16, 25, .94);
+      backdrop-filter: blur(12px);
+    }
+    .header-row, .controls, .playback-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .header-row { justify-content: space-between; }
+    h1 { margin: 0; font-size: 20px; letter-spacing: .02em; }
+    .subtitle { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    button, select {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      background: #132534;
+      padding: 0 12px;
+      font: inherit;
+    }
+    button { cursor: pointer; font-weight: 700; }
+    button:hover:not(:disabled) { border-color: #567189; transform: translateY(-1px); }
+    button:disabled { opacity: .42; cursor: not-allowed; }
+    .record-start { background: #183c35; border-color: #246b5b; }
+    .record-stop { background: #472124; border-color: #8e3639; }
+    .live-button.active, .play-button.active { box-shadow: 0 0 0 2px var(--accent) inset; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+    .dot.recording { background: var(--record); animation: pulse 1.1s infinite; }
+    @keyframes pulse { 50% { opacity: .3; } }
+    .toolbar {
+      max-width: 1500px;
+      margin: 12px auto 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    main { max-width: 1500px; margin: 18px auto 60px; padding: 0 16px; }
+    .camera-row { display: grid; gap: 14px; margin-bottom: 14px; }
+    .camera-row.single { grid-template-columns: minmax(300px, 760px); justify-content: center; }
+    .camera-row.double { grid-template-columns: repeat(2, minmax(280px, 1fr)); }
+    .camera-panel {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: linear-gradient(145deg, #102230, var(--panel));
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .22);
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .slot-label { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .camera-select { width: 145px; min-height: 32px; padding: 0 8px; }
+    .media {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      display: grid;
+      place-items: center;
+      background: #02070b;
+    }
+    .media img, .media video { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .overlay {
+      position: absolute;
+      left: 10px;
+      bottom: 9px;
+      padding: 4px 7px;
+      border-radius: 6px;
+      color: #d9e8f2;
+      background: rgba(0, 0, 0, .58);
+      font-size: 11px;
+      pointer-events: none;
+    }
+    .message {
+      min-height: 22px;
+      margin: 10px auto 0;
+      max-width: 1500px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .message.error { color: #ff8e8e; }
+    .message.warning { color: var(--warning); }
+    @media (max-width: 760px) {
+      header { padding: 12px; }
+      main { padding: 0 8px; }
+      .camera-row.double { grid-template-columns: 1fr; }
+      .toolbar { display: block; }
+      .playback-controls { margin-top: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>OAK-D 6 Camera Console</h1>
+        <div class="subtitle">DCU 192.168.201.4 · 320×320 · 1 / 2 / 2 / 1 Layout</div>
+      </div>
+      <div class="controls">
+        <div class="status-pill"><span id="statusDot" class="dot"></span><span id="statusText">연결 확인 중</span></div>
+        <div class="status-pill"><span id="accessText">접속 권한 확인 중</span></div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <div class="controls">
+        <button id="liveButton" class="live-button active">실시간 보기</button>
+        <button id="startButton" class="record-start">녹화 시작</button>
+        <button id="stopButton" class="record-stop" disabled>녹화 정지</button>
+      </div>
+      <div class="playback-controls">
+        <label for="sessionSelect">녹화 디렉터리</label>
+        <select id="sessionSelect"><option value="">선택</option></select>
+        <button id="refreshButton">목록 새로고침</button>
+        <button id="playButton" class="play-button">6개 동시 재생</button>
+      </div>
+    </div>
+    <div id="message" class="message">실시간 preview를 준비하고 있습니다.</div>
+  </header>
+
+  <main id="cameraLayout">
+    <section class="camera-row single" data-row="1"></section>
+    <section class="camera-row double" data-row="2"></section>
+    <section class="camera-row double" data-row="3"></section>
+    <section class="camera-row single" data-row="4"></section>
+  </main>
+
+  <script>
+    "use strict";
+    const cameras = ["cam_01", "cam_02", "cam_03", "cam_04", "cam_05", "cam_06"];
+    const rowSlots = [[0], [1, 2], [3, 4], [5]];
+    const state = {
+      mode: "live",
+      session: "",
+      playbackReady: false,
+      playbackStarting: false,
+      status: null,
+      snapshotGeneration: 0,
+    };
+    const panels = [];
+
+    function setMessage(text, kind = "") {
+      const element = document.getElementById("message");
+      element.textContent = text;
+      element.className = `message ${kind}`;
+    }
+
+    function cameraOptions(selected) {
+      return cameras.map(camera =>
+        `<option value="${camera}" ${camera === selected ? "selected" : ""}>${camera}</option>`
+      ).join("");
+    }
+
+    function createPanel(slotIndex) {
+      const panel = document.createElement("article");
+      panel.className = "camera-panel";
+      panel.innerHTML = `
+        <div class="panel-head">
+          <span class="slot-label">화면 ${slotIndex + 1}</span>
+          <select class="camera-select" aria-label="화면 ${slotIndex + 1} 카메라 선택">
+            ${cameraOptions(cameras[slotIndex])}
+          </select>
+        </div>
+        <div class="media"></div>`;
+      const model = {
+        root: panel,
+        select: panel.querySelector("select"),
+        media: panel.querySelector(".media"),
+        camera: cameras[slotIndex],
+      };
+      model.select.addEventListener("change", () => {
+        model.camera = model.select.value;
+        renderPanel(model);
+      });
+      panels[slotIndex] = model;
+      renderPanel(model);
+      return panel;
+    }
+
+    function buildLayout() {
+      const rows = document.querySelectorAll(".camera-row");
+      rowSlots.forEach((slots, rowIndex) => {
+        slots.forEach(slot => rows[rowIndex].appendChild(createPanel(slot)));
+      });
+    }
+
+    function renderPanel(panel) {
+      panel.media.replaceChildren();
+      if (state.mode === "live") {
+        const image = document.createElement("img");
+        image.alt = `${panel.camera} 실시간 preview`;
+        const overlay = document.createElement("span");
+        overlay.className = "overlay";
+        overlay.textContent = `${panel.camera} · LIVE`;
+        panel.media.append(image, overlay);
+        scheduleSnapshot(panel, image, state.snapshotGeneration, 0);
+      } else {
+        const video = document.createElement("video");
+        video.controls = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = "auto";
+        if (state.playbackReady && state.session) {
+          video.src = `/playback/${encodeURIComponent(state.session)}/${panel.camera}.mp4`;
+        }
+        const overlay = document.createElement("span");
+        overlay.className = "overlay";
+        overlay.textContent = `${panel.camera} · ${state.session || "PLAYBACK"}`;
+        panel.media.append(video, overlay);
+      }
+    }
+
+    function scheduleSnapshot(panel, image, generation, delay) {
+      window.setTimeout(() => {
+        if (state.mode !== "live" || generation !== state.snapshotGeneration || !image.isConnected) return;
+        image.onload = () => scheduleSnapshot(panel, image, generation, 90);
+        image.onerror = () => scheduleSnapshot(panel, image, generation, 500);
+        image.src = `/snapshot/${encodeURIComponent(panel.camera)}?t=${Date.now()}`;
+      }, delay);
+    }
+
+    function renderAll() {
+      state.snapshotGeneration += 1;
+      panels.forEach(renderPanel);
+      document.getElementById("liveButton").classList.toggle("active", state.mode === "live");
+      document.getElementById("playButton").classList.toggle("active", state.mode === "playback");
+    }
+
+    function waitForPlayable(video) {
+      if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const timeout = window.setTimeout(() => finish(new Error("재생 파일 로드 시간 초과")), 15000);
+        const finish = error => {
+          window.clearTimeout(timeout);
+          video.removeEventListener("canplay", onCanPlay);
+          video.removeEventListener("error", onError);
+          error ? reject(error) : resolve();
+        };
+        const onCanPlay = () => finish();
+        const onError = () => finish(new Error("재생 파일을 불러오지 못했습니다"));
+        video.addEventListener("canplay", onCanPlay, {once: true});
+        video.addEventListener("error", onError, {once: true});
+        video.load();
+      });
+    }
+
+    async function playAllVideos(restart = true) {
+      if (state.playbackStarting) return;
+      const videos = [...document.querySelectorAll(".media video")];
+      if (videos.length !== cameras.length) {
+        setMessage(`재생 화면 수가 올바르지 않습니다: ${videos.length}/6`, "error");
+        return;
+      }
+      state.playbackStarting = true;
+      try {
+        setMessage(`6개 영상 로드 중: ${state.session}`);
+        await Promise.all(videos.map(waitForPlayable));
+        videos.forEach(video => {
+          video.pause();
+          if (restart) video.currentTime = 0;
+        });
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const results = await Promise.allSettled(videos.map(video => video.play()));
+        const failed = results.filter(result => result.status === "rejected");
+        if (failed.length) throw new Error(`${failed.length}개 영상 재생을 시작하지 못했습니다`);
+        setMessage(`6개 영상 동시 재생 중: ${state.session}`);
+      } catch (error) {
+        setMessage(error.message, "error");
+      } finally {
+        state.playbackStarting = false;
+      }
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        headers: {"Content-Type": "application/json"},
+        ...options,
+      });
+      const value = await response.json();
+      if (!response.ok || value.ok === false) throw new Error(value.error || `HTTP ${response.status}`);
+      return value;
+    }
+
+    async function startRecording() {
+      try {
+        const value = await api("/api/recording/start", {method: "POST", body: "{}"});
+        setMessage(`녹화 시작: ${value.recording.session}`);
+        await updateStatus();
+        await refreshSessions();
+      } catch (error) { setMessage(error.message, "error"); }
+    }
+
+    async function stopRecording() {
+      try {
+        const value = await api("/api/recording/stop", {method: "POST", body: "{}"});
+        setMessage(`녹화 정지: ${value.recording.session}`);
+        await updateStatus();
+        await refreshSessions();
+      } catch (error) { setMessage(error.message, "error"); }
+    }
+
+    async function refreshSessions() {
+      try {
+        const value = await api("/api/sessions");
+        const select = document.getElementById("sessionSelect");
+        const previous = select.value;
+        select.innerHTML = `<option value="">선택</option>` + value.sessions.map(session =>
+          `<option value="${session.name}">${session.name} · ${session.camera_files}/6${session.playback_ready ? " · 준비됨" : ""}</option>`
+        ).join("");
+        if ([...select.options].some(option => option.value === previous)) select.value = previous;
+      } catch (error) { setMessage(error.message, "error"); }
+    }
+
+    async function preparePlayback() {
+      const session = document.getElementById("sessionSelect").value;
+      if (!session) { setMessage("재생할 녹화 디렉터리를 선택하세요.", "warning"); return; }
+      if (state.mode === "playback" && state.session === session && state.playbackReady) {
+        await playAllVideos(true);
+        return;
+      }
+      try {
+        state.mode = "playback";
+        state.session = session;
+        state.playbackReady = false;
+        renderAll();
+        const value = await api("/api/playback/prepare", {
+          method: "POST", body: JSON.stringify({session}),
+        });
+        setMessage(`재생 파일 준비 중: ${value.playback.completed}/${value.playback.total}`);
+        await updateStatus();
+      } catch (error) { setMessage(error.message, "error"); }
+    }
+
+    function showLive() {
+      state.mode = "live";
+      state.playbackReady = false;
+      renderAll();
+      setMessage("실시간 preview 모드");
+    }
+
+    async function updateStatus() {
+      try {
+        const query = state.session ? `?session=${encodeURIComponent(state.session)}` : "";
+        const value = await api(`/api/status${query}`);
+        state.status = value;
+        const recording = value.recording.active;
+        const access = value.access;
+        document.getElementById("startButton").disabled = recording || !access.can_start_recording;
+        document.getElementById("stopButton").disabled = !access.can_stop_recording;
+        document.getElementById("statusDot").classList.toggle("recording", recording);
+        document.getElementById("statusText").textContent = recording
+          ? `녹화 중 · ${value.recording.session}` : "LIVE · 녹화 대기";
+        const controlText = access.recording_controller
+          ? ` · 제어: ${access.recording_controller}` : "";
+        document.getElementById("accessText").textContent =
+          `${access.role_label} · 접속 ${access.connected_clients}/${access.max_clients}${controlText}`;
+        const messageElement = document.getElementById("message");
+        if (state.mode === "live" && messageElement.textContent === "실시간 preview를 준비하고 있습니다.") {
+          setMessage("6대 카메라 실시간 preview 정상");
+        }
+        if (state.mode === "playback" && value.playback.state === "converting") {
+          setMessage(`재생 파일 변환 중: ${value.playback.completed}/${value.playback.total}`);
+        } else if (state.mode === "playback" && value.playback.state === "ready" && !state.playbackReady) {
+          state.playbackReady = true;
+          renderAll();
+          await playAllVideos(true);
+        } else if (value.playback.state === "error") {
+          setMessage(value.playback.error || "재생 변환 실패", "error");
+        }
+      } catch (error) {
+        document.getElementById("statusText").textContent = "DCU 연결 오류";
+        document.getElementById("accessText").textContent = "접속 권한 확인 실패";
+        setMessage(error.message, "error");
+      }
+    }
+
+    document.getElementById("startButton").addEventListener("click", startRecording);
+    document.getElementById("stopButton").addEventListener("click", stopRecording);
+    document.getElementById("liveButton").addEventListener("click", showLive);
+    document.getElementById("refreshButton").addEventListener("click", refreshSessions);
+    document.getElementById("playButton").addEventListener("click", preparePlayback);
+
+    buildLayout();
+    refreshSessions();
+    updateStatus();
+    window.setInterval(updateStatus, 1000);
+    window.setInterval(refreshSessions, 10000);
+  </script>
+</body>
+</html>
