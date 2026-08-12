@@ -7,6 +7,19 @@
 
 ## [Unreleased]
 
+### Changed (2026-08-12, 6-camera Web UI layout)
+
+- 6-camera Web UI layout changed from `1 / 2 / 2 / 1` to `3 / 3`
+- Default camera order changed to top `cam_04 / cam_01 / cam_05`, bottom `cam_02 / cam_06 / cam_03`
+- Preview and playback panels changed to a cropped 16:9 view with tighter header, grid, and page spacing
+
+### Verification (2026-08-12, 6-camera Web UI layout)
+
+- `git diff --check`: passed
+- Local and DCU `web_ui/index.html` SHA-256 matched after deployment
+- DCU Web UI restart: passed; all six cameras reported approximately 10 FPS
+- Automated browser screenshot: not performed because no browser instance was available; visual confirmation is required on the operator display
+
 ### Changed (2026-06-30, 문서 상태 동기화)
 
 - `README.md`, `PROJECT_STATUS.md`, `SYSTEM_ARCHITECTURE.md`를 현재 코드 상태에 맞게 갱신

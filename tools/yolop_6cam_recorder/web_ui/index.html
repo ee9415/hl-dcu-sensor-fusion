@@ -28,7 +28,7 @@
       position: sticky;
       top: 0;
       z-index: 20;
-      padding: 14px 20px;
+      padding: 10px 16px;
       border-bottom: 1px solid var(--line);
       background: rgba(7, 16, 25, .94);
       backdrop-filter: blur(12px);
@@ -73,16 +73,15 @@
     @keyframes pulse { 50% { opacity: .3; } }
     .toolbar {
       max-width: 1500px;
-      margin: 12px auto 0;
+      margin: 8px auto 0;
       display: flex;
       justify-content: space-between;
       gap: 14px;
       flex-wrap: wrap;
     }
-    main { max-width: 1500px; margin: 18px auto 60px; padding: 0 16px; }
-    .camera-row { display: grid; gap: 14px; margin-bottom: 14px; }
-    .camera-row.single { grid-template-columns: minmax(300px, 760px); justify-content: center; }
-    .camera-row.double { grid-template-columns: repeat(2, minmax(280px, 1fr)); }
+    main { max-width: 1500px; margin: 10px auto 24px; padding: 0 12px; }
+    .camera-row { display: grid; gap: 8px; margin-bottom: 8px; }
+    .camera-row.triple { grid-template-columns: repeat(3, minmax(220px, 1fr)); }
     .camera-panel {
       min-width: 0;
       overflow: hidden;
@@ -96,19 +95,19 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      padding: 9px 10px;
+      padding: 6px 8px;
       border-bottom: 1px solid var(--line);
     }
     .slot-label { color: var(--muted); font-size: 12px; white-space: nowrap; }
     .camera-select { width: 145px; min-height: 32px; padding: 0 8px; }
     .media {
       position: relative;
-      aspect-ratio: 1 / 1;
+      aspect-ratio: 16 / 9;
       display: grid;
       place-items: center;
       background: #02070b;
     }
-    .media img, .media video { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .media img, .media video { width: 100%; height: 100%; object-fit: cover; display: block; }
     .overlay {
       position: absolute;
       left: 10px;
@@ -132,7 +131,7 @@
     @media (max-width: 760px) {
       header { padding: 12px; }
       main { padding: 0 8px; }
-      .camera-row.double { grid-template-columns: 1fr; }
+      .camera-row.triple { grid-template-columns: 1fr; }
       .toolbar { display: block; }
       .playback-controls { margin-top: 10px; }
     }
@@ -143,7 +142,7 @@
     <div class="header-row">
       <div>
         <h1>OAK-D 6 Camera Console</h1>
-        <div class="subtitle">DCU 192.168.201.4 · 320×320 · 1 / 2 / 2 / 1 Layout</div>
+        <div class="subtitle">DCU 192.168.201.4 · 320×320 · 3 / 3 Layout</div>
       </div>
       <div class="controls">
         <div class="status-pill"><span id="statusDot" class="dot"></span><span id="statusText">연결 확인 중</span></div>
@@ -167,16 +166,15 @@
   </header>
 
   <main id="cameraLayout">
-    <section class="camera-row single" data-row="1"></section>
-    <section class="camera-row double" data-row="2"></section>
-    <section class="camera-row double" data-row="3"></section>
-    <section class="camera-row single" data-row="4"></section>
+    <section class="camera-row triple" data-row="1"></section>
+    <section class="camera-row triple" data-row="2"></section>
   </main>
 
   <script>
     "use strict";
     const cameras = ["cam_01", "cam_02", "cam_03", "cam_04", "cam_05", "cam_06"];
-    const rowSlots = [[0], [1, 2], [3, 4], [5]];
+    const defaultCameras = ["cam_04", "cam_01", "cam_05", "cam_02", "cam_06", "cam_03"];
+    const rowSlots = [[0, 1, 2], [3, 4, 5]];
     const state = {
       mode: "live",
       session: "",
@@ -206,7 +204,7 @@
         <div class="panel-head">
           <span class="slot-label">화면 ${slotIndex + 1}</span>
           <select class="camera-select" aria-label="화면 ${slotIndex + 1} 카메라 선택">
-            ${cameraOptions(cameras[slotIndex])}
+            ${cameraOptions(defaultCameras[slotIndex])}
           </select>
         </div>
         <div class="media"></div>`;
@@ -214,7 +212,7 @@
         root: panel,
         select: panel.querySelector("select"),
         media: panel.querySelector(".media"),
-        camera: cameras[slotIndex],
+        camera: defaultCameras[slotIndex],
       };
       model.select.addEventListener("change", () => {
         model.camera = model.select.value;
