@@ -17,12 +17,13 @@ setup(
     zip_safe=True,
     maintainer='qsentech',
     maintainer_email='ee9415@gmail.com',
-    description='OAK-D Pro PoE camera bringup with YOLOv6n VPU inference',
+    description='OAK-D Pro PoE camera bringup with YOLOv6n / YOLOP VPU inference',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'yolov6n_node = hl_camera_bringup.yolov6n_node:main',
+            'yolop_node = hl_camera_bringup.yolop_node:main',
         ],
     },
 )
