@@ -1,5 +1,8 @@
 # 5. Software Calibration 적용 방법
 
+> 상태: 아래 interface와 수치는 설계/평가 후보이다. 현재 저장소에는 이를 실행할
+> calibration package와 TF publisher가 구현되어 있지 않다.
+
 ## 5.1 기계 정렬과 Software Calibration의 역할 분담
 
 | 구분 | 담당 | 허용 오차 | 특성 |
@@ -51,13 +54,13 @@ Calibration 전, 줄자·캘리퍼스로 측정한 초기값을 파라미터에 
 
 ```yaml
 # calibration/tf/initial_guess.yaml
-cam_front_center_near:
-  tx: 1.250   # 차량 전방 1.25 m
-  ty: 0.000
-  tz: 0.820   # 지면에서 0.82 m
-  roll: 0.0
-  pitch: 0.0
-  yaw: 0.0
+cam01_front_center_optical_frame:
+  tx: <MEASURED_X>
+  ty: <MEASURED_Y>
+  tz: <MEASURED_Z>
+  roll: <MEASURED_ROLL>
+  pitch: <MEASURED_PITCH>
+  yaw: <MEASURED_YAW>
 ```
 
 ## 5.4 ROS2에서의 적용 방법
@@ -73,10 +76,10 @@ Node(
     executable='static_transform_publisher',
     name='tf_cam_front_near',
     arguments=[
-        '1.250', '0.000', '0.820',   # tx ty tz
-        '0.000', '0.000', '0.000',   # roll pitch yaw (rad)
-        'sensor_mount_link',
-        'cam_front_center_near'
+        '<x>', '<y>', '<z>',
+        '<roll>', '<pitch>', '<yaw>',
+        '<parent_frame>',
+        'cam01_front_center_optical_frame'
     ]
 )
 ```
@@ -105,7 +108,7 @@ Node(
 운용 중 Calibration 결과 업데이트가 필요한 경우:
 
 ```bash
-ros2 param set /extrinsic_tf_publisher cam_front_center_near.yaw 0.017
+ros2 param set /extrinsic_tf_publisher cam01_front_center_optical_frame.yaw 0.017
 ```
 
 단, 운용 중 TF 변경은 다운스트림 알고리즘에 영향을 주므로 주의가 필요하다.
@@ -119,8 +122,8 @@ Calibration 완료 후 LiDAR 포인트를 카메라 이미지에 투영하여 �
 ```bash
 ros2 run sensor_fusion reprojection_eval \
   --lidar_topic /livox/lidar \
-  --camera_topic /cam_front_center_near/image_raw \
-  --camera_info /cam_front_center_near/camera_info \
+  --camera_topic /camera/cam01/image_raw \
+  --camera_info /camera/cam01/camera_info \
   --extrinsic calibration/tf/sensor_extrinsic.yaml
 ```
 
@@ -148,8 +151,8 @@ ros2 run sensor_fusion reprojection_eval \
 ```
 calibration/
 ├── intrinsic/
-│   ├── cam_front_center_near_intrinsic.yaml
-│   ├── cam_front_center_far_intrinsic.yaml
+│   ├── cam01_intrinsic.yaml
+│   ├── cam02_intrinsic.yaml
 │   └── ...
 ├── tf/
 │   ├── sensor_extrinsic.yaml          ← 현재 사용 중인 값

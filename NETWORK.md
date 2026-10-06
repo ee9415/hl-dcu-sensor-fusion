@@ -2,45 +2,33 @@
 
 ## 1. Purpose
 
-이 문서는 Jetson Orin NX와 센서 간 네트워크 구성을 기록한다.
+Jetson/DCU 관리망과 센서망에서 확인된 값과 미확정 값을 구분한다.
 
-현재 저장소에는 전체 센서 네트워크 설계값은 없다. 다만 OAK-D Pro PoE 단일
-카메라 검증에서 사용한 Host NIC와 카메라 IP는 검증 로그에 기록되어 있다.
-6대 카메라 및 LiDAR/GNSS/IMU 네트워크 값은 현장 확인 후 확정해야 한다.
+기준일: 2026-10-06
 
-## 2. Target Devices
+## 2. Confirmed Records
 
-| 장비 | 수량 | 네트워크 필요 여부 | 상태 |
-| --- | ---: | --- | --- |
-| OAK-D Pro PoE | 6 | 필요 | 1대 검증 IP 기록, 6대 전체 IP 미정 |
-| Livox Mid-360S | 1 | 필요 | IP 미정 |
-| Septentrio Mosaic-go | 1 | 필요 가능 | 연결 방식 미정 |
-| Xsens MTi-630 | 1 | 연결 방식 확인 필요 | USB/Ethernet 미정 |
+| Context | Host/DCU | Camera | Status |
+| --- | --- | --- | --- |
+| 2026-06-29 단일 ROS2 검증 | `eno2`, `192.168.200.40/24` | `192.168.200.31`, MX ID `1944301001E1761300` | 검증 기록 존재 |
+| 6-camera Web UI 관리 접속 | DCU `192.168.201.4` | 6대 MX ID 검색 방식 | 운영 문서에 기록 |
 
-## 3. Required Information
+`192.168.201.4`는 DCU 관리 주소이다. 이 값만으로 카메라 6대의 센서망 주소를
+추론하지 않는다.
+
+## 3. Open Network Items
 
 | 항목 | 상태 |
 | --- | --- |
-| Jetson NIC 이름 | 단일 카메라 검증: `eno2` |
-| 센서별 IP 주소 | 단일 카메라 검증: `192.168.200.31`, 전체 구성 미정 |
-| Subnet mask | 미정 |
-| Gateway | 미정 |
-| PoE switch 모델 | 미정 |
-| PTP/NTP 사용 여부 | 미정 |
-| 방화벽 정책 | 미정 |
-
-단일 카메라 검증 기록:
-
-| 항목 | 값 |
-| --- | --- |
-| Host interface | `eno2` |
-| Host IP | `192.168.200.40/24` |
-| Camera IP | `192.168.200.31` |
-| Camera MXID | `1944301001E1761300` |
+| 6대 카메라 개별 IP/subnet | 미정 |
+| Camera NIC와 관리 NIC의 분리 구성 | 현장 확인 필요 |
+| Livox IP/port | 미정 |
+| GNSS/IMU 연결 방식 | 미정 |
+| PoE switch 모델과 uplink 용량 | 미정 |
+| PTP/NTP/ROS time 기준 | 미정 |
+| VLAN, route, firewall | 미정 |
 
 ## 4. Verification Commands
-
-현장 환경에서 다음 명령으로 네트워크 상태를 검증한다.
 
 ```bash
 ip addr
@@ -49,4 +37,5 @@ ping <sensor_ip>
 ethtool <nic_name>
 ```
 
-센서 driver 실행 전 네트워크 연결성과 대역폭을 먼저 확인해야 한다.
+6대 장비는 실행 전 `dai.Device.getAllAvailableDevices()`의 MX ID를
+`SENSOR_CONFIGURATION.md`와 대조한다.

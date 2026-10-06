@@ -1,33 +1,33 @@
 # Sensor Alignment Documentation
 
-자율주행 차량 센서 정렬 및 카메라 브라켓 설계 문서 모음.
+자율주행 차량 센서 정렬과 calibration을 위한 설계 자료이다.
 
-## 목적
+기준일: 2026-10-06
 
-연구용 자율주행 차량(한라대 DCU 플랫폼)에서 센서를 반복 조립 후에도 동일한 위치를 재현하고,
-Calibration 오차를 최소화하며, Sensor Fusion 정확도를 향상시키기 위한 기계적 정렬 시스템을 정의한다.
+## Status
 
-## 문서 구성
+- 6카메라 역할과 논리 배치는 `../camera_use_case.md`를 정본으로 사용한다.
+- 본 폴더의 기계 치수, 각도, 허용 오차는 설계 목표이며 실차 확정값이 아니다.
+- TF 부모 frame, 장착 좌표, intrinsics/extrinsics는 현장 측정과 calibration 후
+  별도 결과 파일 및 검증 로그로 확정해야 한다.
+- 과거 전·후방 근거리/원거리 2대씩 배치안은 사용하지 않는다.
+
+## Documents
 
 | 파일 | 내용 |
-|------|------|
-| [01_alignment_overview.md](01_alignment_overview.md) | Sensor Alignment 개요 및 설계 철학 |
-| [02_mechanical_design.md](02_mechanical_design.md) | Mechanical Alignment 상세 설계 |
-| [03_camera_bracket.md](03_camera_bracket.md) | Camera Bracket 설계안 (OAK-D Pro PoE × 6) |
-| [04_calibration_procedure.md](04_calibration_procedure.md) | Calibration 절차 (기계 정렬 → Extrinsic 계산 → TF 반영) |
-| [05_software_calibration.md](05_software_calibration.md) | Software Calibration 적용 방법 및 허용 오차 |
-| [06_research_vehicle_structure.md](06_research_vehicle_structure.md) | 연구용 차량 권장 구조 |
-| [07_vs_production.md](07_vs_production.md) | 양산차 대비 연구용 차량의 설계 차이점 |
-| [08_future_work.md](08_future_work.md) | 향후 개선 방향 |
+| --- | --- |
+| `01_alignment_overview.md` | 정렬 원칙과 현행 6카메라 배치 |
+| `02_mechanical_design.md` | 조정형 브라켓 설계 목표 |
+| `03_camera_bracket.md` | 현행 배치 기준 브라켓 요구사항 |
+| `04_calibration_procedure.md` | calibration 절차 예시 |
+| `05_software_calibration.md` | software 적용과 품질 평가안 |
+| `06_research_vehicle_structure.md` | 연구 차량 권장 장착 구조 |
+| `07_vs_production.md` | 양산 구조와의 차이 |
+| `08_future_work.md` | 향후 작업 |
 
-## 대상 센서
+## Target Sensors
 
 - OAK-D Pro PoE Camera × 6
-- Livox Mid-360 LiDAR × 1
-- GNSS × 1
-- IMU × 1
-
-## 시스템 환경
-
-- ROS2 Humble
-- TF 기준 링크: `sensor_mount_link`
+- Livox Mid-360S LiDAR × 1
+- Septentrio Mosaic-go GNSS × 1
+- Xsens MTi-630 IMU × 1

@@ -36,3 +36,10 @@ docs/
 - 확정된 기준 문서는 루트 문서에 반영한다.
 - 실험, 검증 로그, 현장 메모는 `docs/` 하위에 기록한다.
 - 구현 변경 시 관련 루트 문서와 상세 문서를 함께 갱신한다.
+
+## Source of Truth
+
+- 구현/검증 상태는 루트 `PROJECT_STATUS.md`를 우선한다.
+- 실제 topic과 TF 구현 여부는 `TOPIC_LIST.md`, `TF_TREE.md`를 우선한다.
+- 6카메라 역할과 배치는 `camera_use_case.md`를 우선한다.
+- `sensor_alignment/`의 수치와 구조는 현장 검증 전까지 설계안이다.

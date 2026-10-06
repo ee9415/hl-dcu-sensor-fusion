@@ -1,5 +1,8 @@
 # 4. Calibration 절차
 
+> 상태: 절차와 명령은 구현 후보이다. 저장소에는 아직 정식 calibration 패키지,
+> camera_info 발행, TF publisher가 없으므로 실제 실행 명령으로 검증되지 않았다.
+
 ## 4.1 절차 개요
 
 ```
@@ -88,8 +91,8 @@ OAK-D Pro PoE는 팩토리 Calibration 값이 내장되어 있으나,
 ros2 run camera_calibration cameracalibrator \
   --size 8x6 \
   --square 0.080 \
-  image:=/cam_front_center_near/image_raw \
-  camera:=/cam_front_center_near
+  image:=/camera/cam01/image_raw \
+  camera:=/camera/cam01
 ```
 
 - Checkerboard를 다양한 위치·거리·각도에서 50장 이상 촬영
@@ -112,7 +115,7 @@ calibration/intrinsic/<camera_id>_intrinsic.yaml
 # kalibr 사용 (권장)
 kalibr_calibrate_cameras \
   --bag calibration.bag \
-  --topics /cam_front_center_near/image_raw /cam_front_center_far/image_raw \
+  --topics /camera/<cam_a>/image_raw /camera/<cam_b>/image_raw \
   --models pinhole-radtan pinhole-radtan \
   --target april_6x6.yaml
 ```
@@ -120,8 +123,8 @@ kalibr_calibrate_cameras \
 또는 OpenCV stereo calibration:
 ```bash
 ros2 run sensor_fusion_calibration stereo_extrinsic \
-  --camera_a cam_front_center_near \
-  --camera_b cam_front_center_far
+  --camera_a <cam_a> \
+  --camera_b <cam_b>
 ```
 
 ### 4.6.2 Camera ↔ LiDAR
@@ -130,8 +133,8 @@ ros2 run sensor_fusion_calibration stereo_extrinsic \
 # lidar_camera_calibration 패키지 사용
 ros2 launch lidar_camera_calibration calibration.launch.py \
   lidar_topic:=/livox/lidar \
-  camera_topic:=/cam_front_center_near/image_raw \
-  camera_info_topic:=/cam_front_center_near/camera_info
+  camera_topic:=/camera/cam01/image_raw \
+  camera_info_topic:=/camera/cam01/camera_info
 ```
 
 - AprilTag 보드를 LiDAR 시야와 카메라 시야가 겹치는 위치에 배치
@@ -155,21 +158,13 @@ Calibration 결과를 ROS2 TF로 반영한다.
 # calibration/tf/sensor_extrinsic.yaml
 
 sensor_mount_link:
-  cam_front_center_near:
-    x: 1.250      # 단위: m
-    y: 0.000
-    z: 0.820
-    roll:  0.000  # 단위: rad
-    pitch: 0.000
-    yaw:   0.000
-
-  cam_front_center_far:
-    x: 1.250
-    y: 0.000
-    z: 0.920
-    roll:  0.000
-    pitch: -0.087  # -5° in rad
-    yaw:   0.000
+  cam01_front_center_optical_frame:
+    x: <MEASURED_X>      # 단위: m
+    y: <MEASURED_Y>
+    z: <MEASURED_Z>
+    roll:  <CALIBRATED_ROLL>  # 단위: rad
+    pitch: <CALIBRATED_PITCH>
+    yaw:   <CALIBRATED_YAW>
 
   lidar_top:
     x: 0.000
@@ -191,8 +186,8 @@ def generate_launch_description():
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
-            arguments=['1.25', '0', '0.82', '0', '0', '0',
-                       'sensor_mount_link', 'cam_front_center_near']
+            arguments=['<x>', '<y>', '<z>', '<roll>', '<pitch>', '<yaw>',
+                       '<parent_frame>', 'cam01_front_center_optical_frame']
         ),
         # ... 나머지 센서
     ])

@@ -7,6 +7,32 @@
 
 ## [Unreleased]
 
+### Changed (2026-10-06, 문서 정합성 갱신)
+
+- 현재 구현을 ROS2 단일 카메라 경로와 비-ROS2 6카메라 운용 도구로 구분
+- `yolop_node`와 실제 `/oak/*` topic을 루트 상태/구조/topic 문서에 반영
+- 6대 MX ID 매핑과 확인된 네트워크 값을 센서 설정 문서에 반영
+- `docs/camera_use_case.md`의 CAM01~CAM06 배치를 카메라 역할 정본으로 지정
+- 구형 전·후방 근거리/원거리 배치 기반 sensor alignment 문서를 신규 배치에 맞게 수정
+- 설계 목표, 코드 확인, 과거 장비 검증, 현장 미확정 값을 명시적으로 분리
+
+### Verification (2026-10-06, 문서 정합성 갱신)
+
+- 저장소 코드, `setup.py`, 검증 로그, 6-camera tool의 MX ID 매핑과 문서 대조
+- 구형 camera frame/배치 identifier 잔존 여부 검색
+- Markdown link 검사 및 `git diff --check` 수행
+
+### Added (2026-10-06, YOLOP ROS2 branch integration)
+
+- `origin/main`의 `yolop_node`와 YOLOP blob을 6-camera Web UI 작업 브랜치에 병합
+- `yolop_node` console entry point를 현재 브랜치에 통합
+
+### Verification (2026-10-06, YOLOP ROS2 branch integration)
+
+- Python source 정적 구문 검사: 통과
+- `git diff --check`: 통과
+- ROS2 build 및 실제 장비 실행: 현재 Windows 환경에서 미수행
+
 ### Changed (2026-08-12, 6-camera Web UI layout)
 
 - 6-camera Web UI layout changed from `1 / 2 / 2 / 1` to `3 / 3`

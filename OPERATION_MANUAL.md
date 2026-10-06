@@ -2,85 +2,72 @@
 
 ## 1. Purpose
 
-이 문서는 현장 운영자가 ROS2 센서 통합 시스템을 실행, 확인, 종료하는 절차를
-정의한다.
+현재 실행 가능한 단일 카메라 ROS2 경로와 6카메라 비-ROS2 경로를 구분한다.
 
-현재 저장소에는 실행 가능한 launch 파일은 없지만, 단일 OAK-D Pro PoE 카메라용
-`hl_camera_bringup` ROS2 노드는 작성되어 있다. 실제 현장 운영 절차는 launch와
-다중 센서 설정이 추가된 뒤 확정한다.
+기준일: 2026-10-06
 
 ## 2. Pre-Operation Checklist
 
-| 항목 | 확인 |
-| --- | --- |
-| Jetson Orin NX 전원 | 미정 |
-| 센서 전원 | 미정 |
-| PoE switch 연결 | 미정 |
-| Network IP 설정 | 미정 |
-| ROS Domain ID | 미정 |
-| Driver 설치 | Camera 단일 검증 환경에서 확인됨 |
-| Workspace build | Camera 패키지 기준 2026-06-29 통과 기록 |
+- 대상 실행 경로가 단일 ROS2인지 6-camera tool인지 확인
+- 카메라/PoE switch/DCU 전원과 링크 확인
+- 장비 IP 또는 MX ID 확인
+- 저장 공간 확인
+- 동일 OAK 장치를 점유하는 기존 프로세스 종료
 
-## 3. Planned Operation Flow
-
-운영 절차는 개별검증을 먼저 수행한 뒤 통합검증으로 진행한다.
-
-### 3.1 Individual Sensor Verification
-
-1. 네트워크 연결 확인
-2. ROS2 환경 설정
-3. 센서별 단독 launch 실행
-4. 센서별 Topic 및 Hz 확인
-5. 센서별 TF frame 확인
-6. 센서별 RViz 표시 확인
-7. 검증 결과를 `docs/verification/<sensor>/` 하위에 기록
-
-### 3.2 Integrated Sensor Verification
-
-1. 개별검증 완료 여부 확인
-2. 전체 bringup launch 실행
-3. Namespace 및 Topic 충돌 확인
-4. TF tree 단일 연결 확인
-5. 4종 센서 RViz 동시 표시 확인
-6. Fusion 입력 후보 topic과 timestamp 확인
-7. 통합 검증 결과를 `docs/verification/integration/` 하위에 기록
-
-## 4. Planned Commands
-
-현재 단일 카메라 검증 노드는 다음 방식으로 실행한 기록이 있다.
+## 3. Single-Camera ROS2
 
 ```bash
 source /opt/ros/humble/setup.bash
 source install/setup.bash
+
+# YOLOv6n 객체 검출
 ros2 run hl_camera_bringup yolov6n_node
+
+# 또는 YOLOP 차량/주행영역/차선 추론
+ros2 run hl_camera_bringup yolop_node
 ```
 
-통합 운영용 launch는 구현 후 아래 명령을 실제 패키지명에 맞게 확정한다.
+두 노드는 동일 카메라와 `/oak/*` topic을 사용하므로 하나만 실행한다.
+
+확인:
 
 ```bash
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-ros2 launch hl_camera_bringup <camera_launch>.launch.py
-ros2 launch hl_lidar_bringup <lidar_launch>.launch.py
-ros2 launch hl_gnss_bringup <gnss_launch>.launch.py
-ros2 launch hl_imu_bringup <imu_launch>.launch.py
-ros2 launch hl_sensor_bringup <integrated_launch>.launch.py
+ros2 node list
+ros2 topic list
+ros2 topic hz /oak/rgb/image_raw
+ros2 topic echo /oak/detections --once
 ```
 
-## 5. Shutdown
+## 4. Six-Camera Recorder/Web UI
 
-운영 종료 시 다음을 확인한다.
+이 경로는 ROS2가 아니다. 상세 설치와 옵션은
+`tools/yolop_6cam_recorder/README.md`를 따른다.
 
-- Launch process 정상 종료
-- 센서 driver process 잔류 여부
-- 로그 저장 여부
-- 센서 전원 차단 순서
+```bash
+cd tools/yolop_6cam_recorder
 
-## 6. Failure Handling
+# 영상만 녹화
+./run_yolop_6cam_recorder.sh --record-only --output recordings
 
-| 증상 | 확인 항목 |
-| --- | --- |
-| Topic 없음 | driver 실행, namespace, network |
-| Hz 낮음 | network bandwidth, CPU/GPU load, QoS |
-| TF 없음 | static transform publisher, URDF launch |
-| RViz 표시 안 됨 | Fixed Frame, message type, QoS |
+# Web UI
+./run_yolop_6cam_web_ui.sh --host 127.0.0.1 --port 8080 --output recordings
+```
+
+recorder와 Web UI는 같은 장비를 동시에 점유할 수 없으므로 병행 실행하지 않는다.
+
+## 5. Not Yet Available
+
+- 6대 카메라 ROS2 launch
+- LiDAR/GNSS/IMU 개별 launch
+- 4종 통합 launch
+- TF/URDF와 RViz 통합 실행
+
+문서에 있는 미래형 `ros2 launch` 명령은 구현 완료 전 운영 명령으로 사용하지 않는다.
+
+## 6. Shutdown and Failure Handling
+
+- Ctrl+C 또는 관리 script의 `stop`으로 정상 종료한다.
+- 녹화 중 `kill -9`와 전원 차단은 파일 flush를 보장하지 않는다.
+- topic 없음: node, 장비 점유, network, namespace를 확인한다.
+- Hz 저하: network, 저장장치, CPU/VPU 부하와 queue를 확인한다.
+- TF 없음: 현재는 정상적인 미구현 상태이며 TF publisher 구현이 필요하다.

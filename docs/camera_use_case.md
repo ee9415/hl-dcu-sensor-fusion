@@ -1,5 +1,8 @@
 # Camera Placement and Use Cases
 
+문서 상태: 2026-10-06 기준 6카메라 역할과 논리 배치의 정본. 실제 장착 좌표,
+각도, TF와 calibration 값은 현장 측정 전까지 미확정이다.
+
 ## 1. Purpose
 
 이 문서는 한라대학교 저속 자율주행 차량 프로젝트의 6대 카메라 배치, 카메라별 역할, 주요 Use Case를 정의한다.
@@ -7,6 +10,10 @@
 대상 차량은 교내 캠퍼스 환경에서 운행하는 특수목적 저속 자율주행 차량이며, 문서의 목적은 ROS2 기반 센서 bringup, AI 인식 노드, 판단 로직 개발자가 같은 기준으로 카메라 데이터를 설계하고 검증할 수 있게 하는 것이다.
 
 기존 전방/후방 근거리·원거리 분리 배치는 사용하지 않는다. 본 문서의 신규 6-camera 배치를 기준으로 개발한다.
+
+표기 규칙: 본 문서의 `CAM01`~`CAM06`은 논리 카메라 ID이며,
+6-camera tool의 `cam_01`~`cam_06`과 각각 대응한다. ROS2 topic/frame 이름은
+아직 후보이므로 구현 전에 `TOPIC_LIST.md`, `TF_TREE.md`에서 승인한다.
 
 ## 2. Design Scope
 
@@ -191,4 +198,3 @@
 | Latency | image input부터 detection output까지 지연 시간 측정 |
 | Use Case | UC-01~UC-05별 rosbag 또는 현장 주행 데이터로 결과 확인 |
 | Safety | 위험 객체 감지 시 감속/정지 후보가 판단 노드로 전달되는지 확인 |
-

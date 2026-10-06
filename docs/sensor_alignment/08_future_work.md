@@ -1,11 +1,13 @@
 # 8. 향후 개선 방향
 
+> 기준일: 2026-10-06. 아래 일정과 구현 후보는 계획이며 완료 기록이 아니다.
+
 ## 8.1 단기 과제 (0 ~ 6개월)
 
 ### 8.1.1 브라켓 제작 및 초기 Calibration
 
-- [ ] Type-A 브라켓 (전후방 공용) CAD 도면 완성 및 CNC 발주
-- [ ] Type-B 브라켓 (측방) CAD 도면 완성 및 CNC 발주
+- [ ] CAM01/CAM06 중앙 브라켓 공용 가능성 검토 및 CAD 도면 확정
+- [ ] CAM02~CAM05 좌우 측면 브라켓 CAD 도면 확정
 - [ ] 전차 장착 후 초기 Intrinsic / Extrinsic Calibration 수행
 - [ ] Calibration 결과 YAML 저장 및 Git 커밋
 - [ ] RViz2 기반 투영 결과 시각적 검증
@@ -62,7 +64,7 @@ ros2 run sensor_fusion_calibration full_calibration.py \
 검토: + FLIR Lepton 또는 FLIR Boson × 2 (전후방)
 ```
 
-브라켓 Type-A에 열화상 카메라 추가 마운트홀을 사전에 포함하는 것을 권장.
+중앙 또는 측면 브라켓에 열화상 카메라 추가 마운트가 필요한지 요구사항 단계에서 검토한다.
 
 ### 8.2.4 LiDAR-IMU 타이트 결합 Calibration
 
@@ -136,12 +138,14 @@ Batch Optimization:
 
 ## 8.5 일정 요약
 
-```
-2026 Q3       : 브라켓 CAD 완성 + CNC 발주
-2026 Q3~Q4    : 초기 장착 + 전체 Calibration 수행
-2026 Q4       : 자동화 스크립트 + 품질 대시보드
-2027 Q1~Q2    : Online Calibration 실험
-2027 Q3       : 전용 Calibration 지그 제작
-2027 Q4~      : 다중 센서 동시 Calibration 연구
-2028~         : 양산 이전 절차 정립 + 데이터셋 공개
-```
+기존 일정은 완료 증빙이 없어 목표 시점으로만 유지한다.
+
+| 기존 목표 시점 | 항목 | 2026-10-06 확인 상태 |
+| --- | --- | --- |
+| 2026 Q3 | 브라켓 CAD 완성 및 CNC 발주 | 저장소 내 완료 증빙 없음 |
+| 2026 Q3~Q4 | 초기 장착 및 전체 calibration | 저장소 내 완료 증빙 없음 |
+| 2026 Q4 | 자동화 script와 품질 dashboard | 미구현 |
+| 2027 Q1~Q2 | Online calibration 실험 | 계획 |
+| 2027 Q3 | 전용 calibration jig | 계획 |
+| 2027 Q4 이후 | 다중 센서 동시 calibration | 계획 |
+| 2028 이후 | 양산 이전 절차와 dataset 공개 | 계획 |
