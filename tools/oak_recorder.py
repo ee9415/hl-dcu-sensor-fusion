@@ -26,7 +26,7 @@ DEFAULT_DEVICE_SERIAL = "1142227768"
 OAKCTL_PATH = Path(r"C:\Program Files\oakctl\bin\oakctl.exe")
 OAK_APP_PATH = Path(__file__).resolve().parents[1] / "apps" / "yolopv2_standalone"
 DEFAULT_FPS = 10.0
-PREVIEW_SIZE = (720, 405)
+PREVIEW_SIZE = (480, 270)
 CREDENTIAL_FILE = (
     Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
     / "OAK4DPro"
@@ -228,7 +228,6 @@ class RecorderApp:
             "rgb": tk.BooleanVar(value=True),
             "yolopv2": tk.BooleanVar(value=True),
         }
-        self.preview_source = tk.StringVar(value="yolopv2")
         self.unsaved_paths: dict[str, Path] = {}
         self.recording_keys: list[str] = []
         self.recording_stamp = ""
@@ -237,20 +236,136 @@ class RecorderApp:
         self.connection_events: queue.SimpleQueue[tuple[str, str]] = queue.SimpleQueue()
         self.last_connection_state: tuple[bool, bool] | None = None
 
-        self.root.title("OAK4-D Pro 영상 녹화")
-        self.root.resizable(False, False)
+        self.preview_labels: dict[str, ttk.Label] = {}
+        self.preview_status: dict[str, tk.StringVar] = {}
+
+        self.root.title("OAK4-D Pro CAM01 멀티뷰")
+        self.root.geometry("1280x900")
+        self.root.minsize(1040, 760)
+        self.root.configure(background="#0b1118")
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(1, weight=1)
         self.root.protocol("WM_DELETE_WINDOW", self._close)
 
-        self.preview = ttk.Label(
-            root,
+        style = ttk.Style(root)
+        style.theme_use("clam")
+        style.configure("App.TFrame", background="#0b1118")
+        style.configure("Header.TFrame", background="#111b25")
+        style.configure("Panel.TFrame", background="#131f2a")
+        style.configure(
+            "Video.TLabel",
+            background="#050a0f",
+            foreground="#8da0af",
             anchor="center",
-            text="영상 연결 버튼을 눌러 주세요",
+            font=("Malgun Gothic", 11),
         )
-        self.preview.grid(row=0, column=0, columnspan=3, padx=12, pady=(12, 8))
+        style.configure(
+            "Title.TLabel",
+            background="#111b25",
+            foreground="#f1f6f9",
+            font=("Malgun Gothic", 16, "bold"),
+        )
+        style.configure(
+            "Subtitle.TLabel",
+            background="#111b25",
+            foreground="#8da0af",
+            font=("Malgun Gothic", 9),
+        )
+        style.configure(
+            "PanelTitle.TLabel",
+            background="#131f2a",
+            foreground="#f1f6f9",
+            font=("Malgun Gothic", 10, "bold"),
+        )
+        style.configure(
+            "PanelStatus.TLabel",
+            background="#131f2a",
+            foreground="#21d3a1",
+            font=("Malgun Gothic", 9),
+        )
+        style.configure(
+            "App.TLabel",
+            background="#0b1118",
+            foreground="#c3d0d9",
+        )
+        style.configure(
+            "App.TCheckbutton",
+            background="#0b1118",
+            foreground="#c3d0d9",
+        )
+        style.map(
+            "App.TCheckbutton",
+            background=[("active", "#0b1118")],
+            foreground=[("active", "#f1f6f9")],
+        )
+        style.configure(
+            "Control.TLabelframe",
+            background="#0b1118",
+            foreground="#dce7ed",
+        )
+        style.configure(
+            "Control.TLabelframe.Label",
+            background="#0b1118",
+            foreground="#dce7ed",
+        )
 
-        connection = ttk.Frame(root)
-        connection.grid(row=1, column=0, columnspan=3, padx=12, pady=4, sticky="ew")
-        ttk.Label(connection, text="OAK IP").grid(row=0, column=0, padx=(0, 6))
+        header = ttk.Frame(root, style="Header.TFrame", padding=(18, 12))
+        header.grid(row=0, column=0, sticky="ew")
+        header.columnconfigure(0, weight=1)
+        title_group = ttk.Frame(header, style="Header.TFrame")
+        title_group.grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            title_group,
+            text="CAM01 Perception Lab",
+            style="Title.TLabel",
+        ).grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            title_group,
+            text="OAK 4D PRO · RGB / YOLOPv2 / Depth / BEV",
+            style="Subtitle.TLabel",
+        ).grid(row=1, column=0, sticky="w")
+        ttk.Label(
+            header,
+            text="멀티뷰 UI · 개발 검증 화면",
+            style="Subtitle.TLabel",
+        ).grid(row=0, column=1, rowspan=2, sticky="e")
+
+        previews = ttk.Frame(root, style="App.TFrame", padding=(14, 12, 14, 6))
+        previews.grid(row=1, column=0, sticky="nsew")
+        for index in range(2):
+            previews.columnconfigure(index, weight=1, uniform="preview-column")
+            previews.rowconfigure(index, weight=1, uniform="preview-row")
+
+        preview_specs = (
+            ("rgb", "원본 RGB", "영상 연결 대기"),
+            ("yolopv2", "인식 결과", "영상 연결 대기"),
+            ("depth", "RGB 정렬 Depth", "Depth 출력 연동 대기"),
+            ("bev", "BEV · 가상 중심선", "BEV 출력 연동 대기"),
+        )
+        for index, (key, title, placeholder) in enumerate(preview_specs):
+            self._build_preview_panel(
+                previews,
+                index // 2,
+                index % 2,
+                key,
+                title,
+                placeholder,
+            )
+
+        controls = ttk.Frame(root, style="App.TFrame", padding=(14, 6, 14, 12))
+        controls.grid(row=2, column=0, sticky="ew")
+        controls.columnconfigure(0, weight=1)
+
+        connection = ttk.LabelFrame(
+            controls,
+            text="장비 연결",
+            style="Control.TLabelframe",
+            padding=8,
+        )
+        connection.grid(row=0, column=0, sticky="ew")
+        ttk.Label(connection, text="OAK IP", style="App.TLabel").grid(
+            row=0, column=0, padx=(0, 6)
+        )
         self.ip_text = tk.StringVar(value=device_ip)
         self.ip_entry = ttk.Entry(connection, textvariable=self.ip_text, width=20)
         self.ip_entry.grid(row=0, column=1, padx=(0, 6), sticky="ew")
@@ -260,11 +375,8 @@ class RecorderApp:
             command=self.discover_ip,
         )
         self.discover_button.grid(row=0, column=2)
-        ttk.Label(connection, text="비밀번호").grid(
-            row=1,
-            column=0,
-            padx=(0, 6),
-            pady=(6, 0),
+        ttk.Label(connection, text="비밀번호", style="App.TLabel").grid(
+            row=0, column=3, padx=(14, 6)
         )
         self.password_text = tk.StringVar()
         self.password_entry = ttk.Entry(
@@ -273,83 +385,118 @@ class RecorderApp:
             show="●",
             width=20,
         )
-        self.password_entry.grid(
-            row=1,
-            column=1,
-            columnspan=2,
-            pady=(6, 0),
-            sticky="ew",
-        )
+        self.password_entry.grid(row=0, column=4, sticky="ew")
         ttk.Label(
             connection,
             text="입력하면 암호화 저장 · 빈칸이면 저장된 비밀번호 사용",
-        ).grid(row=2, column=1, columnspan=2, sticky="w")
+            style="App.TLabel",
+        ).grid(row=1, column=3, columnspan=2, sticky="w", pady=(4, 0))
         connection.columnconfigure(1, weight=1)
+        connection.columnconfigure(4, weight=1)
 
-        self.connect_button = ttk.Button(root, text="영상 연결", command=self.connect_video)
-        self.connect_button.grid(row=2, column=0, columnspan=3, padx=12, pady=4, sticky="ew")
+        self.connect_button = ttk.Button(
+            connection,
+            text="영상 연결",
+            command=self.connect_video,
+        )
+        self.connect_button.grid(row=0, column=5, rowspan=2, padx=(10, 0), sticky="ns")
 
-        choices = ttk.Frame(root)
-        choices.grid(row=3, column=0, columnspan=3, padx=12, pady=4, sticky="w")
-        ttk.Label(choices, text="녹화 대상:").pack(side=tk.LEFT, padx=(0, 8))
+        record_controls = ttk.Frame(controls, style="App.TFrame")
+        record_controls.grid(row=1, column=0, pady=(8, 0), sticky="ew")
+        record_controls.columnconfigure(1, weight=1)
+        choices = ttk.Frame(record_controls, style="App.TFrame")
+        choices.grid(row=0, column=0, sticky="w")
+        ttk.Label(choices, text="녹화 대상:", style="App.TLabel").pack(
+            side=tk.LEFT, padx=(0, 8)
+        )
         self.rgb_check = ttk.Checkbutton(
             choices,
             text="원본 RGB",
             variable=self.selected["rgb"],
+            style="App.TCheckbutton",
         )
         self.result_check = ttk.Checkbutton(
             choices,
             text="YOLO 결과",
             variable=self.selected["yolopv2"],
+            style="App.TCheckbutton",
         )
         self.rgb_check.pack(side=tk.LEFT, padx=(0, 8))
-        self.result_check.pack(side=tk.LEFT, padx=(0, 16))
-        ttk.Label(choices, text="미리보기:").pack(side=tk.LEFT, padx=(0, 4))
-        ttk.Radiobutton(
-            choices,
-            text="YOLO 결과",
-            variable=self.preview_source,
-            value="yolopv2",
-        ).pack(side=tk.LEFT, padx=(0, 4))
-        ttk.Radiobutton(
-            choices,
-            text="원본 RGB",
-            variable=self.preview_source,
-            value="rgb",
-        ).pack(side=tk.LEFT)
+        self.result_check.pack(side=tk.LEFT)
 
         self.start_button = ttk.Button(
-            root,
+            record_controls,
             text="녹화 시작",
             command=self.start_recording,
             state=tk.DISABLED,
         )
         self.stop_button = ttk.Button(
-            root,
+            record_controls,
             text="녹화 멈춤",
             command=self.stop_recording,
             state=tk.DISABLED,
         )
         self.save_button = ttk.Button(
-            root,
+            record_controls,
             text="파일 저장",
             command=self.save_recording,
             state=tk.DISABLED,
         )
-        self.start_button.grid(row=4, column=0, padx=(12, 4), pady=4, sticky="ew")
-        self.stop_button.grid(row=4, column=1, padx=4, pady=4, sticky="ew")
-        self.save_button.grid(row=4, column=2, padx=(4, 12), pady=4, sticky="ew")
+        self.start_button.grid(row=0, column=2, padx=(4, 2))
+        self.stop_button.grid(row=0, column=3, padx=2)
+        self.save_button.grid(row=0, column=4, padx=(2, 0))
 
         self.status_text = tk.StringVar(value="영상 연결 대기 중")
-        ttk.Label(root, textvariable=self.status_text, anchor="w").grid(
-            row=5,
+        ttk.Label(
+            record_controls,
+            textvariable=self.status_text,
+            anchor="w",
+            style="App.TLabel",
+        ).grid(
+            row=1,
             column=0,
-            columnspan=3,
-            padx=12,
-            pady=(4, 12),
+            columnspan=5,
+            pady=(8, 0),
             sticky="ew",
         )
         self.root.after(50, self._update_preview)
+
+    def _build_preview_panel(
+        self,
+        parent: ttk.Frame,
+        row: int,
+        column: int,
+        key: str,
+        title: str,
+        placeholder: str,
+    ) -> None:
+        panel = ttk.Frame(parent, style="Panel.TFrame", padding=8)
+        panel.grid(row=row, column=column, padx=5, pady=5, sticky="nsew")
+        panel.columnconfigure(0, weight=1)
+        panel.rowconfigure(1, weight=1)
+
+        title_bar = ttk.Frame(panel, style="Panel.TFrame")
+        title_bar.grid(row=0, column=0, pady=(0, 7), sticky="ew")
+        title_bar.columnconfigure(0, weight=1)
+        ttk.Label(title_bar, text=title, style="PanelTitle.TLabel").grid(
+            row=0, column=0, sticky="w"
+        )
+        status = tk.StringVar(value="대기")
+        ttk.Label(
+            title_bar,
+            textvariable=status,
+            style="PanelStatus.TLabel",
+        ).grid(row=0, column=1, sticky="e")
+
+        preview = ttk.Label(
+            panel,
+            text=placeholder,
+            style="Video.TLabel",
+            anchor="center",
+        )
+        preview.grid(row=1, column=0, sticky="nsew")
+        self.preview_labels[key] = preview
+        self.preview_status[key] = status
 
     def _selected_keys(self) -> list[str]:
         return [key for key, selected in self.selected.items() if selected.get()]
@@ -534,21 +681,26 @@ class RecorderApp:
         self._drain_connection_events()
         result_connected, result_frame = self.sources["yolopv2"].snapshot()
         rgb_connected, rgb_frame = self.sources["rgb"].snapshot()
-        preferred_key = self.preview_source.get()
-        if preferred_key == "rgb":
-            frame = rgb_frame if rgb_connected else result_frame
-            preview_name = "원본 RGB" if rgb_connected else "YOLO 결과"
-        else:
-            frame = result_frame if result_connected else rgb_frame
-            preview_name = "YOLO 결과" if result_connected else "원본 RGB"
+        preview_frames = {
+            "rgb": (rgb_connected, rgb_frame),
+            "yolopv2": (result_connected, result_frame),
+        }
+        for key, (connected, frame) in preview_frames.items():
+            preview = self.preview_labels[key]
+            if frame is not None:
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                image = Image.fromarray(rgb)
+                image.thumbnail(PREVIEW_SIZE, Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(image)
+                preview.configure(image=photo, text="")
+                preview.image = photo
+            elif not connected:
+                preview.configure(image="", text="영상 연결 대기")
+                preview.image = None
+            self.preview_status[key].set("연결됨" if connected else "연결 대기")
 
-        if frame is not None:
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            image = Image.fromarray(rgb)
-            image.thumbnail(PREVIEW_SIZE, Image.Resampling.LANCZOS)
-            photo = ImageTk.PhotoImage(image)
-            self.preview.configure(image=photo, text=preview_name)
-            self.preview.image = photo
+        self.preview_status["depth"].set("출력 연동 대기")
+        self.preview_status["bev"].set("후속 단계")
 
         connection_state = (rgb_connected, result_connected)
         if rgb_connected or result_connected:

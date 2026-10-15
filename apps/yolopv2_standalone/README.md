@@ -48,11 +48,16 @@ On the project PC, start the small recorder window with:
 & .\.venv\Scripts\pythonw.exe .\tools\oak_recorder.py
 ```
 
-Use the single recorder window in this order: `영상 연결`, select `원본 RGB`,
+The recorder uses a four-panel layout for `원본 RGB`, `인식 결과`,
+`RGB 정렬 Depth`, and `BEV · 가상 중심선`. The first two panels use the current
+RTSP streams. Depth and BEV remain explicit placeholders until their PC-facing
+outputs are added in later stages.
+
+Use the recorder window in this order: `영상 연결`, select `원본 RGB`,
 `YOLO 결과`, or both, then use `녹화 시작`, `녹화 멈춤`, and `파일 저장`.
-The live preview starts as soon as `영상 연결` succeeds and remains visible
-before, during, and after recording. A single recording selection opens a
-normal file-save dialog. Selecting both opens a folder dialog and creates two files:
+The two available live previews start as soon as `영상 연결` succeeds and remain
+visible before, during, and after recording. A single recording selection opens
+a normal file-save dialog. Selecting both opens a folder dialog and creates two files:
 `*_rgb.mp4` (`1920x1080`) and `*_yolopv2.mp4` (`960x540`). Both are 10 FPS.
 The recorder uses H.264 in the MP4 container through Windows Media Foundation,
 with MPEG-4 as a compatibility fallback. If the device address changes, pass

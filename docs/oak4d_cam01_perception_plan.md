@@ -206,6 +206,7 @@ kappa(x) = (2*c2 + 6*c3*x)
 | 현재 녹화 프로그램 세부 코드 분석 | 완료 | 기존 RGB/결과 RTSP와 MP4 녹화 경로 확인 |
 | YOLOPv2 OAK4 실제 출력 검증 | 검증 필요 | tensor 이름·shape·좌표 확인 필요 |
 | RGB-Depth 정렬 | 구현 완료/장비 검증 필요 | RVC4 `StereoDepth -> ImageAlign`, `DepthAligned` |
+| Windows 멀티뷰 UI | 기본 구조 구현 완료 | RGB/결과 표시, Depth/BEV 연동 대기 표시 |
 | 객체 거리 및 3D 위치 | 미구현 | 거리 유효성 기준 필요 |
 | 가상 중심선 3차식 | 미구현 | BEV와 fitting 범위 결정 필요 |
 | 후처리 영상 중심선 표시 | 미구현 | 재투영 및 시각화 필요 |

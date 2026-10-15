@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Changed (2026-10-15, OAK4 Windows 멀티뷰 UI)
+
+- 녹화 프로그램을 단일 선택 미리보기에서 2×2 멀티뷰 화면으로 변경
+- 원본 RGB와 인식 결과를 동시에 표시하도록 기존 RTSP 미리보기 경로 재배치
+- RGB 정렬 Depth와 BEV·가상 중심선 패널을 후속 출력 연동 대기 상태로 추가
+- 기존 이중 MP4 녹화·저장 및 장비 연결 동작 유지
+
 ### Added (2026-10-15, OAK4 RGB 정렬 Depth)
 
 - CAM_B/C Stereo Depth를 CAM_A 좌표계로 변환하는 RVC4 `ImageAlign` 경로 추가
