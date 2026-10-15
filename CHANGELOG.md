@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+### Added (2026-10-15, OAK4 RGB 정렬 Depth)
+
+- CAM_B/C Stereo Depth를 CAM_A 좌표계로 변환하는 RVC4 `ImageAlign` 경로 추가
+- `PIPELINE_STAGE=depth` 진단 단계와 `DepthAligned` Visualizer 토픽 추가
+- `full` 단계에서도 후속 객체 거리 및 BEV 처리를 위한 정렬 Depth 생성
+- Stereo Depth에 `ROBOTICS` preset, LR-check 및 subpixel 설정 적용
+- 앱 버전을 `0.3.0`으로 갱신
+- 장비 로그인 토큰 만료로 실장비 실행은 재인증 후 검증 필요 상태로 기록
+
 ### Added (2026-10-15, OAK4 기준 코드 이관)
 
 - 임시 OAK4 검증 프로젝트의 YOLOPv2 Standalone 앱을

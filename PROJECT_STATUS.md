@@ -128,3 +128,16 @@ Depth 결합, 3차식 중심선, 후처리 영상 표시, ROS2 구조화 데이�
 - OAK App 실행에 필요한 NNArchive는 로컬에 배치하되 Git 추적에서 제외한다.
 - 이관 단계에서는 기능을 변경하지 않았다. Depth와 가상 중심선은 다음 단계부터
   독립적으로 추가하고 검증한다.
+
+### 2026-10-15 기준 RGB 정렬 Depth 구현
+
+- OAK4 RVC4용 `CAM_B/C -> StereoDepth -> ImageAlign` 파이프라인을 추가했다.
+- CAM_A의 보정 기반 왜곡 제거 영상을 정렬 기준으로 사용하고, `depth` 및 `full`
+  단계에서 `DepthAligned` 토픽을 출력한다.
+- Stereo Depth는 `640x400`, 10 FPS, `ROBOTICS` preset, LR-check, subpixel로
+  설정했다. 정렬 출력 좌표와 크기는 CAM_A `1920x1080` 기준이다.
+- `PIPELINE_STAGE=depth`에서는 NN 없이 RGB와 정렬 Depth만 독립 검증할 수 있다.
+- Python 문법 및 파이프라인 구성 정적 검사는 통과했다.
+- OAK4-D R9 장비 `1142227768`과 Luxonis OS RVC4 1.41.0은 발견했으나,
+  로그인 토큰 만료로 장비가 비밀번호 재입력을 요구해 런타임 검증은 중단했다.
+- 객체 거리·XYZ와 가상 중심선은 아직 구현하지 않았다.

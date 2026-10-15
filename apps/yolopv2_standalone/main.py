@@ -13,11 +13,12 @@ from stream_output import StreamOutput
 
 
 CAMERA_SIZE = (1920, 1080)
+STEREO_SIZE = (640, 400)
 MODEL_SIZE = (320, 320)
 FPS = 10
 MODEL_ARCHIVE = Path(__file__).parent / "models" / "yolopv2_320.rvc4.tar.xz"
 PIPELINE_STAGE = os.environ.get("PIPELINE_STAGE", "full").lower()
-VALID_STAGES = {"camera", "manip", "nn", "static_nn", "full"}
+VALID_STAGES = {"camera", "depth", "manip", "nn", "static_nn", "full"}
 
 if PIPELINE_STAGE not in VALID_STAGES:
     raise ValueError(
@@ -58,6 +59,7 @@ with dai.Pipeline(device) as pipeline:
         CAMERA_SIZE,
         dai.ImgFrame.Type.NV12,
         fps=FPS,
+        enableUndistortion=True,
     )
 
     encoder = pipeline.create(dai.node.VideoEncoder)
@@ -70,7 +72,33 @@ with dai.Pipeline(device) as pipeline:
     if PIPELINE_STAGE != "full":
         visualizer.addTopic("Video", encoder.out, "images")
 
-    if PIPELINE_STAGE != "camera":
+    if PIPELINE_STAGE in {"depth", "full"}:
+        left = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_B)
+        right = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_C)
+        stereo = pipeline.create(dai.node.StereoDepth)
+        stereo.setDefaultProfilePreset(
+            dai.node.StereoDepth.PresetMode.ROBOTICS
+        )
+        stereo.setLeftRightCheck(True)
+        stereo.setSubpixel(True)
+
+        left_out = left.requestOutput(STEREO_SIZE, fps=FPS)
+        right_out = right.requestOutput(STEREO_SIZE, fps=FPS)
+        left_out.link(stereo.left)
+        right_out.link(stereo.right)
+
+        depth_align = pipeline.create(dai.node.ImageAlign)
+        stereo.depth.link(depth_align.input)
+        camera_out.link(depth_align.inputAlignTo)
+        aligned_depth = depth_align.outputAligned
+        visualizer.addTopic("DepthAligned", aligned_depth)
+        print(
+            "DepthAligned: CAM_B/C stereo depth aligned to CAM_A "
+            f"({CAMERA_SIZE[0]}x{CAMERA_SIZE[1]}, millimeters)",
+            flush=True,
+        )
+
+    if PIPELINE_STAGE not in {"camera", "depth"}:
         manip = pipeline.create(dai.node.ImageManip)
         manip.initialConfig.setOutputSize(
             *MODEL_SIZE,

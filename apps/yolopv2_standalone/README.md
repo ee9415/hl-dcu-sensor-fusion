@@ -3,7 +3,9 @@
 This app is intended to run entirely on an OAK4-D Pro (RVC4). It keeps the
 validated `1920x1080 NV12 -> H.264` camera path at a configured 10 FPS and branches the same frames
 through a letterbox resize and RGB conversion for a fixed `1x3x320x320`
-YOLOPv2 inference input.
+YOLOPv2 inference input. CAM_A output is calibration-undistorted so the
+`CAM_B/C -> StereoDepth -> ImageAlign` path can produce depth in the same CAM_A
+pixel coordinate system.
 
 ## Published topics
 
@@ -11,7 +13,10 @@ YOLOPv2 inference input.
   green drivable-area overlay, red lane-line overlay, and yellow detection
   boxes composited directly over CAM_A.
 - `Video` (diagnostic stages): the unannotated H.264 CAM_A stream used by
-  `camera`, `manip`, and `nn` fault-isolation modes.
+  `camera`, `depth`, `manip`, and `nn` fault-isolation modes.
+- `DepthAligned` (`depth` and `full` modes): CAM_B/C stereo depth aligned to
+  CAM_A at `1920x1080`. Valid values are millimeters and zero means invalid
+  depth.
 
 The fixed neural-network input remains `1x3x320x320`; the larger result size
 only affects visualization. Internal detection and binary-mask messages are
@@ -75,10 +80,16 @@ root, run it only after approval:
 & 'C:\Program Files\oakctl\bin\oakctl.exe' inspect topics -d 1142227768
 ```
 
-For fault isolation, set `PIPELINE_STAGE` to `camera`, `manip`, `nn`,
+For fault isolation, set `PIPELINE_STAGE` to `camera`, `depth`, `manip`, `nn`,
 `static_nn`, or `full`. `static_nn` sends a deterministic 320x320 test image
 through the same explicit preprocessing and inference path so its tensors can
 be compared with ONNX Runtime. The default is `full`.
+
+Use `PIPELINE_STAGE=depth` to validate CAM_A and RGB-aligned depth without
+loading the YOLOPv2 network. The RVC4 path uses the DepthAI v3 `ImageAlign`
+node, left-right consistency checking, subpixel disparity, and the
+`ROBOTICS` StereoDepth preset. Object ROI distance and XYZ calculation are not
+part of this stage.
 
 After numerical and live-image validation, build and install the production
 package, then enable automatic startup. Do not enable automatic startup before

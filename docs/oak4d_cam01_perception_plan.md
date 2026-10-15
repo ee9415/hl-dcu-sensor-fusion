@@ -205,7 +205,7 @@ kappa(x) = (2*c2 + 6*c3*x)
 | OAK 4D Pro 기준 코드 이관 | 완료 | `apps/yolopv2_standalone`, `tools/oak_recorder.py` |
 | 현재 녹화 프로그램 세부 코드 분석 | 완료 | 기존 RGB/결과 RTSP와 MP4 녹화 경로 확인 |
 | YOLOPv2 OAK4 실제 출력 검증 | 검증 필요 | tensor 이름·shape·좌표 확인 필요 |
-| RGB-Depth 정렬 | 미구현/검증 필요 | 실제 pipeline 기준 확인 필요 |
+| RGB-Depth 정렬 | 구현 완료/장비 검증 필요 | RVC4 `StereoDepth -> ImageAlign`, `DepthAligned` |
 | 객체 거리 및 3D 위치 | 미구현 | 거리 유효성 기준 필요 |
 | 가상 중심선 3차식 | 미구현 | BEV와 fitting 범위 결정 필요 |
 | 후처리 영상 중심선 표시 | 미구현 | 재투영 및 시각화 필요 |
@@ -216,8 +216,8 @@ kappa(x) = (2*c2 + 6*c3*x)
 
 - YOLOPv2 모델 파일, 입력 크기, 출력 tensor 이름과 shape
 - 현재 녹화 프로그램의 RGB/후처리 frame 동기화 방식
-- OAK4 Luxonis OS와 DepthAI 버전
-- Stereo Depth 설정과 RGB 정렬 기준
+- OAK4 Luxonis OS 1.41.0과 앱 DepthAI 3.8.0 조합의 장비 실행 확인
+- `ROBOTICS`, LR-check, subpixel 설정의 거리별 품질·성능 실측
 - 카메라 intrinsic/extrinsic 및 차량 기준 설치 자세
 - 객체별 대표 거리 정책과 유효성 임계값
 - 중심선 BEV 범위, 샘플 간격, fitting 구간 및 신뢰도 기준
