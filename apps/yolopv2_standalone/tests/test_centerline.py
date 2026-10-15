@@ -2,7 +2,11 @@ import unittest
 
 import numpy as np
 
-from centerline import estimate_centerline, render_bev
+from centerline import (
+    CenterlineTemporalFilter,
+    estimate_centerline,
+    render_bev,
+)
 
 
 def trapezoid_mask(curve_strength: float = 0.0) -> np.ndarray:
@@ -48,6 +52,42 @@ class CenterlineTests(unittest.TestCase):
         self.assertEqual(frame.shape, (480, 640, 3))
         cyan = np.all(frame == np.array((255, 255, 0), dtype=np.uint8), axis=2)
         self.assertGreater(int(np.count_nonzero(cyan)), 100)
+
+    def test_temporal_filter_smooths_ordinary_curve_change(self) -> None:
+        straight = estimate_centerline(trapezoid_mask())
+        curved = estimate_centerline(trapezoid_mask(curve_strength=8.0))
+        tracker = CenterlineTemporalFilter(alpha=0.25, max_curve_jump_px=200.0)
+
+        first = tracker.update(straight)
+        smoothed = tracker.update(curved)
+
+        expected = first.bev_curve[:, 0] * 0.75 + curved.bev_curve[:, 0] * 0.25
+        np.testing.assert_allclose(smoothed.bev_curve[:, 0], expected, atol=1e-4)
+
+    def test_temporal_filter_rejects_short_large_jump(self) -> None:
+        straight = estimate_centerline(trapezoid_mask())
+        curved = estimate_centerline(trapezoid_mask(curve_strength=18.0))
+        tracker = CenterlineTemporalFilter(max_curve_jump_px=5.0, hold_frames=2)
+
+        tracker.update(straight)
+        first_rejected = tracker.update(curved)
+        second_rejected = tracker.update(curved)
+        accepted = tracker.update(curved)
+
+        np.testing.assert_array_equal(first_rejected.bev_curve, straight.bev_curve)
+        np.testing.assert_array_equal(second_rejected.bev_curve, straight.bev_curve)
+        np.testing.assert_array_equal(accepted.bev_curve, curved.bev_curve)
+
+    def test_temporal_filter_holds_brief_invalid_measurement(self) -> None:
+        straight = estimate_centerline(trapezoid_mask())
+        invalid = estimate_centerline(np.zeros((180, 320), dtype=np.uint8))
+        tracker = CenterlineTemporalFilter(hold_frames=2)
+
+        tracker.update(straight)
+
+        self.assertTrue(tracker.update(invalid).valid)
+        self.assertTrue(tracker.update(invalid).valid)
+        self.assertFalse(tracker.update(invalid).valid)
 
 
 if __name__ == "__main__":

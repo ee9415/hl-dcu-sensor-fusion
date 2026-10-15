@@ -6,6 +6,7 @@ import numpy as np
 
 from centerline import (
     CenterlineEstimate,
+    CenterlineTemporalFilter,
     draw_centerline_overlay,
     estimate_centerline,
     render_bev,
@@ -225,6 +226,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._frames = 0
         self._started_at = time.monotonic()
         self._last_health_at = self._started_at
+        self._centerline_filter = CenterlineTemporalFilter()
 
     def build(
         self,
@@ -398,9 +400,17 @@ class Yolopv2Postprocess(dai.node.HostNode):
             centerline,
             (drivable.shape[1], drivable.shape[0]),
         )
+        invalid_labels = 0
         for detection, measurement in zip(detections, measurements, strict=True):
             self._draw_box(rendered, detection)
-            self._draw_distance(rendered, detection, measurement)
+            box_area = max(detection.xmax - detection.xmin, 0.0) * max(
+                detection.ymax - detection.ymin,
+                0.0,
+            )
+            if measurement.valid or (box_area >= 0.025 and invalid_labels < 4):
+                self._draw_distance(rendered, detection, measurement)
+                if not measurement.valid:
+                    invalid_labels += 1
 
         result = dai.ImgFrame()
         result.setCvFrame(rendered, dai.ImgFrame.Type.NV12)
@@ -488,7 +498,8 @@ class Yolopv2Postprocess(dai.node.HostNode):
             self._tensor(nn_data, self.TENSOR_NAMES[4]),
             self._source_size,
         )
-        centerline = estimate_centerline(drivable)
+        measured_centerline = estimate_centerline(drivable)
+        centerline = self._centerline_filter.update(measured_centerline)
         bev = render_bev(centerline)
         self.drivable.send(self._mask_frame(drivable, nn_data))
         self.lane.send(self._mask_frame(lane, nn_data))

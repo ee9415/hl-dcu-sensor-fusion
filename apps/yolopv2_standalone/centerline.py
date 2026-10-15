@@ -22,6 +22,75 @@ class CenterlineEstimate:
     bev_right: np.ndarray
 
 
+class CenterlineTemporalFilter:
+    def __init__(
+        self,
+        *,
+        alpha: float = 0.25,
+        max_curve_jump_px: float = 75.0,
+        hold_frames: int = 3,
+    ) -> None:
+        self.alpha = alpha
+        self.max_curve_jump_px = max_curve_jump_px
+        self.hold_frames = hold_frames
+        self._estimate: CenterlineEstimate | None = None
+        self._rejected_frames = 0
+
+    def update(self, measured: CenterlineEstimate) -> CenterlineEstimate:
+        previous = self._estimate
+        if not measured.valid:
+            self._rejected_frames += 1
+            if previous is not None and self._rejected_frames <= self.hold_frames:
+                return previous
+            self._estimate = None
+            return measured
+
+        if previous is None or not previous.valid:
+            self._estimate = measured
+            self._rejected_frames = 0
+            return measured
+
+        curve_jump = float(
+            np.percentile(
+                np.abs(measured.bev_curve[:, 0] - previous.bev_curve[:, 0]),
+                75.0,
+            )
+        )
+        if curve_jump > self.max_curve_jump_px:
+            self._rejected_frames += 1
+            if self._rejected_frames <= self.hold_frames:
+                return previous
+            self._estimate = measured
+            self._rejected_frames = 0
+            return measured
+
+        keep = 1.0 - self.alpha
+        smoothed = CenterlineEstimate(
+            valid=True,
+            coefficients=tuple(
+                keep * old + self.alpha * new
+                for old, new in zip(
+                    previous.coefficients,
+                    measured.coefficients,
+                    strict=True,
+                )
+            ),
+            residual_m=measured.residual_m,
+            forward_range_m=measured.forward_range_m,
+            bev_curve=(
+                keep * previous.bev_curve + self.alpha * measured.bev_curve
+            ).astype(np.float32),
+            image_curve=(
+                keep * previous.image_curve + self.alpha * measured.image_curve
+            ).astype(np.float32),
+            bev_left=measured.bev_left,
+            bev_right=measured.bev_right,
+        )
+        self._estimate = smoothed
+        self._rejected_frames = 0
+        return smoothed
+
+
 def _homography(source: np.ndarray, destination: np.ndarray) -> np.ndarray:
     rows = []
     values = []
@@ -73,6 +142,9 @@ def _road_segment(row: np.ndarray, reference_x: float) -> tuple[int, int] | None
                 (float(segment[0]) + float(segment[-1])) * 0.5 - reference_x
             ),
         )
+        chosen_center = (float(chosen[0]) + float(chosen[-1])) * 0.5
+        if abs(chosen_center - reference_x) > len(row) * 0.18:
+            return None
     return int(chosen[0]), int(chosen[-1])
 
 
@@ -129,13 +201,25 @@ def estimate_centerline(
     right_points = []
     center_points = []
     reference_x = (source_width - 1) * 0.5
+    started = False
+    missing_rows = 0
     first_row = int(round(0.50 * (source_height - 1)))
     last_row = int(round(0.98 * (source_height - 1)))
     for row_index in range(last_row, first_row - 1, -1):
         segment = _road_segment(mask[row_index], reference_x)
         if segment is None:
+            if started:
+                missing_rows += 1
+                if missing_rows > 6:
+                    break
             continue
         left, right = segment
+        if not started and not (
+            left <= source_width * 0.60 and right >= source_width * 0.40
+        ):
+            continue
+        started = True
+        missing_rows = 0
         center = (left + right) * 0.5
         reference_x = center
         left_points.append((left, row_index))

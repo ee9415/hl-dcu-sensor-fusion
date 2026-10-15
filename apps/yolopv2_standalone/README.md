@@ -92,6 +92,13 @@ reports validity, coefficients, and fit residual. This BEV currently uses a
 fixed source trapezoid for development; production vehicle coordinates require
 camera mounting height/pitch measurement and field calibration.
 
+The displayed centerline uses an exponential temporal filter. A single large
+curve jump or up to three missing measurements keeps the preceding result, while
+a persistent scene change is accepted. Extraction also requires the drivable
+component to connect to the lower image center, reducing false fits on monitor
+bezels and surrounding furniture. Invalid object-depth labels are limited to
+four sufficiently large boxes per frame; valid distance labels are never hidden.
+
 The connection panel also provides editable OAK IP and masked camera-password
 fields plus `IP 자동검색`. `영상 연결` checks whether both RTSP streams already
 exist; otherwise it starts the OAK app through `oakctl` using the entered
