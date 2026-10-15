@@ -103,3 +103,18 @@ IMU, 통합 bringup, TF/URDF, RViz, diagnostics, sensor fusion은 미구현이�
 | Namespace/topic/TF 미확정 | 6대 ROS2 확장과 fusion 지연 | 구현 전 기준 문서 승인 |
 | 장착 문서의 설계값을 실측값으로 오인 | 잘못된 TF/calibration | 설계안과 현장 확정값을 분리 저장 |
 | 자동화 테스트 부재 | 회귀 오류 발견 지연 | hardware-independent unit test 추가 |
+
+## 11. CAM01 OAK 4D Pro Development Direction
+
+작성일: 2026-10-15
+
+CAM01 전방 인식의 차기 개발 방향으로 OAK 4D Pro, YOLOPv2, 객체별 Stereo
+Depth 거리 결합 및 주행 가능 영역 기반 가상 중심선 생성을 정리했다. 별도 로컬
+`OAK_4D_PRO` 프로젝트의 녹화 프로그램과 YOLOPv2 Standalone 앱 파일 존재를
+확인했으며, 사용자 확인에 따르면 현재 프로그램은 원본 RGB와 후처리 영상을
+출력한다.
+
+이 항목은 설계 검토 상태이며 현재 저장소의 구현 완료 상태를 변경하지 않는다.
+Depth 결합, 3차식 중심선, 후처리 영상 표시, ROS2 구조화 데이터 및 통합 10 FPS는
+모두 미구현 또는 검증 필요 상태이다. 상세 기준은
+`docs/oak4d_cam01_perception_plan.md`를 따른다.

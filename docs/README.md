@@ -10,6 +10,7 @@
 ```text
 docs/
 ├── README.md
+├── oak4d_cam01_perception_plan.md  ← OAK4 CAM01 전방 인식 개발 방향
 ├── architecture/
 ├── operation/
 ├── sensor_alignment/          ← 센서 정렬 및 카메라 브라켓 설계
@@ -42,4 +43,5 @@ docs/
 - 구현/검증 상태는 루트 `PROJECT_STATUS.md`를 우선한다.
 - 실제 topic과 TF 구현 여부는 `TOPIC_LIST.md`, `TF_TREE.md`를 우선한다.
 - 6카메라 역할과 배치는 `camera_use_case.md`를 우선한다.
+- CAM01 OAK 4D Pro 차기 개발 방향은 `oak4d_cam01_perception_plan.md`를 참고한다.
 - `sensor_alignment/`의 수치와 구조는 현장 검증 전까지 설계안이다.
