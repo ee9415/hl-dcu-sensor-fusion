@@ -4,6 +4,12 @@ import time
 import depthai as dai
 import numpy as np
 
+from centerline import (
+    CenterlineEstimate,
+    draw_centerline_overlay,
+    estimate_centerline,
+    render_bev,
+)
 from postprocess import (
     SpatialMeasurement,
     diagnostic_bgr_frame,
@@ -210,6 +216,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         )
         self.drivable = self.createOutput(possibleDatatypes=img_frame_type)
         self.lane = self.createOutput(possibleDatatypes=img_frame_type)
+        self.bev = self.createOutput(possibleDatatypes=img_frame_type)
         self.result = self.createOutput(possibleDatatypes=img_frame_type)
         self._source_size = (1920, 1080)
         self._result_size = (960, 540)
@@ -249,6 +256,14 @@ class Yolopv2Postprocess(dai.node.HostNode):
             np.ascontiguousarray(bgr_mask),
             dai.ImgFrame.Type.BGR888i,
         )
+        frame.setTimestamp(nn_data.getTimestamp())
+        frame.setSequenceNum(nn_data.getSequenceNum())
+        return frame
+
+    @staticmethod
+    def _bev_frame(bev: np.ndarray, nn_data: dai.NNData) -> dai.ImgFrame:
+        frame = dai.ImgFrame()
+        frame.setCvFrame(np.ascontiguousarray(bev), dai.ImgFrame.Type.NV12)
         frame.setTimestamp(nn_data.getTimestamp())
         frame.setSequenceNum(nn_data.getSequenceNum())
         return frame
@@ -358,6 +373,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         lane: np.ndarray,
         detections: list[dai.ImgDetection],
         measurements: list[SpatialMeasurement],
+        centerline: CenterlineEstimate,
     ) -> dai.ImgFrame:
         source = preview.getCvFrame()
         result_width, result_height = self._result_size
@@ -377,6 +393,11 @@ class Yolopv2Postprocess(dai.node.HostNode):
 
         self._blend_mask(rendered, drivable_up, (0, 180, 0), 0.45)
         self._blend_mask(rendered, lane_up, (0, 0, 255), 0.70)
+        draw_centerline_overlay(
+            rendered,
+            centerline,
+            (drivable.shape[1], drivable.shape[0]),
+        )
         for detection, measurement in zip(detections, measurements, strict=True):
             self._draw_box(rendered, detection)
             self._draw_distance(rendered, detection, measurement)
@@ -467,8 +488,11 @@ class Yolopv2Postprocess(dai.node.HostNode):
             self._tensor(nn_data, self.TENSOR_NAMES[4]),
             self._source_size,
         )
+        centerline = estimate_centerline(drivable)
+        bev = render_bev(centerline)
         self.drivable.send(self._mask_frame(drivable, nn_data))
         self.lane.send(self._mask_frame(lane, nn_data))
+        self.bev.send(self._bev_frame(bev, nn_data))
         self.result.send(
             self._result_frame(
                 preview,
@@ -476,6 +500,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 lane,
                 detection_messages,
                 measurements,
+                centerline,
             )
         )
 
@@ -490,6 +515,15 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 "postprocess_ms": round((now - started_at) * 1000.0, 2),
                 "detections": len(detection_messages),
                 "depth_valid_detections": len(spatial_messages),
+                "centerline_valid": centerline.valid,
+                "centerline_coefficients": (
+                    [round(value, 6) for value in centerline.coefficients]
+                    if centerline.valid
+                    else None
+                ),
+                "centerline_residual_m": (
+                    round(centerline.residual_m, 3) if centerline.valid else None
+                ),
                 "input_shape": [1, 3, 320, 320],
             }
             print(f"HEALTH {json.dumps(payload)}", flush=True)

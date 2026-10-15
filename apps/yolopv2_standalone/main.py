@@ -151,6 +151,24 @@ with dai.Pipeline(device) as pipeline:
                     flush=True,
                 )
 
+                bev_encoder = pipeline.create(dai.node.VideoEncoder)
+                bev_encoder.setDefaultProfilePreset(
+                    FPS,
+                    dai.VideoEncoderProperties.Profile.H264_MAIN,
+                )
+                postprocess.bev.link(bev_encoder.input)
+                visualizer.addTopic("CenterlineBEV", bev_encoder.out, "bev")
+                pipeline.create(StreamOutput).build(
+                    bev_encoder.out,
+                    FPS,
+                    8553,
+                    "/bev",
+                )
+                print(
+                    "Centerline BEV RTSP: rtsp://<device-ip>:8553/bev",
+                    flush=True,
+                )
+
     print(f"YOLOPv2 {PIPELINE_STAGE} pipeline created", flush=True)
     pipeline.start()
     visualizer.registerPipeline(pipeline)

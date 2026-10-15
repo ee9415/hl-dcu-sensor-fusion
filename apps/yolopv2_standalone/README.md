@@ -21,6 +21,9 @@ pixel coordinate system.
   `X`, `Y`, and `Z` coordinates in millimeters. The regular detection path
   retains every object; this spatial topic contains only objects that pass the
   depth-validity rules.
+- `CenterlineBEV` (`full` mode): a `640x480` BEV development view showing the
+  detected drivable corridor, its boundaries, and the fitted cubic virtual
+  centerline.
 
 The fixed neural-network input remains `1x3x320x320`; the larger result size
 only affects visualization. Internal detection and binary-mask messages are
@@ -51,6 +54,7 @@ available as separate H.264 RTSP streams:
 ```text
 RGB:    rtsp://<device-ip>:8555/rgb
 Result: rtsp://<device-ip>:8554/yolopv2
+BEV:    rtsp://<device-ip>:8553/bev
 ```
 
 On the project PC, start the small recorder window with:
@@ -64,9 +68,9 @@ On the project PC, start the small recorder window with:
 The first two commands are only needed when creating the local environment.
 
 The recorder uses a four-panel layout for `원본 RGB`, `인식 결과`,
-`RGB 정렬 Depth`, and `BEV · 가상 중심선`. The first two panels use the current
-RTSP streams. Depth and BEV remain explicit placeholders until their PC-facing
-outputs are added in later stages.
+`RGB 정렬 Depth`, and `BEV · 가상 중심선`. RGB, the composited result, and BEV
+use live RTSP streams. Depth remains an explicit placeholder until its
+PC-facing video output is added.
 
 Use the recorder window in this order: `영상 연결`, select `원본 RGB`,
 `YOLO 결과`, or both, then use `녹화 시작`, `녹화 멈춤`, and `파일 저장`.
@@ -77,6 +81,16 @@ a normal file-save dialog. Selecting both opens a folder dialog and creates two 
 The recorder uses H.264 in the MP4 container through Windows Media Foundation,
 with MPEG-4 as a compatibility fallback. If the device address changes, pass
 `--device-ip <new-device-ip>`.
+
+## Virtual centerline
+
+The postprocessor selects the drivable segment connected to the image center,
+maps its left and right boundaries into a provisional `40 m x 12 m` BEV, and
+fits the metric-form cubic `y(x) = c0 + c1*x + c2*x^2 + c3*x^3`. A cyan line is
+reprojected onto `YOLOPv2Result` and rendered in `CenterlineBEV`. The health log
+reports validity, coefficients, and fit residual. This BEV currently uses a
+fixed source trapezoid for development; production vehicle coordinates require
+camera mounting height/pitch measurement and field calibration.
 
 The connection panel also provides editable OAK IP and masked camera-password
 fields plus `IP 자동검색`. `영상 연결` checks whether both RTSP streams already

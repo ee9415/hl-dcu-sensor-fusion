@@ -208,8 +208,8 @@ kappa(x) = (2*c2 + 6*c3*x)
 | RGB-Depth 정렬 | 구현 완료/장비 검증 필요 | RVC4 `StereoDepth -> ImageAlign`, `DepthAligned` |
 | Windows 멀티뷰 UI | 기본 구조 구현 완료 | RGB/결과 표시, Depth/BEV 연동 대기 표시 |
 | 객체 거리 및 3D 위치 | 구현 완료/장비 검증 필요 | 중앙 50% ROI, 0.3~50 m, 최소 20 pixel·10%, 10~90 percentile median |
-| 가상 중심선 3차식 | 미구현 | BEV와 fitting 범위 결정 필요 |
-| 후처리 영상 중심선 표시 | 미구현 | 재투영 및 시각화 필요 |
+| 가상 중심선 3차식 | 개발 구현/차량 보정 필요 | 고정 IPM 40 m × 12 m, 3차식 fitting, 실장비 출력 확인 |
+| 후처리 영상 중심선 표시 | 구현 완료/현장 검증 필요 | cyan 중심선 재투영 및 BEV RTSP 출력 |
 | ROS2 인터페이스 | 미확정 | 수신 측과 메시지 규격 협의 필요 |
 | 통합 10 FPS | 미검증 | 전체 기능 동시 실행 실측 필요 |
 
