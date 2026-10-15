@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Changed (2026-10-15, OAK4 실장비 및 멀티뷰 실행)
+
+- 장비 재인증 후 객체 거리 결합 `full` 파이프라인의 실제 실행 확인
+- 약 9.79 FPS와 유효 Depth 객체 출력 및 결과 영상의 `Z` 거리 표시 확인
+- Windows 멀티뷰 실행용 OpenCV/Pillow 요구사항 파일과 venv 설정 절차 추가
+- 실장비 IP로 2×2 멀티뷰 창 실행 확인
+
 ### Added (2026-10-15, OAK4 객체 거리 및 CAM_A XYZ)
 
 - YOLOPv2 객체 박스 중앙 ROI와 RGB 정렬 Depth를 결합하는 robust 거리 계산 추가

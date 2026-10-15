@@ -56,8 +56,12 @@ Result: rtsp://<device-ip>:8554/yolopv2
 On the project PC, start the small recorder window with:
 
 ```powershell
+& 'C:\Users\qstech_gn\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m venv .venv
+& .\.venv\Scripts\python.exe -m pip install -r .\tools\oak_recorder_requirements.txt
 & .\.venv\Scripts\pythonw.exe .\tools\oak_recorder.py
 ```
+
+The first two commands are only needed when creating the local environment.
 
 The recorder uses a four-panel layout for `원본 RGB`, `인식 결과`,
 `RGB 정렬 Depth`, and `BEV · 가상 중심선`. The first two panels use the current
