@@ -1,0 +1,34 @@
+{
+  "config_version": "1.0",
+  "model": {
+    "metadata": {
+      "name": "yolopv2_320",
+      "path": "yolopv2_320.dlc",
+      "precision": "float16"
+    },
+    "inputs": [
+      {
+        "name": "images",
+        "dtype": "float16",
+        "input_type": "image",
+        "shape": [1, 320, 320, 3],
+        "layout": "NHWC",
+        "preprocessing": {
+          "mean": null,
+          "scale": null,
+          "reverse_channels": false,
+          "interleaved_to_planar": true,
+          "dai_type": "BGR888i"
+        }
+      }
+    ],
+    "outputs": [
+      {"name": "det_stride_8", "dtype": "float16", "shape": [1, 40, 40, 255], "layout": "NDEC"},
+      {"name": "det_stride_16", "dtype": "float16", "shape": [1, 20, 20, 255], "layout": "NDEC"},
+      {"name": "det_stride_32", "dtype": "float16", "shape": [1, 10, 10, 255], "layout": "NDEC"},
+      {"name": "drivable_area", "dtype": "float16", "shape": [1, 320, 320, 2], "layout": "NHWC"},
+      {"name": "lane_line", "dtype": "float16", "shape": [1, 320, 320, 1], "layout": "NHWC"}
+    ],
+    "heads": []
+  }
+}

@@ -1,0 +1,49 @@
+{
+    "cmd_info": {
+        "dlc_convert": [
+            "snpe-onnx-to-dlc",
+            "-i",
+            "shared_with_container/outputs/yolopv2_320_to_rvc4_2026_10_02_06_32_28/intermediate_outputs/yolopv2_320-simplified-modified.onnx",
+            "--input_dim",
+            "images",
+            "1,3,320,320",
+            "--input_dtype",
+            "images",
+            "float32",
+            "--out_name",
+            "det_stride_8",
+            "--out_name",
+            "det_stride_16",
+            "--out_name",
+            "det_stride_32",
+            "--out_name",
+            "drivable_area",
+            "--out_name",
+            "lane_line",
+            "--input_layout",
+            "images",
+            "NCHW",
+            "--float_bitwidth",
+            "16"
+        ],
+        "graph_prepare": [
+            "snpe-dlc-graph-prepare",
+            "--input_dlc",
+            "shared_with_container/outputs/yolopv2_320_to_rvc4_2026_10_02_06_32_28/intermediate_outputs/yolopv2_320-simplified-modified.dlc",
+            "--output_dlc",
+            "shared_with_container/outputs/yolopv2_320_to_rvc4_2026_10_02_06_32_28/yolopv2_320.dlc",
+            "--set_output_tensors",
+            "det_stride_8,det_stride_16,det_stride_32,drivable_area,lane_line",
+            "--optimization_level",
+            "2",
+            "--htp_socs",
+            "sm8550",
+            "--use_float_io"
+        ]
+    },
+    "modelconverter_version": "0.5.6",
+    "snpe_version": "SNPE v2.41.0.251128145156_191518",
+    "target_devices": [
+        "sm8550"
+    ]
+}

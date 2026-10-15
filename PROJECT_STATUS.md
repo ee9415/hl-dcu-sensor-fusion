@@ -118,3 +118,13 @@ Depth 거리 결합 및 주행 가능 영역 기반 가상 중심선 생성을 �
 Depth 결합, 3차식 중심선, 후처리 영상 표시, ROS2 구조화 데이터 및 통합 10 FPS는
 모두 미구현 또는 검증 필요 상태이다. 상세 기준은
 `docs/oak4d_cam01_perception_plan.md`를 따른다.
+
+### 2026-10-15 기준 코드 이관
+
+- 임시 `D:\git_hub\OAK_4D_PRO` 프로젝트의 검증된 YOLOPv2 Standalone 앱을
+  `apps/yolopv2_standalone`으로 선별 이관했다.
+- Windows RGB/YOLO 결과 녹화 UI를 `tools/oak_recorder.py`로 이관했다.
+- `third_party`, 캐시, 로그, 중간 산출물과 개별 DLC는 이관하지 않았다.
+- OAK App 실행에 필요한 NNArchive는 로컬에 배치하되 Git 추적에서 제외한다.
+- 이관 단계에서는 기능을 변경하지 않았다. Depth와 가상 중심선은 다음 단계부터
+  독립적으로 추가하고 검증한다.

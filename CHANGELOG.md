@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+### Added (2026-10-15, OAK4 기준 코드 이관)
+
+- 임시 OAK4 검증 프로젝트의 YOLOPv2 Standalone 앱을
+  `apps/yolopv2_standalone`으로 선별 이관
+- 원본 RGB와 YOLO 결과 RTSP 수신·MP4 녹화 UI를 `tools/oak_recorder.py`로 이관
+- 대용량 OAK4 모델과 녹화 산출물을 Git 추적에서 제외
+- 이관 단계에서는 기존 동작을 보존하고 Depth 및 가상 중심선 기능은 추가하지 않음
+
 ### Added (2026-10-15, CAM01 OAK 4D Pro 개발 방향 기록)
 
 - OAK 4D Pro와 YOLOPv2 기반 CAM01 전방 인식 개발 방향 문서 추가

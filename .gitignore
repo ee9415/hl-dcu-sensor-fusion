@@ -43,3 +43,8 @@ Thumbs.db
 *.tmp
 *.bak
 *.orig
+
+# OAK4 local deployment artifacts
+apps/yolopv2_standalone/models/*.dlc
+apps/yolopv2_standalone/models/*.tar.xz
+artifacts/recordings/

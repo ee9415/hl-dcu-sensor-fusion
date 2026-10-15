@@ -32,18 +32,20 @@ Stereo Depth를 결합하여 상위 주행 판단 시스템에 필요한 전방 
 
 ## 3. 관련 프로그램 확인 상태
 
-별도 로컬 프로젝트 `D:\git_hub\OAK_4D_PRO`에 다음 파일이 존재함을 확인했다.
+임시 로컬 프로젝트 `D:\git_hub\OAK_4D_PRO`에서 검증한 기준 코드를 정식
+저장소로 선별 이관했다. 이후 개발의 정본은 이 저장소의 다음 경로이다.
 
 | 항목 | 경로 | 확인 상태 |
 | --- | --- | --- |
-| 영상 녹화 프로그램 | `tools/oak_recorder.py` | 파일 존재 확인 |
-| YOLOPv2 Standalone 앱 | `apps/yolopv2_standalone/main.py` | 파일 존재 확인 |
-| YOLOPv2 후처리 | `apps/yolopv2_standalone/postprocess.py` | 파일 존재 확인 |
-| OAK App 설정 | `apps/yolopv2_standalone/oakapp.toml` | 파일 존재 확인 |
+| 영상 녹화 프로그램 | `tools/oak_recorder.py` | 기준 코드 이관 완료 |
+| YOLOPv2 Standalone 앱 | `apps/yolopv2_standalone/main.py` | 기준 코드 이관 완료 |
+| YOLOPv2 후처리 | `apps/yolopv2_standalone/postprocess.py` | 기준 코드 이관 완료 |
+| OAK App 설정 | `apps/yolopv2_standalone/oakapp.toml` | 기준 코드 이관 완료 |
 
-사용자 확인에 따르면 현재 영상 녹화 프로그램은 오버레이되지 않은 RGB 영상과
-후처리 영상을 출력한다. 세부 구현과 실제 장비 동작은 향후 개발 착수 시 코드 및
-장비로 다시 검증한다.
+현재 영상 녹화 프로그램은 오버레이되지 않은 RGB 영상과 후처리 영상을 출력한다.
+정식 저장소 이관본은 원본 코드와 해시를 대조하고 정적 검사를 수행하되, 실제
+장비 동작은 단계별 장비 검증으로 다시 확인한다. 대용량 NNArchive는 Git 추적에서
+제외하고 로컬 배포 파일로 관리한다.
 
 ## 4. 목표 처리 구조
 
@@ -200,8 +202,8 @@ kappa(x) = (2*c2 + 6*c3*x)
 | 항목 | 상태 | 비고 |
 | --- | --- | --- |
 | 개발 목적 및 기본 출력 정의 | 정리 완료 | 본 문서 기준 |
-| OAK 4D Pro 프로젝트 파일 접근 | 확인 | 별도 프로젝트에 파일 존재 |
-| 현재 녹화 프로그램 세부 코드 분석 | 미수행 | 개발 착수 시 수행 |
+| OAK 4D Pro 기준 코드 이관 | 완료 | `apps/yolopv2_standalone`, `tools/oak_recorder.py` |
+| 현재 녹화 프로그램 세부 코드 분석 | 완료 | 기존 RGB/결과 RTSP와 MP4 녹화 경로 확인 |
 | YOLOPv2 OAK4 실제 출력 검증 | 검증 필요 | tensor 이름·shape·좌표 확인 필요 |
 | RGB-Depth 정렬 | 미구현/검증 필요 | 실제 pipeline 기준 확인 필요 |
 | 객체 거리 및 3D 위치 | 미구현 | 거리 유효성 기준 필요 |
@@ -226,8 +228,8 @@ kappa(x) = (2*c2 + 6*c3*x)
 ## 10. 다음 작업 원칙
 
 - 사용자에게 코드 작성 요청을 받기 전까지 구현 코드를 변경하지 않는다.
-- 구현 시작 시 `D:\git_hub\OAK_4D_PRO`의 녹화 프로그램과 YOLOPv2 Standalone
-  앱 구조를 먼저 분석한다.
+- `D:\git_hub\OAK_4D_PRO`는 임시 검증 원본으로만 보존하고, 이후 변경은 이
+  저장소의 이관본을 기준으로 수행한다.
 - 기존 원본 RGB 및 후처리 영상 출력 경로를 유지하면서 Depth 결합과 가상
   중심선 기능을 단계적으로 추가한다.
 - 설계값, 코드 확인 결과, 장비 실측 결과를 구분하여 기록한다.
