@@ -17,6 +17,10 @@ pixel coordinate system.
 - `DepthAligned` (`depth` and `full` modes): CAM_B/C stereo depth aligned to
   CAM_A at `1920x1080`. Valid values are millimeters and zero means invalid
   depth.
+- `SpatialDetections` (`full` mode): detections with valid CAM_A optical-frame
+  `X`, `Y`, and `Z` coordinates in millimeters. The regular detection path
+  retains every object; this spatial topic contains only objects that pass the
+  depth-validity rules.
 
 The fixed neural-network input remains `1x3x320x320`; the larger result size
 only affects visualization. Internal detection and binary-mask messages are
@@ -28,6 +32,13 @@ average FPS, post-processing time, detection count, and fixed model input
 shape. These records are available through `oakctl app logs` even if no
 inspection client is connected. Raw JSON `Buffer` topics are not published
 because the current RVC4 RemoteConnection does not serialize them.
+
+For each object, the postprocessor samples the center 50% of its RGB-aligned
+depth box. Values outside 0.3-50 m are rejected, at least 20 pixels and 10% of
+the ROI must remain, and the 10th-90th percentile range is median-filtered.
+The aligned frame's transformed intrinsic matrix converts the result to CAM_A
+optical-frame XYZ. The result video displays yellow `Z=12.4m` text for a valid
+measurement and red `Z=?` when depth is insufficient.
 
 The verified 10 FPS configuration sustains approximately 9.8 FPS after the
 startup interval, with about 19-21 ms of host post-processing per frame.
@@ -93,8 +104,9 @@ be compared with ONNX Runtime. The default is `full`.
 Use `PIPELINE_STAGE=depth` to validate CAM_A and RGB-aligned depth without
 loading the YOLOPv2 network. The RVC4 path uses the DepthAI v3 `ImageAlign`
 node, left-right consistency checking, subpixel disparity, and the
-`ROBOTICS` StereoDepth preset. Object ROI distance and XYZ calculation are not
-part of this stage.
+`ROBOTICS` StereoDepth preset. Object ROI distance and CAM_A XYZ calculation
+are active in `full` mode; their hardware accuracy and runtime performance
+still require the authenticated device validation.
 
 After numerical and live-image validation, build and install the production
 package, then enable automatic startup. Do not enable automatic startup before

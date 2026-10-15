@@ -5,12 +5,33 @@ import depthai as dai
 import numpy as np
 
 from postprocess import (
+    SpatialMeasurement,
     diagnostic_bgr_frame,
     decode_heads,
+    estimate_spatial_from_depth,
     map_letterboxed_box_to_source,
     non_max_suppression,
     segmentation_masks,
 )
+
+
+FONT_5X7 = {
+    "0": ("01110", "10001", "10011", "10101", "11001", "10001", "01110"),
+    "1": ("00100", "01100", "00100", "00100", "00100", "00100", "01110"),
+    "2": ("01110", "10001", "00001", "00010", "00100", "01000", "11111"),
+    "3": ("11110", "00001", "00001", "01110", "00001", "00001", "11110"),
+    "4": ("00010", "00110", "01010", "10010", "11111", "00010", "00010"),
+    "5": ("11111", "10000", "10000", "11110", "00001", "00001", "11110"),
+    "6": ("01110", "10000", "10000", "11110", "10001", "10001", "01110"),
+    "7": ("11111", "00001", "00010", "00100", "01000", "01000", "01000"),
+    "8": ("01110", "10001", "10001", "01110", "10001", "10001", "01110"),
+    "9": ("01110", "10001", "10001", "01111", "00001", "00001", "01110"),
+    ".": ("00000", "00000", "00000", "00000", "00000", "00110", "00110"),
+    "?": ("01110", "10001", "00001", "00010", "00100", "00000", "00100"),
+    "=": ("00000", "11111", "00000", "11111", "00000", "00000", "00000"),
+    "Z": ("11111", "00001", "00010", "00100", "01000", "10000", "11111"),
+    "m": ("00000", "00000", "11010", "10101", "10101", "10101", "10101"),
+}
 
 
 class DiagnosticFrameSource(dai.node.ThreadedHostNode):
@@ -180,6 +201,13 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 dai.Node.DatatypeHierarchy(dai.DatatypeEnum.ImgDetections, True)
             ]
         )
+        self.spatial_detections = self.createOutput(
+            possibleDatatypes=[
+                dai.Node.DatatypeHierarchy(
+                    dai.DatatypeEnum.SpatialImgDetections, True
+                )
+            ]
+        )
         self.drivable = self.createOutput(possibleDatatypes=img_frame_type)
         self.lane = self.createOutput(possibleDatatypes=img_frame_type)
         self.result = self.createOutput(possibleDatatypes=img_frame_type)
@@ -195,8 +223,9 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self,
         preview: dai.Node.Output,
         nn: dai.Node.Output,
+        aligned_depth: dai.Node.Output,
     ) -> "Yolopv2Postprocess":
-        self.link_args(preview, nn)
+        self.link_args(preview, nn, aligned_depth)
         return self
 
     def set_source_size(self, width: int, height: int) -> None:
@@ -241,6 +270,19 @@ class Yolopv2Postprocess(dai.node.HostNode):
         )
 
     @staticmethod
+    def _box_pixels(
+        frame: np.ndarray,
+        detection: dai.ImgDetection,
+    ) -> tuple[int, int, int, int]:
+        height, width = frame.shape[:2]
+        return (
+            int(np.clip(detection.xmin, 0.0, 1.0) * (width - 1)),
+            int(np.clip(detection.ymin, 0.0, 1.0) * (height - 1)),
+            int(np.clip(detection.xmax, 0.0, 1.0) * (width - 1)),
+            int(np.clip(detection.ymax, 0.0, 1.0) * (height - 1)),
+        )
+
+    @staticmethod
     def _draw_box(
         frame: np.ndarray,
         detection: dai.ImgDetection,
@@ -248,10 +290,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         thickness: int = 3,
     ) -> None:
         height, width = frame.shape[:2]
-        x1 = int(np.clip(detection.xmin, 0.0, 1.0) * (width - 1))
-        y1 = int(np.clip(detection.ymin, 0.0, 1.0) * (height - 1))
-        x2 = int(np.clip(detection.xmax, 0.0, 1.0) * (width - 1))
-        y2 = int(np.clip(detection.ymax, 0.0, 1.0) * (height - 1))
+        x1, y1, x2, y2 = Yolopv2Postprocess._box_pixels(frame, detection)
         if x2 <= x1 or y2 <= y1:
             return
         for offset in range(thickness):
@@ -264,12 +303,61 @@ class Yolopv2Postprocess(dai.node.HostNode):
             frame[top : bottom + 1, left] = color
             frame[top : bottom + 1, right] = color
 
+    @staticmethod
+    def _draw_text(
+        frame: np.ndarray,
+        text: str,
+        x: int,
+        y: int,
+        color: tuple[int, int, int],
+        scale: int = 2,
+    ) -> None:
+        height, width = frame.shape[:2]
+        cursor_x = max(x, 0)
+        for character in text:
+            glyph = FONT_5X7.get(character, FONT_5X7["?"])
+            for row_index, row in enumerate(glyph):
+                for column_index, selected in enumerate(row):
+                    if selected != "1":
+                        continue
+                    left = cursor_x + column_index * scale
+                    top = y + row_index * scale
+                    if left >= width or top >= height:
+                        continue
+                    right = min(left + scale, width)
+                    bottom = min(top + scale, height)
+                    if right > 0 and bottom > 0:
+                        frame[max(top, 0) : bottom, max(left, 0) : right] = color
+            cursor_x += 6 * scale
+
+    @staticmethod
+    def _draw_distance(
+        frame: np.ndarray,
+        detection: dai.ImgDetection,
+        measurement: SpatialMeasurement,
+    ) -> None:
+        x1, y1, _, _ = Yolopv2Postprocess._box_pixels(frame, detection)
+        if measurement.valid:
+            text = f"Z={measurement.z_mm / 1000.0:.1f}m"
+            color = (0, 255, 255)
+        else:
+            text = "Z=?"
+            color = (0, 0, 255)
+        Yolopv2Postprocess._draw_text(
+            frame,
+            text,
+            x1,
+            max(y1 - 18, 2),
+            color,
+        )
+
     def _result_frame(
         self,
         preview: dai.ImgFrame,
         drivable: np.ndarray,
         lane: np.ndarray,
         detections: list[dai.ImgDetection],
+        measurements: list[SpatialMeasurement],
     ) -> dai.ImgFrame:
         source = preview.getCvFrame()
         result_width, result_height = self._result_size
@@ -289,8 +377,9 @@ class Yolopv2Postprocess(dai.node.HostNode):
 
         self._blend_mask(rendered, drivable_up, (0, 180, 0), 0.45)
         self._blend_mask(rendered, lane_up, (0, 0, 255), 0.70)
-        for detection in detections:
+        for detection, measurement in zip(detections, measurements, strict=True):
             self._draw_box(rendered, detection)
+            self._draw_distance(rendered, detection, measurement)
 
         result = dai.ImgFrame()
         result.setCvFrame(rendered, dai.ImgFrame.Type.NV12)
@@ -298,8 +387,21 @@ class Yolopv2Postprocess(dai.node.HostNode):
         result.setSequenceNum(preview.getSequenceNum())
         return result
 
-    def process(self, preview: dai.ImgFrame, nn_data: dai.NNData) -> None:
+    def process(
+        self,
+        preview: dai.ImgFrame,
+        nn_data: dai.NNData,
+        aligned_depth: dai.ImgFrame,
+    ) -> None:
         started_at = time.monotonic()
+        depth_frame = aligned_depth.getFrame()
+        depth_transformation = aligned_depth.getTransformation()
+        if depth_transformation is None:
+            intrinsics = np.zeros((3, 3), dtype=np.float64)
+        else:
+            intrinsics = np.asarray(
+                depth_transformation.getIntrinsicMatrix(), dtype=np.float64
+            )
         heads = [self._tensor(nn_data, name) for name in self.TENSOR_NAMES[:3]]
         prediction = decode_heads(heads)
         decoded = non_max_suppression(
@@ -309,6 +411,8 @@ class Yolopv2Postprocess(dai.node.HostNode):
         )
 
         detection_messages = []
+        spatial_messages = []
+        measurements = []
         for x1, y1, x2, y2, confidence, label in decoded:
             normalized = map_letterboxed_box_to_source(
                 np.asarray((x1, y1, x2, y2)), self._source_size
@@ -322,12 +426,41 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 float, normalized
             )
             detection_messages.append(detection)
+            measurement = estimate_spatial_from_depth(
+                depth_frame,
+                normalized,
+                intrinsics,
+            )
+            measurements.append(measurement)
+            if measurement.valid:
+                spatial = dai.SpatialImgDetection()
+                spatial.label = detection.label
+                spatial.confidence = detection.confidence
+                spatial.xmin = detection.xmin
+                spatial.ymin = detection.ymin
+                spatial.xmax = detection.xmax
+                spatial.ymax = detection.ymax
+                spatial.spatialCoordinates = dai.Point3f(
+                    measurement.x_mm,
+                    measurement.y_mm,
+                    measurement.z_mm,
+                )
+                spatial_messages.append(spatial)
 
         detections = dai.ImgDetections()
         detections.detections = detection_messages
         detections.setTimestamp(nn_data.getTimestamp())
         detections.setSequenceNum(nn_data.getSequenceNum())
         self.detections.send(detections)
+
+        spatial_detections = dai.SpatialImgDetections()
+        spatial_detections.detections = spatial_messages
+        spatial_detections.unit = dai.LengthUnit.MILLIMETER
+        spatial_detections.setTimestamp(nn_data.getTimestamp())
+        spatial_detections.setSequenceNum(nn_data.getSequenceNum())
+        if depth_transformation is not None:
+            spatial_detections.setTransformation(depth_transformation)
+        self.spatial_detections.send(spatial_detections)
 
         drivable, lane = segmentation_masks(
             self._tensor(nn_data, self.TENSOR_NAMES[3]),
@@ -337,7 +470,13 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self.drivable.send(self._mask_frame(drivable, nn_data))
         self.lane.send(self._mask_frame(lane, nn_data))
         self.result.send(
-            self._result_frame(preview, drivable, lane, detection_messages)
+            self._result_frame(
+                preview,
+                drivable,
+                lane,
+                detection_messages,
+                measurements,
+            )
         )
 
         self._frames += 1
@@ -350,6 +489,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 "average_fps": round(self._frames / elapsed, 2),
                 "postprocess_ms": round((now - started_at) * 1000.0, 2),
                 "detections": len(detection_messages),
+                "depth_valid_detections": len(spatial_messages),
                 "input_shape": [1, 3, 320, 320],
             }
             print(f"HEALTH {json.dumps(payload)}", flush=True)

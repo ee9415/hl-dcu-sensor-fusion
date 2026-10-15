@@ -7,6 +7,16 @@
 
 ## [Unreleased]
 
+### Added (2026-10-15, OAK4 객체 거리 및 CAM_A XYZ)
+
+- YOLOPv2 객체 박스 중앙 ROI와 RGB 정렬 Depth를 결합하는 robust 거리 계산 추가
+- 유효 범위, 최소 픽셀·비율 및 percentile trimming 기반 Depth 무효 판정 추가
+- 정렬 프레임 intrinsic 기반 CAM_A optical XYZ(mm) 계산과
+  `SpatialDetections` 출력 추가
+- 후처리 영상에 객체별 `Z=...m` 또는 `Z=?` 상태 표시 추가
+- 합성 Depth 입력을 이용한 거리·이상치·희소값·좌표 계산 단위 테스트 4건 추가
+- 앱 버전을 `0.4.0`으로 갱신
+
 ### Changed (2026-10-15, OAK4 Windows 멀티뷰 UI)
 
 - 녹화 프로그램을 단일 선택 미리보기에서 2×2 멀티뷰 화면으로 변경

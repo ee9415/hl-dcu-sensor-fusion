@@ -125,9 +125,14 @@ with dai.Pipeline(device) as pipeline:
             else:
                 postprocess = pipeline.create(Yolopv2Postprocess).build(
                     camera_out,
-                    neural_network.out
+                    neural_network.out,
+                    aligned_depth,
                 )
                 postprocess.set_source_size(*CAMERA_SIZE)
+                visualizer.addTopic(
+                    "SpatialDetections",
+                    postprocess.spatial_detections,
+                )
                 result_encoder = pipeline.create(dai.node.VideoEncoder)
                 result_encoder.setDefaultProfilePreset(
                     FPS,

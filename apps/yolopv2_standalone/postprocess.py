@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 
 
@@ -10,6 +12,101 @@ ANCHORS = (
     ((36.0, 75.0), (76.0, 55.0), (72.0, 146.0)),
     ((142.0, 110.0), (192.0, 243.0), (459.0, 401.0)),
 )
+
+
+@dataclass(frozen=True)
+class SpatialMeasurement:
+    valid: bool
+    x_mm: float
+    y_mm: float
+    z_mm: float
+    valid_ratio: float
+    valid_pixels: int
+    roi: tuple[int, int, int, int]
+
+
+def estimate_spatial_from_depth(
+    depth_mm: np.ndarray,
+    normalized_box: tuple[float, float, float, float] | np.ndarray,
+    intrinsics: np.ndarray,
+    *,
+    roi_scale: float = 0.5,
+    min_depth_mm: int = 300,
+    max_depth_mm: int = 50_000,
+    min_valid_ratio: float = 0.10,
+    min_valid_pixels: int = 20,
+) -> SpatialMeasurement:
+    """Estimate robust CAM_A optical XYZ from an RGB-aligned depth ROI."""
+    depth = np.asarray(depth_mm)
+    if depth.ndim != 2:
+        raise ValueError(f"Depth frame must be 2-D, got {depth.shape}")
+    camera_matrix = np.asarray(intrinsics, dtype=np.float64)
+    if camera_matrix.shape != (3, 3):
+        raise ValueError(f"Intrinsics must be 3x3, got {camera_matrix.shape}")
+    if not 0.0 < roi_scale <= 1.0:
+        raise ValueError(f"roi_scale must be in (0, 1], got {roi_scale}")
+
+    height, width = depth.shape
+    x1, y1, x2, y2 = np.clip(
+        np.asarray(normalized_box, dtype=np.float64), 0.0, 1.0
+    )
+    center_x = (x1 + x2) * 0.5
+    center_y = (y1 + y2) * 0.5
+    half_width = max((x2 - x1) * roi_scale * 0.5, 0.0)
+    half_height = max((y2 - y1) * roi_scale * 0.5, 0.0)
+    roi_x1 = int(np.floor((center_x - half_width) * width))
+    roi_y1 = int(np.floor((center_y - half_height) * height))
+    roi_x2 = int(np.ceil((center_x + half_width) * width))
+    roi_y2 = int(np.ceil((center_y + half_height) * height))
+    roi_x1 = int(np.clip(roi_x1, 0, max(width - 1, 0)))
+    roi_y1 = int(np.clip(roi_y1, 0, max(height - 1, 0)))
+    roi_x2 = int(np.clip(roi_x2, roi_x1 + 1, width))
+    roi_y2 = int(np.clip(roi_y2, roi_y1 + 1, height))
+    roi_bounds = (roi_x1, roi_y1, roi_x2, roi_y2)
+
+    roi = depth[roi_y1:roi_y2, roi_x1:roi_x2]
+    valid_mask = (roi >= min_depth_mm) & (roi <= max_depth_mm)
+    valid_values = roi[valid_mask].astype(np.float64, copy=False)
+    valid_pixels = int(valid_values.size)
+    valid_ratio = valid_pixels / max(int(roi.size), 1)
+    invalid = SpatialMeasurement(
+        valid=False,
+        x_mm=float("nan"),
+        y_mm=float("nan"),
+        z_mm=float("nan"),
+        valid_ratio=valid_ratio,
+        valid_pixels=valid_pixels,
+        roi=roi_bounds,
+    )
+    if valid_pixels < min_valid_pixels or valid_ratio < min_valid_ratio:
+        return invalid
+
+    lower, upper = np.percentile(valid_values, (10.0, 90.0))
+    trimmed = valid_values[(valid_values >= lower) & (valid_values <= upper)]
+    if trimmed.size < min_valid_pixels:
+        trimmed = valid_values
+    z_mm = float(np.median(trimmed))
+
+    fx = float(camera_matrix[0, 0])
+    fy = float(camera_matrix[1, 1])
+    principal_x = float(camera_matrix[0, 2])
+    principal_y = float(camera_matrix[1, 2])
+    if fx <= 0.0 or fy <= 0.0 or not np.isfinite(z_mm):
+        return invalid
+
+    pixel_x = center_x * (width - 1)
+    pixel_y = center_y * (height - 1)
+    x_mm = (pixel_x - principal_x) * z_mm / fx
+    y_mm = (pixel_y - principal_y) * z_mm / fy
+    return SpatialMeasurement(
+        valid=True,
+        x_mm=float(x_mm),
+        y_mm=float(y_mm),
+        z_mm=z_mm,
+        valid_ratio=valid_ratio,
+        valid_pixels=valid_pixels,
+        roi=roi_bounds,
+    )
 
 
 def diagnostic_bgr_frame() -> np.ndarray:

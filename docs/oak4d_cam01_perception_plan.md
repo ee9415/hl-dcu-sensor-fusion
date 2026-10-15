@@ -207,7 +207,7 @@ kappa(x) = (2*c2 + 6*c3*x)
 | YOLOPv2 OAK4 실제 출력 검증 | 검증 필요 | tensor 이름·shape·좌표 확인 필요 |
 | RGB-Depth 정렬 | 구현 완료/장비 검증 필요 | RVC4 `StereoDepth -> ImageAlign`, `DepthAligned` |
 | Windows 멀티뷰 UI | 기본 구조 구현 완료 | RGB/결과 표시, Depth/BEV 연동 대기 표시 |
-| 객체 거리 및 3D 위치 | 미구현 | 거리 유효성 기준 필요 |
+| 객체 거리 및 3D 위치 | 구현 완료/장비 검증 필요 | 중앙 50% ROI, 0.3~50 m, 최소 20 pixel·10%, 10~90 percentile median |
 | 가상 중심선 3차식 | 미구현 | BEV와 fitting 범위 결정 필요 |
 | 후처리 영상 중심선 표시 | 미구현 | 재투영 및 시각화 필요 |
 | ROS2 인터페이스 | 미확정 | 수신 측과 메시지 규격 협의 필요 |
@@ -220,7 +220,7 @@ kappa(x) = (2*c2 + 6*c3*x)
 - OAK4 Luxonis OS 1.41.0과 앱 DepthAI 3.8.0 조합의 장비 실행 확인
 - `ROBOTICS`, LR-check, subpixel 설정의 거리별 품질·성능 실측
 - 카메라 intrinsic/extrinsic 및 차량 기준 설치 자세
-- 객체별 대표 거리 정책과 유효성 임계값
+- 객체별 대표 거리 정책과 유효성 임계값의 실장비 데이터 검증
 - 중심선 BEV 범위, 샘플 간격, fitting 구간 및 신뢰도 기준
 - 구조화 데이터 전송 형식과 ROS2 메시지 변환 위치
 - 원본/후처리 영상, Depth 및 결과 데이터의 녹화 범위
