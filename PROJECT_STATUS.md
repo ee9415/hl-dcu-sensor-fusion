@@ -1,5 +1,13 @@
 # PROJECT_STATUS.md
 
+## Ubuntu 멀티뷰 업데이트 (2026-10-16)
+
+- 기존 멀티뷰를 WSL2 Ubuntu 22.04/WSLg에서 실행할 수 있도록 호환 처리했다.
+- 실제 GUI에서 RGB 1920x1080, YOLOPv2 960x540, BEV 640x480 수신 및
+  미리보기 생성 확인 완료. Depth는 아직 출력 연동 대기다.
+- Linux 비밀번호 파일 저장은 비활성화했다. Windows DPAPI 저장은 유지한다.
+- 실행 방법과 검증 범위: `docs/verification/camera/ubuntu_multiview_20261016.md`.
+
 ## 1. Summary
 
 작성일: 2026-10-06

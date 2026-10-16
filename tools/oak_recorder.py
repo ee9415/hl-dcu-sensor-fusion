@@ -20,10 +20,15 @@ from tkinter import filedialog, messagebox, ttk
 import cv2
 from PIL import Image, ImageTk
 
+RESAMPLE_LANCZOS = getattr(Image, "Resampling", Image).LANCZOS
 
 DEFAULT_DEVICE_IP = "192.168.200.48"
 DEFAULT_DEVICE_SERIAL = "1142227768"
-OAKCTL_PATH = Path(r"C:\Program Files\oakctl\bin\oakctl.exe")
+IS_WINDOWS = os.name == "nt"
+UI_FONT = "Malgun Gothic" if IS_WINDOWS else "Noto Sans CJK KR"
+OAKCTL_PATH = Path(shutil.which("oakctl") or (
+    r"C:\Program Files\oakctl\bin\oakctl.exe" if IS_WINDOWS else "/usr/local/bin/oakctl"
+))
 OAK_APP_PATH = Path(__file__).resolve().parents[1] / "apps" / "yolopv2_standalone"
 DEFAULT_FPS = 10.0
 PREVIEW_SIZE = (480, 270)
@@ -77,6 +82,9 @@ def _crypt_unprotect(encoded: str) -> str:
 
 
 def save_password(device_ip: str, password: str) -> None:
+    # DPAPI is Windows-only. Never fall back to plaintext storage on Linux.
+    if not IS_WINDOWS:
+        return
     credentials: dict[str, str] = {}
     try:
         loaded = json.loads(CREDENTIAL_FILE.read_text(encoding="utf-8"))
@@ -94,6 +102,8 @@ def save_password(device_ip: str, password: str) -> None:
 
 
 def load_password(device_ip: str) -> str:
+    if not IS_WINDOWS:
+        return ""
     try:
         credentials = json.loads(CREDENTIAL_FILE.read_text(encoding="utf-8"))
         if not isinstance(credentials, dict):
@@ -260,31 +270,31 @@ class RecorderApp:
             background="#050a0f",
             foreground="#8da0af",
             anchor="center",
-            font=("Malgun Gothic", 11),
+            font=(UI_FONT, 11),
         )
         style.configure(
             "Title.TLabel",
             background="#111b25",
             foreground="#f1f6f9",
-            font=("Malgun Gothic", 16, "bold"),
+            font=(UI_FONT, 16, "bold"),
         )
         style.configure(
             "Subtitle.TLabel",
             background="#111b25",
             foreground="#8da0af",
-            font=("Malgun Gothic", 9),
+            font=(UI_FONT, 9),
         )
         style.configure(
             "PanelTitle.TLabel",
             background="#131f2a",
             foreground="#f1f6f9",
-            font=("Malgun Gothic", 10, "bold"),
+            font=(UI_FONT, 10, "bold"),
         )
         style.configure(
             "PanelStatus.TLabel",
             background="#131f2a",
             foreground="#21d3a1",
-            font=("Malgun Gothic", 9),
+            font=(UI_FONT, 9),
         )
         style.configure(
             "App.TLabel",
@@ -391,7 +401,8 @@ class RecorderApp:
         self.password_entry.grid(row=0, column=4, sticky="ew")
         ttk.Label(
             connection,
-            text="입력하면 암호화 저장 · 빈칸이면 저장된 비밀번호 사용",
+            text=("입력하면 암호화 저장 · 빈칸이면 저장된 비밀번호 사용" if IS_WINDOWS
+                  else "Ubuntu: 비밀번호는 이번 연결에만 사용 · 파일 저장 안 함"),
             style="App.TLabel",
         ).grid(row=1, column=3, columnspan=2, sticky="w", pady=(4, 0))
         connection.columnconfigure(1, weight=1)
@@ -598,7 +609,7 @@ class RecorderApp:
                 encoding="utf-8",
                 errors="replace",
                 timeout=900,
-                creationflags=subprocess.CREATE_NO_WINDOW,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except (OSError, subprocess.SubprocessError) as exc:
             self.connection_events.put(("error", str(exc)))
@@ -667,7 +678,7 @@ class RecorderApp:
                 capture_output=True,
                 text=True,
                 timeout=15,
-                creationflags=subprocess.CREATE_NO_WINDOW,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 check=True,
             )
             devices = json.loads(completed.stdout).get("items", [])
@@ -696,7 +707,7 @@ class RecorderApp:
             if frame is not None:
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 image = Image.fromarray(rgb)
-                image.thumbnail(PREVIEW_SIZE, Image.Resampling.LANCZOS)
+                image.thumbnail(PREVIEW_SIZE, RESAMPLE_LANCZOS)
                 photo = ImageTk.PhotoImage(image)
                 preview.configure(image=photo, text="")
                 preview.image = photo
@@ -870,6 +881,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rgb-url", help="override the RGB RTSP URL")
     parser.add_argument("--result-url", help="override the YOLOPv2 RTSP URL")
     parser.add_argument("--bev-url", help="override the centerline BEV RTSP URL")
+    parser.add_argument("--auto-connect", action="store_true", help="connect after opening the window")
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -882,7 +894,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     root = tk.Tk()
-    RecorderApp(
+    app = RecorderApp(
         root,
         args.device_ip,
         args.device_serial,
@@ -891,6 +903,8 @@ def main() -> None:
         args.bev_url,
         args.output_dir,
     )
+    if args.auto_connect:
+        root.after(200, app.connect_video)
     root.mainloop()
 
 
