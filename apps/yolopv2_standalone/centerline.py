@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from temporal_centerline import CenterlineTemporalFilter
 
 import numpy as np
 
@@ -20,75 +21,12 @@ class CenterlineEstimate:
     image_curve: np.ndarray
     bev_left: np.ndarray
     bev_right: np.ndarray
+    projection: np.ndarray | None = None
+    tracking_state: str = "measured"
+    measurement_age_s: float = 0.0
+    motion_compensated: bool = False
 
 
-class CenterlineTemporalFilter:
-    def __init__(
-        self,
-        *,
-        alpha: float = 0.25,
-        max_curve_jump_px: float = 75.0,
-        hold_frames: int = 3,
-    ) -> None:
-        self.alpha = alpha
-        self.max_curve_jump_px = max_curve_jump_px
-        self.hold_frames = hold_frames
-        self._estimate: CenterlineEstimate | None = None
-        self._rejected_frames = 0
-
-    def update(self, measured: CenterlineEstimate) -> CenterlineEstimate:
-        previous = self._estimate
-        if not measured.valid:
-            self._rejected_frames += 1
-            if previous is not None and self._rejected_frames <= self.hold_frames:
-                return previous
-            self._estimate = None
-            return measured
-
-        if previous is None or not previous.valid:
-            self._estimate = measured
-            self._rejected_frames = 0
-            return measured
-
-        curve_jump = float(
-            np.percentile(
-                np.abs(measured.bev_curve[:, 0] - previous.bev_curve[:, 0]),
-                75.0,
-            )
-        )
-        if curve_jump > self.max_curve_jump_px:
-            self._rejected_frames += 1
-            if self._rejected_frames <= self.hold_frames:
-                return previous
-            self._estimate = measured
-            self._rejected_frames = 0
-            return measured
-
-        keep = 1.0 - self.alpha
-        smoothed = CenterlineEstimate(
-            valid=True,
-            coefficients=tuple(
-                keep * old + self.alpha * new
-                for old, new in zip(
-                    previous.coefficients,
-                    measured.coefficients,
-                    strict=True,
-                )
-            ),
-            residual_m=measured.residual_m,
-            forward_range_m=measured.forward_range_m,
-            bev_curve=(
-                keep * previous.bev_curve + self.alpha * measured.bev_curve
-            ).astype(np.float32),
-            image_curve=(
-                keep * previous.image_curve + self.alpha * measured.image_curve
-            ).astype(np.float32),
-            bev_left=measured.bev_left,
-            bev_right=measured.bev_right,
-        )
-        self._estimate = smoothed
-        self._rejected_frames = 0
-        return smoothed
 
 
 def _homography(source: np.ndarray, destination: np.ndarray) -> np.ndarray:
@@ -287,6 +225,7 @@ def estimate_centerline(
         image_curve=image_curve.astype(np.float32),
         bev_left=bev_left.astype(np.float32),
         bev_right=bev_right.astype(np.float32),
+        projection=bev_to_image,
     )
 
 
@@ -377,6 +316,7 @@ def draw_centerline_overlay(
     frame: np.ndarray,
     estimate: CenterlineEstimate,
     source_mask_size: tuple[int, int],
+    *, raw: bool = False,
 ) -> None:
     if not estimate.valid:
         return
@@ -385,4 +325,9 @@ def draw_centerline_overlay(
     points = estimate.image_curve.copy().astype(np.float64)
     points[:, 0] *= frame_width / mask_width
     points[:, 1] *= frame_height / mask_height
-    _draw_polyline(frame, points, (255, 255, 0), thickness=4)
+    if raw:
+        for start in range(0, len(points) - 1, 6):
+            _draw_polyline(frame, points[start:start + 3], (180, 180, 180), thickness=1)
+    else:
+        color = (0, 165, 255) if estimate.tracking_state in ("held", "predicted") else (255, 255, 0)
+        _draw_polyline(frame, points, color, thickness=4)
