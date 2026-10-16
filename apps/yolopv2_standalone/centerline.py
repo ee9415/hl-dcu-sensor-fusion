@@ -30,6 +30,9 @@ class CenterlineEstimate:
     target_degree: int = 3
     order_fit_error: float = 0.0
     order_transition: bool = False
+    goal_position: tuple[float, float] | None = None
+    goal_image: tuple[float, float] | None = None
+    goal_half_width: float = 0.0
 
 
 
@@ -114,6 +117,7 @@ def estimate_centerline(
     bev_size: tuple[int, int] = BEV_SIZE,
     forward_range_m: float = FORWARD_RANGE_M,
     lateral_range_m: float = LATERAL_RANGE_M,
+    roi_top_fraction: float = .50,
 ) -> CenterlineEstimate:
     """Fit lateral(forward) = c0 + c1*x + c2*x^2 + c3*x^3."""
     mask = np.asarray(drivable_mask)
@@ -121,13 +125,15 @@ def estimate_centerline(
         raise ValueError(f"Drivable mask must be a non-empty 2-D array, got {mask.shape}")
 
     source_height, source_width = mask.shape
+    if not .30 <= roi_top_fraction <= .60:
+        raise ValueError('ROI top fraction must be between .30 and .60')
     bev_width, bev_height = bev_size
     source_quad = np.asarray(
         (
             (0.04 * (source_width - 1), 0.98 * (source_height - 1)),
             (0.96 * (source_width - 1), 0.98 * (source_height - 1)),
-            (0.62 * (source_width - 1), 0.50 * (source_height - 1)),
-            (0.38 * (source_width - 1), 0.50 * (source_height - 1)),
+            (0.62 * (source_width - 1), roi_top_fraction * (source_height - 1)),
+            (0.38 * (source_width - 1), roi_top_fraction * (source_height - 1)),
         ),
         dtype=np.float64,
     )
@@ -149,7 +155,7 @@ def estimate_centerline(
     reference_x = (source_width - 1) * 0.5
     started = False
     missing_rows = 0
-    first_row = int(round(0.50 * (source_height - 1)))
+    first_row = int(round(roi_top_fraction * (source_height - 1)))
     last_row = int(round(0.98 * (source_height - 1)))
     for row_index in range(last_row, first_row - 1, -1):
         segment = _road_segment(mask[row_index], reference_x)

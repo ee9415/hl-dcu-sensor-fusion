@@ -6,6 +6,7 @@ import numpy as np
 from corridor import CorridorTracker
 from adaptive_order import AdaptiveOrderSelector
 from conservative_centerline import ConservativeCenterline
+from far_corridor import guide_to_far_corridor, draw_goal
 from turn_preview import TurnPreview, TurnMailbox, draw_turn
 
 from centerline import (
@@ -258,6 +259,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._turn_mailbox = TurnMailbox()
         self._turn_points = None
         self._limit_samples = []
+        self._goal_samples = []
         self._centerline_samples = []
 
     def build(
@@ -432,6 +434,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
                                 (drivable.shape[1], drivable.shape[0]), raw=True)
         if self._turn_preview.mode == 'road':
             draw_centerline_overlay(rendered, centerline, (drivable.shape[1], drivable.shape[0]))
+            draw_goal(rendered, centerline, (drivable.shape[1], drivable.shape[0]))
         else:
             if self._turn_points is not None:
                 draw_turn(rendered, self._turn_points, self._turn_preview.projection,
@@ -535,17 +538,27 @@ class Yolopv2Postprocess(dai.node.HostNode):
             self._tensor(nn_data, self.TENSOR_NAMES[4]),
             self._source_size,
         )
-        measured_centerline = estimate_centerline(drivable)
+        measured_centerline = estimate_centerline(drivable, roi_top_fraction=.38)
         corridor_centerline = self._corridor_tracker.update(
             measured_centerline, timestamp_s=nn_data.getTimestamp().total_seconds()
         )
         ordered_centerline = self._order_selector.update(
             corridor_centerline, timestamp_s=nn_data.getTimestamp().total_seconds())
+        ordered_centerline = guide_to_far_corridor(
+            ordered_centerline, measured_centerline, self._shape_limiter.previous)
         centerline = self._centerline_filter.update(
             ordered_centerline, timestamp_s=nn_data.getTimestamp().total_seconds())
         centerline = self._shape_limiter.update(
             centerline, timestamp_s=nn_data.getTimestamp().total_seconds())
         self._limit_samples.append(self._shape_limiter.metrics.copy())
+        if centerline.valid and centerline.goal_position is not None:
+            gx, gy = centerline.goal_position
+            actual = float(np.polynomial.polynomial.polyval(gx, centerline.coefficients))
+            error = abs(actual-gy)
+            endpoint = np.array([(actual/12+.5)*639, (1-gx/40)*479, 1.]) @ centerline.projection.T
+            pixel_error = float(np.linalg.norm(endpoint[:2]/endpoint[2]-centerline.goal_image)*3)
+            self._goal_samples.append((error <= centerline.goal_half_width, pixel_error,
+                                       centerline.goal_image[1] < 90))
         bev = render_bev(centerline)
         self._turn_mailbox.poll(self._turn_preview, centerline)
         self._turn_points = self._turn_preview.update(centerline, nn_data.getTimestamp().total_seconds())
@@ -591,6 +604,18 @@ class Yolopv2Postprocess(dai.node.HostNode):
         if now - self._last_health_at >= 5.0:
             elapsed = max(now - self._started_at, 1e-6)
             payload = {
+                "centerline_goal_window": {
+                    "valid_goal_frames": len(self._goal_samples),
+                    "inside_far_corridor": sum(int(s[0]) for s in self._goal_samples),
+                    "above_old_roi": sum(int(s[2]) for s in self._goal_samples),
+                    "error_px_mean": float(np.mean([s[1] for s in self._goal_samples])) if self._goal_samples else None,
+                    "error_px_max": max(s[1] for s in self._goal_samples) if self._goal_samples else None},
+                "centerline_goal_xy_dev": centerline.goal_position,
+                "centerline_goal_image": centerline.goal_image,
+                "centerline_goal_error_dev": (float(abs(np.polynomial.polynomial.polyval(
+                    centerline.goal_position[0], centerline.coefficients)-centerline.goal_position[1]))
+                    if centerline.valid and centerline.goal_position else None),
+                "centerline_goal_half_width_dev": centerline.goal_half_width,
                 "turn_preview_mode": self._turn_preview.mode,
                 "turn_preview_status": self._turn_preview.status,
                 "turn_preview_control_eligible": False,
@@ -639,4 +664,5 @@ class Yolopv2Postprocess(dai.node.HostNode):
             print(f"HEALTH {json.dumps(payload)}", flush=True)
             self._centerline_samples.clear()
             self._limit_samples.clear()
+            self._goal_samples.clear()
             self._last_health_at = now
