@@ -25,6 +25,7 @@ class CenterlineEstimate:
     tracking_state: str = "measured"
     measurement_age_s: float = 0.0
     motion_compensated: bool = False
+    corridor_state: str = "measured"
 
 
 

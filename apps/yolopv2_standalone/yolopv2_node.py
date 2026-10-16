@@ -3,6 +3,7 @@ import time
 
 import depthai as dai
 import numpy as np
+from corridor import CorridorTracker
 
 from centerline import (
     CenterlineEstimate,
@@ -227,6 +228,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._started_at = time.monotonic()
         self._last_health_at = self._started_at
         self._centerline_filter = CenterlineTemporalFilter()
+        self._corridor_tracker = CorridorTracker()
 
     def build(
         self,
@@ -502,8 +504,11 @@ class Yolopv2Postprocess(dai.node.HostNode):
             self._source_size,
         )
         measured_centerline = estimate_centerline(drivable)
-        centerline = self._centerline_filter.update(
+        corridor_centerline = self._corridor_tracker.update(
             measured_centerline, timestamp_s=nn_data.getTimestamp().total_seconds()
+        )
+        centerline = self._centerline_filter.update(
+            corridor_centerline, timestamp_s=nn_data.getTimestamp().total_seconds()
         )
         bev = render_bev(centerline)
         self.drivable.send(self._mask_frame(drivable, nn_data))
@@ -533,6 +538,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 "detections": len(detection_messages),
                 "depth_valid_detections": len(spatial_messages),
                 "centerline_valid": centerline.valid,
+                "centerline_corridor_state": corridor_centerline.corridor_state,
                 "centerline_tracking_state": centerline.tracking_state,
                 "centerline_measurement_age_s": round(centerline.measurement_age_s, 3),
                 "centerline_motion_compensated": centerline.motion_compensated,
