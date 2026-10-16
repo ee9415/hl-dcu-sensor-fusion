@@ -29,6 +29,12 @@ UI_FONT = "Malgun Gothic" if IS_WINDOWS else "Noto Sans CJK KR"
 OAKCTL_PATH = Path(shutil.which("oakctl") or (
     r"C:\Program Files\oakctl\bin\oakctl.exe" if IS_WINDOWS else "/usr/local/bin/oakctl"
 ))
+# WSL can use the authenticated Windows installation without installing a
+# separate CLI or copying credentials into Ubuntu.
+if not IS_WINDOWS and not OAKCTL_PATH.exists():
+    windows_cli = Path('/mnt/c/Program Files/oakctl/bin/oakctl.exe')
+    if windows_cli.exists():
+        OAKCTL_PATH = windows_cli
 OAK_APP_PATH = Path(__file__).resolve().parents[1] / "apps" / "yolopv2_standalone"
 DEFAULT_FPS = 10.0
 PREVIEW_SIZE = (480, 270)
@@ -475,6 +481,40 @@ class RecorderApp:
         )
         self.root.after(50, self._update_preview)
 
+        turn_controls = ttk.Frame(controls, style="App.TFrame")
+        turn_controls.grid(row=2, column=0, sticky="ew", pady=(6, 0))
+        self.turn_status = tk.StringVar(value="교차로 경로 미리보기 · 차량 제어 아님")
+        self.turn_busy = False
+        for label, mode in (("좌회전 미리보기", "left"), ("우회전 미리보기", "right"), ("일반 도로 복귀", "road")):
+            ttk.Button(turn_controls, text=label,
+                       command=lambda m=mode: self.request_turn(m)).pack(side=tk.LEFT, padx=3)
+        ttk.Label(turn_controls, textvariable=self.turn_status, style="App.TLabel").pack(side=tk.LEFT, padx=8)
+
+    def request_turn(self, mode: str) -> None:
+        if self.turn_busy:
+            return
+        self.turn_busy = True
+        self.turn_status.set("카메라 명령 확인 중...")
+        ip = self.device_ip
+        def send():
+            try:
+                completed = subprocess.run(
+                    [str(OAKCTL_PATH), "app", "exec", "-d", ip,
+                     "00000000-0000-0000-0000-000000000000", "python3", "/app/turn_command.py", mode],
+                    stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", timeout=15,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                lines = [line.split('TURN_ACK ', 1)[1] for line in completed.stdout.splitlines() if 'TURN_ACK ' in line]
+                ack = json.loads(lines[-1]) if lines else {}
+                if completed.returncode != 0 or not ack.get('accepted'):
+                    detail = ack.get('error', '명령 확인 실패: 연결 또는 oakctl 재인증 확인')
+                else:
+                    detail = {"left": "좌회전", "right": "우회전", "road": "일반 도로 복귀"}[mode]+" 요청 수락 · 영상 전환 중"
+                self.connection_events.put(('turn', detail))
+            except (OSError, subprocess.SubprocessError, ValueError):
+                self.connection_events.put(('turn', '명령 확인 실패 · 연결/재인증 확인'))
+        threading.Thread(target=send, daemon=True).start()
+
     def _build_preview_panel(
         self,
         parent: ttk.Frame,
@@ -590,11 +630,19 @@ class RecorderApp:
         command = [str(OAKCTL_PATH)]
         if password:
             command.extend(["--password", password])
+        app_source = str(OAK_APP_PATH)
+        if not IS_WINDOWS and OAKCTL_PATH.suffix.lower() == '.exe':
+            try:
+                app_source = subprocess.check_output(
+                    ['wslpath', '-w', app_source], text=True, timeout=5).strip()
+            except (OSError, subprocess.SubprocessError) as exc:
+                self.connection_events.put(('error', f'WSL 경로 변환 실패: {exc}'))
+                return
         command.extend(
             [
                 "app",
                 "run",
-                str(OAK_APP_PATH),
+                app_source,
                 "--detach",
                 "-d",
                 ip,
@@ -652,6 +700,10 @@ class RecorderApp:
                 return
             if event == "ready":
                 self._begin_receivers(detail)
+                continue
+            if event == "turn":
+                self.turn_busy = False
+                self.turn_status.set(detail)
                 continue
 
             self.connect_requested = False

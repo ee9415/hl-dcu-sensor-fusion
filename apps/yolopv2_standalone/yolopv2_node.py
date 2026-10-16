@@ -6,6 +6,7 @@ import numpy as np
 from corridor import CorridorTracker
 from adaptive_order import AdaptiveOrderSelector
 from conservative_centerline import ConservativeCenterline
+from turn_preview import TurnPreview, TurnMailbox, draw_turn
 
 from centerline import (
     CenterlineEstimate,
@@ -26,6 +27,26 @@ from postprocess import (
 
 
 FONT_5X7 = {
+    " ": ("00000",)*7,
+    "A": ("01110","10001","10001","11111","10001","10001","10001"),
+    "B": ("11110","10001","10001","11110","10001","10001","11110"),
+    "D": ("11110","10001","10001","10001","10001","10001","11110"),
+    "E": ("11111","10000","10000","11110","10000","10000","11111"),
+    "F": ("11111","10000","10000","11110","10000","10000","10000"),
+    "G": ("01110","10001","10000","10111","10001","10001","01110"),
+    "H": ("10001","10001","10001","11111","10001","10001","10001"),
+    "I": ("11111","00100","00100","00100","00100","00100","11111"),
+    "L": ("10000","10000","10000","10000","10000","10000","11111"),
+    "N": ("10001","11001","11001","10101","10011","10011","10001"),
+    "O": ("01110","10001","10001","10001","10001","10001","01110"),
+    "P": ("11110","10001","10001","11110","10000","10000","10000"),
+    "R": ("11110","10001","10001","11110","10100","10010","10001"),
+    "S": ("01111","10000","10000","01110","00001","00001","11110"),
+    "T": ("11111","00100","00100","00100","00100","00100","00100"),
+    "U": ("10001","10001","10001","10001","10001","10001","01110"),
+    "V": ("10001","10001","10001","10001","10001","01010","00100"),
+    "W": ("10001","10001","10001","10101","10101","10101","01010"),
+    "Y": ("10001","10001","01010","00100","00100","00100","00100"),
     "0": ("01110", "10001", "10011", "10101", "11001", "10001", "01110"),
     "1": ("00100", "01100", "00100", "00100", "00100", "00100", "01110"),
     "2": ("01110", "10001", "00001", "00010", "00100", "01000", "11111"),
@@ -233,6 +254,9 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._corridor_tracker = CorridorTracker()
         self._order_selector = AdaptiveOrderSelector()
         self._shape_limiter = ConservativeCenterline()
+        self._turn_preview = TurnPreview()
+        self._turn_mailbox = TurnMailbox()
+        self._turn_points = None
         self._limit_samples = []
         self._centerline_samples = []
 
@@ -406,11 +430,13 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._blend_mask(rendered, lane_up, (0, 0, 255), 0.70)
         draw_centerline_overlay(rendered, measured_centerline,
                                 (drivable.shape[1], drivable.shape[0]), raw=True)
-        draw_centerline_overlay(
-            rendered,
-            centerline,
-            (drivable.shape[1], drivable.shape[0]),
-        )
+        if self._turn_preview.mode == 'road':
+            draw_centerline_overlay(rendered, centerline, (drivable.shape[1], drivable.shape[0]))
+        else:
+            if self._turn_points is not None:
+                draw_turn(rendered, self._turn_points, self._turn_preview.projection,
+                          (drivable.shape[1], drivable.shape[0]))
+            self._draw_text(rendered, 'TURN PREVIEW ONLY', 10, 12, (255, 80, 220))
         invalid_labels = 0
         for detection, measurement in zip(detections, measurements, strict=True):
             self._draw_box(rendered, detection)
@@ -521,6 +547,15 @@ class Yolopv2Postprocess(dai.node.HostNode):
             centerline, timestamp_s=nn_data.getTimestamp().total_seconds())
         self._limit_samples.append(self._shape_limiter.metrics.copy())
         bev = render_bev(centerline)
+        self._turn_mailbox.poll(self._turn_preview, centerline)
+        self._turn_points = self._turn_preview.update(centerline, nn_data.getTimestamp().total_seconds())
+        if self._turn_preview.mode != 'road':
+            bev[:] = (14, 22, 30)
+            if self._turn_points is not None:
+                draw_turn(bev, self._turn_points)
+            self._draw_text(bev, 'TURN PREVIEW ONLY', 10, 10, (255, 80, 220))
+            self._draw_text(bev, self._turn_preview.mode.upper(), 10, 32, (255, 80, 220))
+            self._draw_text(bev, self._turn_preview.status.upper().replace('_', ' '), 10, 54, (255, 80, 220))
         gap_px = None
         if centerline.valid and measured_centerline.valid:
             raw_points = measured_centerline.image_curve
@@ -556,6 +591,9 @@ class Yolopv2Postprocess(dai.node.HostNode):
         if now - self._last_health_at >= 5.0:
             elapsed = max(now - self._started_at, 1e-6)
             payload = {
+                "turn_preview_mode": self._turn_preview.mode,
+                "turn_preview_status": self._turn_preview.status,
+                "turn_preview_control_eligible": False,
                 "centerline_limit_frames": sum(s['limited'] for s in self._limit_samples),
                 "centerline_constraint_conflicts": sum(s['conflict'] for s in self._limit_samples),
                 "centerline_rate_bounds_max": {
