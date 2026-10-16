@@ -61,7 +61,10 @@ def _road_segment(row: np.ndarray, reference_x: float) -> tuple[int, int] | None
     selected = np.flatnonzero(row != 0)
     if not len(selected):
         return None
-    breaks = np.flatnonzero(np.diff(selected) > 1) + 1
+    # Thin lane paint/road markings can punch holes in the drivable mask.
+    # Bridge only small gaps, not vehicles or separate wide road components.
+    max_gap = max(2, int(len(row) * .04))
+    breaks = np.flatnonzero(np.diff(selected) > max_gap + 1) + 1
     segments = np.split(selected, breaks)
     candidates = [segment for segment in segments if len(segment) >= 6]
     if not candidates:

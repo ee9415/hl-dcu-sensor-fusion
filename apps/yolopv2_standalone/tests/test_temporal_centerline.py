@@ -38,7 +38,8 @@ class TemporalTests(unittest.TestCase):
     def test_alternating_outliers_do_not_reacquire(self):
         for i in range(3, 15):
             r = self.tracker.update(self.shifted(2 if i % 2 else -2), timestamp_s=i / 10)
-        self.assertFalse(r.valid)
+            self.assertTrue(r.valid)
+            self.assertLessEqual(abs(r.coefficients[0] - self.line.coefficients[0]), .100001)
 
     def test_same_polynomial_different_support_does_not_jump(self):
         r = self.tracker.update(replace(self.line, forward_range_m=(10, 30)), timestamp_s=.3)
@@ -72,6 +73,12 @@ class TemporalTests(unittest.TestCase):
 
     def test_no_motion_input_is_explicit(self):
         self.assertFalse(self.result.motion_compensated)
+
+    def test_visible_range_recovers_after_shortened_measurement(self):
+        self.tracker.update(replace(self.line, forward_range_m=(10, 30)), timestamp_s=.3)
+        result = self.tracker.update(self.line, timestamp_s=.4)
+        self.assertTrue(result.valid)
+        self.assertEqual(result.forward_range_m, self.line.forward_range_m)
 
 
 if __name__ == '__main__':

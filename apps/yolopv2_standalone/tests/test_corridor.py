@@ -43,25 +43,39 @@ class CorridorTests(unittest.TestCase):
         self.assertTrue(result.valid)
         np.testing.assert_allclose(result.coefficients, curved.coefficients)
 
-    def test_ambiguous_expansion_and_narrowing_are_invalid(self):
-        for left, right in ((-2, 2), (1, -1)):
-            self.assertFalse(self.tracker.update(self.changed(left, right),
-                                                timestamp_s=.1 if left < 0 else .2).valid)
+    def test_expansion_and_narrowing_keep_prior_only_while_inside(self):
+        self.assertTrue(self.tracker.update(self.changed(-2, 2), timestamp_s=.1).valid)
+        self.assertTrue(self.tracker.update(self.changed(1, -1), timestamp_s=.2).valid)
+        self.assertFalse(self.tracker.update(self.changed(7, 0), timestamp_s=.3).valid)
 
-    def test_inference_expires_and_normal_boundaries_recover(self):
+    def test_current_mask_support_is_required_for_contained_prior(self):
         for i in range(1, 34):
-            result = self.tracker.update(self.changed(0, 2), timestamp_s=i / 10)
-        self.assertFalse(result.valid)
-        self.assertEqual(result.corridor_state, 'inference_expired')
+            result = self.tracker.update(self.changed(-2, 2), timestamp_s=i / 10)
+        self.assertTrue(result.valid)
+        self.assertEqual(result.corridor_state, 'contained_prior')
+        self.assertFalse(self.tracker.update(replace(self.base, valid=False), timestamp_s=3.35).valid)
         self.assertTrue(self.tracker.update(self.base, timestamp_s=3.4).valid)
+
+    def test_observed_single_boundary_is_not_a_stale_hold(self):
+        for i in range(1, 70):
+            result = self.tracker.update(self.changed(0, 2), timestamp_s=i / 10)
+            self.assertTrue(result.valid)
 
     def test_gap_resets_and_old_timestamp_is_rejected(self):
         self.assertFalse(self.tracker.update(self.base, timestamp_s=0).valid)
         result = self.tracker.update(self.changed(0, 2), timestamp_s=2)
         self.assertEqual(result.corridor_state, 'measured')
 
+    def test_local_boundary_corruption_does_not_drop_whole_curve(self):
+        left, right = self.base.bev_left.copy(), self.base.bev_right.copy()
+        left[20:24, 0] += 50
+        right[20:24, 0] -= 50
+        result = self.tracker.update(replace(self.base, bev_left=left, bev_right=right), timestamp_s=.1)
+        self.assertTrue(result.valid)
+        self.assertEqual(result.corridor_state, 'partial_boundaries')
+
     def test_changed_scene_requires_stable_two_boundary_reacquisition(self):
-        changed = self.changed(1, -1)
+        changed = self.changed(7, 0)
         self.assertFalse(self.tracker.update(changed, timestamp_s=.1).valid)
         for i in range(2, 13):
             result = self.tracker.update(changed, timestamp_s=i / 10)

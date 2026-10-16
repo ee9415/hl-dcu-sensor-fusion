@@ -90,7 +90,9 @@ class CenterlineTemporalFilter:
         x = np.linspace(*bounds, 80) if overlap else np.array([])
         jump = (float(np.max(np.abs(self._values(measured, x) - self._values(prior, x))))
                 if prior is not None and overlap else float("inf"))
-        needs_confirmation = prior is None or not overlap or jump > self.jump or self.age > self.hold + dt
+        # A valid, spatially checked observation can be rate-limited directly. Waiting
+        # for a large moving target to stop changing caused avoidable display dropouts.
+        needs_confirmation = prior is None or not overlap or self.age > self.hold + dt
         if needs_confirmation:
             consistent = False
             if self.candidate is not None:
@@ -115,6 +117,15 @@ class CenterlineTemporalFilter:
             # One global gain bounds displacement of the entire cubic without clipping its shape.
             gain = min(gain, self.rate * dt / max(jump, 1e-9))
             coef = np.asarray(prior.coefficients) + gain * (np.asarray(measured.coefficients) - prior.coefficients)
+            if measured.forward_range_m != bounds:
+                # Recover newly visible distances from fresh observations, never extrapolate
+                # a cubic fitted to a short overlap into the recovered near field.
+                full_x = np.linspace(*measured.forward_range_m, 80)
+                full_y = self._values(measured, full_x)
+                shared = (full_x >= bounds[0]) & (full_x <= bounds[1])
+                full_y[shared] = np.polynomial.polynomial.polyval(full_x[shared], coef)
+                coef = np.polynomial.Polynomial.fit(full_x, full_y, 3).convert().coef
+                bounds = measured.forward_range_m
             result = self._curve(measured, coef, bounds,
                                  "reacquiring" if needs_confirmation else "tracking", 0.0, bool(motion))
         self.previous = result

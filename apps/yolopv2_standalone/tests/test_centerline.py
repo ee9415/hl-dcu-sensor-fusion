@@ -6,6 +6,7 @@ from centerline import (
     CenterlineTemporalFilter,
     estimate_centerline,
     render_bev,
+    _road_segment,
 )
 
 
@@ -24,6 +25,19 @@ def trapezoid_mask(curve_strength: float = 0.0) -> np.ndarray:
 
 
 class CenterlineTests(unittest.TestCase):
+    def test_wide_gap_is_not_bridged(self):
+        row = np.ones(320, dtype=np.uint8)
+        row[140:180] = 0
+        self.assertEqual(_road_segment(row, 100), (0, 139))
+
+    def test_thin_lane_hole_does_not_split_driving_corridor(self):
+        mask = trapezoid_mask()
+        base = estimate_centerline(mask)
+        mask[:, 157:164] = 0
+        result = estimate_centerline(mask)
+        self.assertTrue(result.valid)
+        np.testing.assert_allclose(result.coefficients, base.coefficients, atol=1e-6)
+
     def test_straight_drivable_area_produces_centerline(self) -> None:
         estimate = estimate_centerline(trapezoid_mask())
 
