@@ -147,6 +147,7 @@ class CaptureSource:
         self.lock = threading.Lock()
         self.stop_event = threading.Event()
         self.latest_frame = None
+        self.frames_received = 0
         self.writer: cv2.VideoWriter | None = None
         self.temp_path: Path | None = None
         self.connected = False
@@ -180,6 +181,7 @@ class CaptureSource:
                     break
                 with self.lock:
                     self.latest_frame = frame
+                    self.frames_received += 1
                     if self.writer is not None:
                         self.writer.write(frame)
 
@@ -242,6 +244,7 @@ class RecorderApp:
             "rgb": CaptureSource("rgb", "원본 RGB", ""),
             "yolopv2": CaptureSource("yolopv2", "YOLO 결과", ""),
             "bev": CaptureSource("bev", "BEV · 가상 중심선", ""),
+            "depth": CaptureSource("depth", "RGB 정렬 Depth", ""),
         }
         self.selected = {
             "rgb": tk.BooleanVar(value=True),
@@ -253,7 +256,7 @@ class RecorderApp:
         self.recording = False
         self.connect_requested = False
         self.connection_events: queue.SimpleQueue[tuple[str, str]] = queue.SimpleQueue()
-        self.last_connection_state: tuple[bool, bool, bool] | None = None
+        self.last_connection_state: tuple[bool, ...] | None = None
 
         self.preview_labels: dict[str, ttk.Label] = {}
         self.preview_status: dict[str, tk.StringVar] = {}
@@ -358,7 +361,7 @@ class RecorderApp:
         preview_specs = (
             ("rgb", "원본 RGB", "영상 연결 대기"),
             ("yolopv2", "인식 결과", "영상 연결 대기"),
-            ("depth", "RGB 정렬 Depth", "Depth 출력 연동 대기"),
+            ("depth", "Depth · 빨강 0.3m → 파랑 10m · 검정: 무효", "Depth 영상 연결 대기"),
             ("bev", "BEV · 가상 중심선", "BEV 출력 연동 대기"),
         )
         for index, (key, title, placeholder) in enumerate(preview_specs):
@@ -611,7 +614,7 @@ class RecorderApp:
 
     @staticmethod
     def _rtsp_ports_open(ip: str) -> bool:
-        for port in (8553, 8554, 8555):
+        for port in (8553, 8554, 8555, 8556):
             try:
                 with socket.create_connection((ip, port), timeout=1.0):
                     pass
@@ -676,7 +679,7 @@ class RecorderApp:
         self.connection_events.put(
             (
                 "error",
-                "OAK 앱 실행 명령은 완료됐지만 60초 안에 RGB/YOLO/BEV 영상 포트가 열리지 않았습니다. "
+                "OAK 앱 실행 명령은 완료됐지만 60초 안에 RGB/YOLO/BEV/Depth 영상 포트가 열리지 않았습니다. "
                 "장비 연결과 앱 상태를 확인해 주세요.",
             )
         )
@@ -687,10 +690,11 @@ class RecorderApp:
             self.result_url_override or f"rtsp://{ip}:8554/yolopv2"
         )
         self.sources["bev"].url = self.bev_url_override or f"rtsp://{ip}:8553/bev"
+        self.sources["depth"].url = f"rtsp://{ip}:8556/depth"
         for source in self.sources.values():
             source.start()
         self.connect_button.configure(text="영상 연결 중...", state=tk.DISABLED)
-        self.status_text.set(f"{ip} RGB, YOLO 및 BEV 스트림 연결 중...")
+        self.status_text.set(f"{ip} RGB, YOLO, BEV, Depth 스트림 연결 중...")
 
     def _drain_connection_events(self) -> None:
         while True:
@@ -749,10 +753,12 @@ class RecorderApp:
         result_connected, result_frame = self.sources["yolopv2"].snapshot()
         rgb_connected, rgb_frame = self.sources["rgb"].snapshot()
         bev_connected, bev_frame = self.sources["bev"].snapshot()
+        depth_connected, depth_frame = self.sources["depth"].snapshot()
         preview_frames = {
             "rgb": (rgb_connected, rgb_frame),
             "yolopv2": (result_connected, result_frame),
             "bev": (bev_connected, bev_frame),
+            "depth": (depth_connected, depth_frame),
         }
         for key, (connected, frame) in preview_frames.items():
             preview = self.preview_labels[key]
@@ -768,10 +774,8 @@ class RecorderApp:
                 preview.image = None
             self.preview_status[key].set("연결됨" if connected else "연결 대기")
 
-        self.preview_status["depth"].set("출력 연동 대기")
-
-        connection_state = (rgb_connected, result_connected, bev_connected)
-        if rgb_connected or result_connected or bev_connected:
+        connection_state = (rgb_connected, result_connected, bev_connected, depth_connected)
+        if any(connection_state):
             self.connect_button.configure(text="영상 연결됨", state=tk.DISABLED)
             if not self.recording and not self.unsaved_paths:
                 self.start_button.configure(state=tk.NORMAL)
@@ -786,6 +790,7 @@ class RecorderApp:
                 f"RGB {'연결됨' if rgb_connected else '연결 중'}",
                 f"YOLO {'연결됨' if result_connected else '연결 중'}",
                 f"BEV {'연결됨' if bev_connected else '연결 중'}",
+                f"Depth {'연결됨' if depth_connected else '연결 중'}",
             ]
             self.status_text.set(" / ".join(states))
 

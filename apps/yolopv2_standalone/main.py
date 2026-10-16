@@ -1,4 +1,5 @@
 import os
+import time
 from pathlib import Path
 
 import depthai as dai
@@ -10,6 +11,7 @@ from yolopv2_node import (
     Yolopv2Preprocess,
 )
 from stream_output import StreamOutput
+from depth_preview import DepthPreview
 
 
 CAMERA_SIZE = (1920, 1080)
@@ -26,7 +28,20 @@ if PIPELINE_STAGE not in VALID_STAGES:
     )
 
 
-visualizer = dai.RemoteConnection(httpPort=8082)
+class LocalOnlyConnection:
+    """Desktop RTSP mode: do not start a separate web visualizer by default."""
+    def addTopic(self, *args, **kwargs):
+        pass
+
+    def registerPipeline(self, pipeline):
+        pass
+
+    def waitKey(self, milliseconds):
+        time.sleep(milliseconds/1000)
+
+
+visualizer = (dai.RemoteConnection(httpPort=8082)
+              if os.environ.get('OAK_WEB_VISUALIZER') == '1' else LocalOnlyConnection())
 device = dai.Device()
 print(f"Device: {device.getDeviceInfo()}", flush=True)
 print(f"Pipeline stage: {PIPELINE_STAGE}", flush=True)
@@ -91,6 +106,12 @@ with dai.Pipeline(device) as pipeline:
         stereo.depth.link(depth_align.input)
         camera_out.link(depth_align.inputAlignTo)
         aligned_depth = depth_align.outputAligned
+        depth_preview = pipeline.create(DepthPreview).build(aligned_depth)
+        depth_encoder = pipeline.create(dai.node.VideoEncoder)
+        depth_encoder.setDefaultProfilePreset(FPS, dai.VideoEncoderProperties.Profile.H264_MAIN)
+        depth_preview.preview_out.link(depth_encoder.input)
+        pipeline.create(StreamOutput).build(depth_encoder.out, FPS, 8556, '/depth')
+        print('Depth preview RTSP: rtsp://<device-ip>:8556/depth (640x360, display only)', flush=True)
         visualizer.addTopic("DepthAligned", aligned_depth)
         print(
             "DepthAligned: CAM_B/C stereo depth aligned to CAM_A "

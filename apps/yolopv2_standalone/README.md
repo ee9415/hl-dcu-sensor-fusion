@@ -7,7 +7,21 @@ YOLOPv2 inference input. CAM_A output is calibration-undistorted so the
 `CAM_B/C -> StereoDepth -> ImageAlign` path can produce depth in the same CAM_A
 pixel coordinate system.
 
-## Published topics
+## Desktop multiview (0.13.0)
+
+The desktop recorder receives RGB, result, BEV and colorized Depth directly
+over RTSP. The Depth preview is 640x360 at a configured 10 FPS on
+`rtsp://<device-ip>:8556/depth`. It samples the aligned 1920x1080 depth at 3:1.
+Red is near (0.3 m), blue is far (10 m); values outside this display range
+saturate and invalid values are black. This lossy H.264 preview is not raw
+metric depth. The original millimeter depth used for object XYZ is unchanged.
+
+RemoteConnection visualization is disabled by default, and frontend port
+assignment is disabled. Set `OAK_WEB_VISUALIZER=1` explicitly for diagnostic
+web visualization. The base image may still print its generic Viewer URL;
+this is not required for desktop Depth and does not launch a browser.
+
+## Optional web topics
 
 - `YOLOPv2Result` (`full` mode): a single `960x540` H.264 result stream with
   green drivable-area overlay, red lane-line overlay, and yellow detection
@@ -55,6 +69,7 @@ available as separate H.264 RTSP streams:
 RGB:    rtsp://<device-ip>:8555/rgb
 Result: rtsp://<device-ip>:8554/yolopv2
 BEV:    rtsp://<device-ip>:8553/bev
+Depth:  rtsp://<device-ip>:8556/depth
 ```
 
 On the project PC, start the small recorder window with:

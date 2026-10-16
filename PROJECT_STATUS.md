@@ -1,5 +1,14 @@
 # PROJECT_STATUS.md
 
+## 멀티뷰 Depth 직접 수신 (2026-10-16)
+
+- oakapp 0.13.0: 정렬 Depth의 표시용 H.264 RTSP 8556/depth 추가(640×360, 설정 10 FPS).
+- 멀티뷰 Depth 수신/표시 연결. 원본 1920×1080 mm Depth와 객체 XYZ 계산 유지.
+- 웹 Visualizer 기본 비활성화, frontend port 자동 할당 해제.
+- 57개 테스트 통과. 실제 GUI 검사에서 RGB/YOLO/Depth 프레임 및 이미지 표시 확인.
+- 첫 20초 검사에서 BEV 미연결. 전체 네 화면 동시 검증 및 육안 검증은 미완료.
+- 상세: `docs/verification/camera/depth_multiview_20261016.md`.
+
 ## 앞쪽 통로 목표 추종 (2026-10-16)
 
 - oakapp 0.12.0: 카메라 중심선 ROI 상단을 높이 50%→38%로 확장.

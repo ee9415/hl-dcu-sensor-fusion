@@ -14,6 +14,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--device-ip", default="192.168.0.4")
     parser.add_argument("--keep-open", action="store_true")
+    parser.add_argument("--wait-seconds", type=int, default=60)
     parser.add_argument("--turn", choices=('left', 'right', 'road'))
     args = parser.parse_args()
     root = tk.Tk()
@@ -26,6 +27,7 @@ def main():
         for key, source in app.sources.items():
             connected, frame = source.snapshot()
             streams[key] = {"connected": connected,
+                            "frames_received": source.frames_received,
                             "shape": list(frame.shape) if frame is not None else None,
                             "preview": bool(getattr(app.preview_labels[key], "image", None))}
         result.update(window_mapped=bool(root.winfo_ismapped()), streams=streams)
@@ -42,7 +44,7 @@ def main():
     root.after(200, app.connect_video)
     if args.turn:
         root.after(2500, lambda: app.request_turn(args.turn))
-    root.after(20000, report)
+    root.after(args.wait_seconds * 1000, report)
     root.mainloop()
     return 0 if result.get("passed") else 1
 
