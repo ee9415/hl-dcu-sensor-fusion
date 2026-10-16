@@ -5,6 +5,7 @@ import depthai as dai
 import numpy as np
 from corridor import CorridorTracker
 from adaptive_order import AdaptiveOrderSelector
+from conservative_centerline import ConservativeCenterline
 
 from centerline import (
     CenterlineEstimate,
@@ -231,6 +232,8 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._centerline_filter = CenterlineTemporalFilter(measurement_following=True)
         self._corridor_tracker = CorridorTracker()
         self._order_selector = AdaptiveOrderSelector()
+        self._shape_limiter = ConservativeCenterline()
+        self._limit_samples = []
         self._centerline_samples = []
 
     def build(
@@ -514,6 +517,9 @@ class Yolopv2Postprocess(dai.node.HostNode):
             corridor_centerline, timestamp_s=nn_data.getTimestamp().total_seconds())
         centerline = self._centerline_filter.update(
             ordered_centerline, timestamp_s=nn_data.getTimestamp().total_seconds())
+        centerline = self._shape_limiter.update(
+            centerline, timestamp_s=nn_data.getTimestamp().total_seconds())
+        self._limit_samples.append(self._shape_limiter.metrics.copy())
         bev = render_bev(centerline)
         gap_px = None
         if centerline.valid and measured_centerline.valid:
@@ -550,6 +556,12 @@ class Yolopv2Postprocess(dai.node.HostNode):
         if now - self._last_health_at >= 5.0:
             elapsed = max(now - self._started_at, 1e-6)
             payload = {
+                "centerline_limit_frames": sum(s['limited'] for s in self._limit_samples),
+                "centerline_constraint_conflicts": sum(s['conflict'] for s in self._limit_samples),
+                "centerline_rate_bounds_max": {
+                    key: np.max([s[key] for s in self._limit_samples if s['compared']], axis=0).tolist()
+                    if any(s['compared'] for s in self._limit_samples) else None
+                    for key in ('input_rate_bounds', 'output_rate_bounds')},
                 "centerline_degree": centerline.model_degree,
                 "centerline_target_degree": ordered_centerline.target_degree,
                 "centerline_order_transition": centerline.order_transition,
@@ -588,4 +600,5 @@ class Yolopv2Postprocess(dai.node.HostNode):
             }
             print(f"HEALTH {json.dumps(payload)}", flush=True)
             self._centerline_samples.clear()
+            self._limit_samples.clear()
             self._last_health_at = now

@@ -33,11 +33,18 @@ class AdaptiveOrderTests(unittest.TestCase):
         self.assertNotIn(3, degrees)
 
     def test_s_bend_promotes_sequentially_to_cubic(self):
+        self.selector = AdaptiveOrderSelector(allow_cubic=True)
         degrees = [self.selector.update(self.line(3), timestamp_s=i/10).model_degree for i in range(30)]
         self.assertEqual(degrees[0], 1)
         self.assertIn(2, degrees)
         self.assertEqual(degrees[-1], 3)
         self.assertLess(degrees.index(2), degrees.index(3))
+
+    def test_default_never_enables_cubic(self):
+        for i in range(100):
+            result = self.selector.update(self.line(3), timestamp_s=i/10)
+            self.assertEqual(result.coefficients[3], 0.)
+            self.assertLessEqual(result.model_degree, 2)
 
     def test_one_frame_curve_does_not_promote(self):
         self.selector.update(self.line(1), timestamp_s=0.)

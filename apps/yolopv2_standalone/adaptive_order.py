@@ -9,7 +9,8 @@ from temporal_centerline import CenterlineTemporalFilter
 
 
 class AdaptiveOrderSelector:
-    def __init__(self):
+    def __init__(self, *, allow_cubic=False):
+        self.max_degree = 3 if allow_cubic else 2
         self.degree = 1
         self.last_t = None
         self.pending = None
@@ -38,16 +39,16 @@ class AdaptiveOrderSelector:
         desired, duration = self.degree, 0.
         if self.degree > 1 and errors[self.degree-1] < .12:
             desired, duration = self.degree-1, 1.
-        elif self.degree < 3:
+        elif self.degree < self.max_degree:
             threshold = .25 if self.degree == 1 else .35
             improvement = errors[self.degree] - errors[self.degree+1]
-            if self.degree == 1:
+            if self.degree == 1 and self.max_degree == 3:
                 # An S bend may have no useful quadratic term. Still enter degree 2
                 # before confirming degree 3; never get stuck at degree 1 for symmetry.
                 improvement = max(improvement, errors[1] - errors[3])
             if errors[self.degree] > threshold and improvement > .10:
                 desired = self.degree+1
-                duration = .4 if desired == 2 else .8
+                duration = .8
         if desired == self.degree:
             self.pending, self.pending_s = None, 0.
         else:
