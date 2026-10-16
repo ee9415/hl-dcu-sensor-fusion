@@ -15,6 +15,8 @@ class CorridorTracker:
         self.reference = None
         self.last_t = None
         self.inferred_since = None
+        self.candidate = None
+        self.candidate_since = None
 
     @staticmethod
     def boundary(points, x):
@@ -31,8 +33,10 @@ class CorridorTracker:
         if self.last_t is not None and timestamp_s - self.last_t > .5:
             self.reference = None
             self.inferred_since = None
+            self.candidate = None
         self.last_t = timestamp_s
         if not measured.valid:
+            self.candidate = None
             return replace(measured, corridor_state="missing")
         if self.reference is None:
             self.reference = measured
@@ -54,6 +58,7 @@ class CorridorTracker:
             # Both boundaries move together on a bend: accept the new corridor.
             self.reference = measured
             self.inferred_since = None
+            self.candidate = None
             return measured
         left_stable = np.abs(dl) <= self.stable_tolerance
         right_stable = np.abs(dr) <= self.stable_tolerance
@@ -62,8 +67,23 @@ class CorridorTracker:
         infer_right = changed & expanded & right_stable & ~left_stable
         ambiguous = changed & ~(infer_left | infer_right)
         if np.any(ambiguous):
-            # Narrowing/obstacles or both boundaries lost: do not invent free space.
+            # A changed scene must establish BOTH boundaries again, not lock out forever.
+            consistent = False
+            if self.candidate is not None:
+                c = self.candidate
+                covered = c.forward_range_m[0] <= lo and c.forward_range_m[1] >= hi
+                consistent = covered and all(np.max(np.abs(current - self.boundary(points, x))) < .2
+                    for current, points in ((left, c.bev_left), (right, c.bev_right)))
+            if not consistent:
+                self.candidate = measured
+                self.candidate_since = timestamp_s
+            elif timestamp_s - self.candidate_since >= 1.0:
+                self.reference = measured
+                self.candidate = None
+                self.inferred_since = None
+                return replace(measured, corridor_state="reacquired")
             return replace(measured, valid=False, corridor_state="ambiguous")
+        self.candidate = None
         if self.inferred_since is None:
             self.inferred_since = timestamp_s
         if timestamp_s - self.inferred_since > self.max_inferred_s:

@@ -60,6 +60,13 @@ class CorridorTests(unittest.TestCase):
         result = self.tracker.update(self.changed(0, 2), timestamp_s=2)
         self.assertEqual(result.corridor_state, 'measured')
 
+    def test_changed_scene_requires_stable_two_boundary_reacquisition(self):
+        changed = self.changed(1, -1)
+        self.assertFalse(self.tracker.update(changed, timestamp_s=.1).valid)
+        for i in range(2, 13):
+            result = self.tracker.update(changed, timestamp_s=i / 10)
+        self.assertTrue(result.valid)
+
 
 if __name__ == '__main__':
     unittest.main()
