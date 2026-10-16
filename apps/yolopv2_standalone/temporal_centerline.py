@@ -18,6 +18,7 @@ class CenterlineTemporalFilter:
         self.age = 0.0
         self.candidate = None
         self.candidate_time = 0.0
+        self.order_transition_age = 0.0
 
     @staticmethod
     def _values(estimate, x):
@@ -119,8 +120,15 @@ class CenterlineTemporalFilter:
             gain = (1 - np.exp(-dt / self.tau)) * quality
             if self.measurement_following:
                 gain = 1 - np.exp(-dt / .12)
+            if prior.target_degree != measured.target_degree:
+                self.order_transition_age = 0.0
+            elif prior.order_transition:
+                self.order_transition_age += dt
+            order_transition = ((prior.target_degree != measured.target_degree or prior.order_transition)
+                                and self.order_transition_age < .6)
             # One global gain bounds displacement of the entire cubic without clipping its shape.
-            if not self.measurement_following or measured.corridor_state == "expansion_guard":
+            if (not self.measurement_following or measured.corridor_state == "expansion_guard"
+                    or order_transition):
                 gain = min(gain, self.rate * dt / max(jump, 1e-9))
             coef = np.asarray(prior.coefficients) + gain * (np.asarray(measured.coefficients) - prior.coefficients)
             if measured.forward_range_m != bounds:
@@ -130,10 +138,24 @@ class CenterlineTemporalFilter:
                 full_y = self._values(measured, full_x)
                 shared = (full_x >= bounds[0]) & (full_x <= bounds[1])
                 full_y[shared] = np.polynomial.polynomial.polyval(full_x[shared], coef)
-                coef = np.polynomial.Polynomial.fit(full_x, full_y, 3).convert().coef
+                degree = max(prior.model_degree, measured.model_degree)
+                coef = np.polynomial.Polynomial.fit(full_x, full_y, degree).convert().coef
+                coef = np.pad(coef, (0, 4-len(coef)))
                 bounds = measured.forward_range_m
+            # Fade higher terms during a downgrade, then make unused terms exactly zero.
+            effective_degree = max(prior.model_degree, measured.model_degree)
+            if effective_degree > measured.model_degree:
+                grid = np.linspace(*bounds, 80)
+                values = np.polynomial.polynomial.polyval(grid, coef)
+                low = np.polynomial.Polynomial.fit(grid, values, measured.model_degree).convert()
+                if np.max(np.abs(low(grid) - values)) < .01:
+                    coef = np.pad(low.coef, (0, 4-len(low.coef)))
+                    effective_degree = measured.model_degree
             result = self._curve(measured, coef, bounds,
                                  "reacquiring" if needs_confirmation else "tracking", 0.0, bool(motion))
+            remaining = np.max(np.abs(self._values(result, x) - self._values(measured, x)))
+            result = replace(result, model_degree=effective_degree,
+                             order_transition=bool(order_transition and remaining > .05))
         self.previous = result
         self.age = 0.0
         self.candidate = None

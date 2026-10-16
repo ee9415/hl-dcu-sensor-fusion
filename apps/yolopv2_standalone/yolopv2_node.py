@@ -4,6 +4,7 @@ import time
 import depthai as dai
 import numpy as np
 from corridor import CorridorTracker
+from adaptive_order import AdaptiveOrderSelector
 
 from centerline import (
     CenterlineEstimate,
@@ -229,6 +230,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._last_health_at = self._started_at
         self._centerline_filter = CenterlineTemporalFilter(measurement_following=True)
         self._corridor_tracker = CorridorTracker()
+        self._order_selector = AdaptiveOrderSelector()
         self._centerline_samples = []
 
     def build(
@@ -508,9 +510,10 @@ class Yolopv2Postprocess(dai.node.HostNode):
         corridor_centerline = self._corridor_tracker.update(
             measured_centerline, timestamp_s=nn_data.getTimestamp().total_seconds()
         )
+        ordered_centerline = self._order_selector.update(
+            corridor_centerline, timestamp_s=nn_data.getTimestamp().total_seconds())
         centerline = self._centerline_filter.update(
-            corridor_centerline, timestamp_s=nn_data.getTimestamp().total_seconds()
-        )
+            ordered_centerline, timestamp_s=nn_data.getTimestamp().total_seconds())
         bev = render_bev(centerline)
         gap_px = None
         if centerline.valid and measured_centerline.valid:
@@ -525,7 +528,8 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 # Result overlay is three times the segmentation-mask resolution.
                 gap_px = float(np.mean(np.abs(np.interp(rows, raw_points[:, 1], raw_points[:, 0]) -
                                                np.interp(rows, filtered_points[:, 1], filtered_points[:, 0]))) * 3)
-        self._centerline_samples.append((centerline.valid, corridor_centerline.corridor_state, gap_px))
+        self._centerline_samples.append((centerline.valid, corridor_centerline.corridor_state, gap_px,
+                                        centerline.model_degree, ordered_centerline.target_degree))
         self.drivable.send(self._mask_frame(drivable, nn_data))
         self.lane.send(self._mask_frame(lane, nn_data))
         self.bev.send(self._bev_frame(bev, nn_data))
@@ -546,6 +550,12 @@ class Yolopv2Postprocess(dai.node.HostNode):
         if now - self._last_health_at >= 5.0:
             elapsed = max(now - self._started_at, 1e-6)
             payload = {
+                "centerline_degree": centerline.model_degree,
+                "centerline_target_degree": ordered_centerline.target_degree,
+                "centerline_order_transition": centerline.order_transition,
+                "centerline_order_fit_error": round(ordered_centerline.order_fit_error, 4),
+                "centerline_degree_counts": {str(d): sum(s[0] and s[3] == d for s in self._centerline_samples)
+                                             for d in (1, 2, 3)},
                 "centerline_window_frames": len(self._centerline_samples),
                 "centerline_window_valid": sum(int(s[0]) for s in self._centerline_samples),
                 "centerline_window_guard": sum(s[1] == "expansion_guard" for s in self._centerline_samples),
