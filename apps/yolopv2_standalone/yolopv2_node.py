@@ -227,8 +227,9 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._frames = 0
         self._started_at = time.monotonic()
         self._last_health_at = self._started_at
-        self._centerline_filter = CenterlineTemporalFilter()
+        self._centerline_filter = CenterlineTemporalFilter(measurement_following=True)
         self._corridor_tracker = CorridorTracker()
+        self._centerline_samples = []
 
     def build(
         self,
@@ -511,6 +512,20 @@ class Yolopv2Postprocess(dai.node.HostNode):
             corridor_centerline, timestamp_s=nn_data.getTimestamp().total_seconds()
         )
         bev = render_bev(centerline)
+        gap_px = None
+        if centerline.valid and measured_centerline.valid:
+            raw_points = measured_centerline.image_curve
+            filtered_points = centerline.image_curve
+            raw_points = raw_points[np.argsort(raw_points[:, 1])]
+            filtered_points = filtered_points[np.argsort(filtered_points[:, 1])]
+            lo = max(0., raw_points[0, 1], filtered_points[0, 1])
+            hi = min(drivable.shape[0] - 1., raw_points[-1, 1], filtered_points[-1, 1])
+            if hi - lo >= 5:
+                rows = np.linspace(lo, hi, 40)
+                # Result overlay is three times the segmentation-mask resolution.
+                gap_px = float(np.mean(np.abs(np.interp(rows, raw_points[:, 1], raw_points[:, 0]) -
+                                               np.interp(rows, filtered_points[:, 1], filtered_points[:, 0]))) * 3)
+        self._centerline_samples.append((centerline.valid, corridor_centerline.corridor_state, gap_px))
         self.drivable.send(self._mask_frame(drivable, nn_data))
         self.lane.send(self._mask_frame(lane, nn_data))
         self.bev.send(self._bev_frame(bev, nn_data))
@@ -531,6 +546,15 @@ class Yolopv2Postprocess(dai.node.HostNode):
         if now - self._last_health_at >= 5.0:
             elapsed = max(now - self._started_at, 1e-6)
             payload = {
+                "centerline_window_frames": len(self._centerline_samples),
+                "centerline_window_valid": sum(int(s[0]) for s in self._centerline_samples),
+                "centerline_window_guard": sum(s[1] == "expansion_guard" for s in self._centerline_samples),
+                "centerline_raw_gap_mean_px": (
+                    round(float(np.mean([s[2] for s in self._centerline_samples if s[2] is not None])), 2)
+                    if any(s[2] is not None for s in self._centerline_samples) else None),
+                "centerline_raw_gap_max_frame_mean_px": (
+                    round(max(s[2] for s in self._centerline_samples if s[2] is not None), 2)
+                    if any(s[2] is not None for s in self._centerline_samples) else None),
                 "status": "running",
                 "frames": self._frames,
                 "average_fps": round(self._frames / elapsed, 2),
@@ -553,4 +577,5 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 "input_shape": [1, 3, 320, 320],
             }
             print(f"HEALTH {json.dumps(payload)}", flush=True)
+            self._centerline_samples.clear()
             self._last_health_at = now

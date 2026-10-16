@@ -20,66 +20,82 @@ class CorridorTests(unittest.TestCase):
         coef[0] += (left + right) / 2
         return replace(self.base, bev_left=l, bev_right=r, coefficients=tuple(coef))
 
-    def test_either_side_expansion_does_not_pull_center(self):
-        for left, right in ((0, 2), (-2, 0)):
+    def test_either_expansion_is_suppressed_initially_but_not_frozen(self):
+        for l, r in ((0, 2), (-2, 0)):
             tracker = CorridorTracker()
             tracker.update(self.base, timestamp_s=0.)
-            for i in range(1, 21):
-                result = tracker.update(self.changed(left, right), timestamp_s=i / 10)
-                self.assertTrue(result.valid)
-                self.assertEqual(result.corridor_state, 'single_boundary')
-                x = np.linspace(*result.forward_range_m, 80)
-                delta = CenterlineTemporalFilter._values(result, x) - CenterlineTemporalFilter._values(self.base, x)
-                self.assertLess(np.max(np.abs(delta)), .03)
+            raw = self.changed(l, r)
+            first = tracker.update(raw, timestamp_s=.1)
+            self.assertEqual(first.corridor_state, 'expansion_guard')
+            self.assertAlmostEqual(first.coefficients[0] - self.base.coefficients[0], (l+r)*.075)
+            for i in range(2, 21):
+                result = tracker.update(raw, timestamp_s=i/10)
+            np.testing.assert_allclose(result.coefficients, raw.coefficients)
+            self.assertEqual(result.corridor_state, 'measured')
 
-    def test_coherent_boundary_motion_is_accepted(self):
-        result = self.tracker.update(self.changed(.8, .8), timestamp_s=.1)
-        self.assertTrue(result.valid)
-        self.assertAlmostEqual(result.coefficients[0], self.base.coefficients[0] + .8)
+    def test_bend_bilateral_expansion_and_narrowing_pass_through(self):
+        for l, r in ((1, 1), (-1, 1), (1, -1)):
+            tracker = CorridorTracker()
+            tracker.update(self.base, timestamp_s=0.)
+            raw = self.changed(l, r)
+            result = tracker.update(raw, timestamp_s=.1)
+            np.testing.assert_allclose(result.coefficients, raw.coefficients)
+            self.assertEqual(result.corridor_state, 'measured')
 
-    def test_curved_road_is_accepted(self):
-        curved = estimate_centerline(trapezoid_mask(curve_strength=10))
-        result = self.tracker.update(curved, timestamp_s=.1)
-        self.assertTrue(result.valid)
-        np.testing.assert_allclose(result.coefficients, curved.coefficients)
-
-    def test_expansion_and_narrowing_keep_prior_only_while_inside(self):
-        self.assertTrue(self.tracker.update(self.changed(-2, 2), timestamp_s=.1).valid)
-        self.assertTrue(self.tracker.update(self.changed(1, -1), timestamp_s=.2).valid)
-        self.assertFalse(self.tracker.update(self.changed(7, 0), timestamp_s=.3).valid)
-
-    def test_current_mask_support_is_required_for_contained_prior(self):
-        for i in range(1, 34):
-            result = self.tracker.update(self.changed(-2, 2), timestamp_s=i / 10)
-        self.assertTrue(result.valid)
-        self.assertEqual(result.corridor_state, 'contained_prior')
-        self.assertFalse(self.tracker.update(replace(self.base, valid=False), timestamp_s=3.35).valid)
-        self.assertTrue(self.tracker.update(self.base, timestamp_s=3.4).valid)
-
-    def test_observed_single_boundary_is_not_a_stale_hold(self):
-        for i in range(1, 70):
-            result = self.tracker.update(self.changed(0, 2), timestamp_s=i / 10)
-            self.assertTrue(result.valid)
-
-    def test_gap_resets_and_old_timestamp_is_rejected(self):
-        self.assertFalse(self.tracker.update(self.base, timestamp_s=0).valid)
-        result = self.tracker.update(self.changed(0, 2), timestamp_s=2)
+    def test_return_cancels_guard(self):
+        self.tracker.update(self.changed(0, 2), timestamp_s=.1)
+        result = self.tracker.update(self.base, timestamp_s=.2)
         self.assertEqual(result.corridor_state, 'measured')
+        np.testing.assert_allclose(result.coefficients, self.base.coefficients)
 
-    def test_local_boundary_corruption_does_not_drop_whole_curve(self):
-        left, right = self.base.bev_left.copy(), self.base.bev_right.copy()
-        left[20:24, 0] += 50
-        right[20:24, 0] -= 50
-        result = self.tracker.update(replace(self.base, bev_left=left, bev_right=right), timestamp_s=.1)
-        self.assertTrue(result.valid)
-        self.assertEqual(result.corridor_state, 'partial_boundaries')
+    def test_small_width_change_is_not_guarded(self):
+        raw = self.changed(0, .2)
+        self.assertEqual(self.tracker.update(raw, timestamp_s=.1).corridor_state, 'measured')
 
-    def test_changed_scene_requires_stable_two_boundary_reacquisition(self):
-        changed = self.changed(7, 0)
-        self.assertFalse(self.tracker.update(changed, timestamp_s=.1).valid)
-        for i in range(2, 13):
-            result = self.tracker.update(changed, timestamp_s=i / 10)
-        self.assertTrue(result.valid)
+    def test_gradual_expansion_is_not_a_sudden_jump(self):
+        for i in range(1, 20):
+            raw = self.changed(0, i * .1)
+            result = self.tracker.update(raw, timestamp_s=i/10)
+            self.assertEqual(result.corridor_state, 'measured')
+            np.testing.assert_allclose(result.coefficients, raw.coefficients)
+
+    def test_pipeline_rejoins_raw_after_guard(self):
+        tracker = CenterlineTemporalFilter(measurement_following=True, reacquire_s=.1)
+        tracker.update(self.base, timestamp_s=0.)
+        raw = self.changed(0, 2)
+        for i in range(1, 16):
+            corrected = self.tracker.update(raw, timestamp_s=i/10)
+            result = tracker.update(corrected, timestamp_s=i/10)
+            if i == 1:
+                self.assertLess(abs(result.coefficients[0] - self.base.coefficients[0]), .11)
+        self.assertLess(abs(result.coefficients[0] - raw.coefficients[0]), .03)
+
+    def test_gap_missing_and_order(self):
+        self.assertFalse(self.tracker.update(self.base, timestamp_s=0).valid)
+        self.assertFalse(self.tracker.update(replace(self.base, valid=False), timestamp_s=.1).valid)
+        raw = self.changed(0, 2)
+        self.assertEqual(self.tracker.update(raw, timestamp_s=1).corridor_state, 'measured')
+
+    def test_following_filter_catches_current_curve_quickly(self):
+        tracker = CenterlineTemporalFilter(measurement_following=True, reacquire_s=.1)
+        tracker.update(self.base, timestamp_s=0.)
+        target = self.changed(1, 1)
+        for i in range(1, 6):
+            result = tracker.update(target, timestamp_s=i/10)
+        self.assertLess(abs(result.coefficients[0] - target.coefficients[0]), .03)
+
+    def test_curved_road_passes_through(self):
+        raw = estimate_centerline(trapezoid_mask(curve_strength=10))
+        result = self.tracker.update(raw, timestamp_s=.1)
+        np.testing.assert_allclose(result.coefficients, raw.coefficients)
+
+    def test_follow_mode_uses_same_validity_as_dotted_line(self):
+        tracker = CenterlineTemporalFilter(measurement_following=True, reacquire_s=.1)
+        raw = replace(self.base, residual_m=1.)
+        self.assertTrue(tracker.update(raw, timestamp_s=0).valid)
+        for i in range(1, 6):
+            result = tracker.update(replace(raw, valid=False), timestamp_s=i/10)
+        self.assertFalse(result.valid)
 
 
 if __name__ == '__main__':

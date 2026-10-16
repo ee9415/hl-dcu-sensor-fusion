@@ -5,7 +5,9 @@ import numpy as np
 
 class CenterlineTemporalFilter:
     def __init__(self, *, time_constant_s=0.35, jump_m=0.65,
-                 max_lateral_rate_m_s=1.0, hold_s=0.3, reacquire_s=0.3):
+                 max_lateral_rate_m_s=1.0, hold_s=0.3, reacquire_s=0.3,
+                 measurement_following=False):
+        self.measurement_following = measurement_following
         self.tau = time_constant_s
         self.jump = jump_m
         self.rate = max_lateral_rate_m_s
@@ -53,7 +55,8 @@ class CenterlineTemporalFilter:
         self.age += dt
         usable = (measured.valid and measured.projection is not None
                   and np.all(np.isfinite(measured.coefficients))
-                  and np.isfinite(measured.residual_m) and measured.residual_m <= 0.75)
+                  and np.isfinite(measured.residual_m)
+                  and measured.residual_m <= (1.5 if self.measurement_following else .75))
         prior = self.previous
         motion = (speed_m_s is not None and yaw_rate_rad_s is not None
                   and np.isfinite(speed_m_s) and np.isfinite(yaw_rate_rad_s))
@@ -114,8 +117,11 @@ class CenterlineTemporalFilter:
         else:
             quality = 1 / (1 + (measured.residual_m / 0.25) ** 2)
             gain = (1 - np.exp(-dt / self.tau)) * quality
+            if self.measurement_following:
+                gain = 1 - np.exp(-dt / .12)
             # One global gain bounds displacement of the entire cubic without clipping its shape.
-            gain = min(gain, self.rate * dt / max(jump, 1e-9))
+            if not self.measurement_following or measured.corridor_state == "expansion_guard":
+                gain = min(gain, self.rate * dt / max(jump, 1e-9))
             coef = np.asarray(prior.coefficients) + gain * (np.asarray(measured.coefficients) - prior.coefficients)
             if measured.forward_range_m != bounds:
                 # Recover newly visible distances from fresh observations, never extrapolate
