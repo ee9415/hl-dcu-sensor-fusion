@@ -33,8 +33,13 @@ def main():
         result.update(window_mapped=bool(root.winfo_ismapped()), streams=streams)
         result['turn_controls'] = hasattr(app, 'request_turn') and bool(app.turn_status.get())
         result['turn_status'] = app.turn_status.get()
+        logger = app.csv_logger
+        result['csv'] = {'path': str(logger.path), 'frames': logger.frames,
+                         'objects': logger.objects, 'gaps': logger.gaps,
+                         'status': logger.status, 'ui_text': app.csv_status.get()} if logger else None
         result["passed"] = result["window_mapped"] and all(
             s["connected"] and s["shape"] and s["preview"] for s in streams.values())
+        result['passed'] = result['passed'] and logger is not None and logger.frames > 0
         if args.turn:
             result['passed'] = result['passed'] and '요청 수락' in app.turn_status.get()
         print(json.dumps(result), flush=True)

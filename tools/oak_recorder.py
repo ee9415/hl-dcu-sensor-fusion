@@ -19,6 +19,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import cv2
 from PIL import Image, ImageTk
+from frame_csv_logger import FrameCsvLogger
 
 RESAMPLE_LANCZOS = getattr(Image, "Resampling", Image).LANCZOS
 
@@ -240,6 +241,7 @@ class RecorderApp:
         self.bev_url_override = bev_url
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.csv_logger = None
         self.sources = {
             "rgb": CaptureSource("rgb", "원본 RGB", ""),
             "yolopv2": CaptureSource("yolopv2", "YOLO 결과", ""),
@@ -483,6 +485,9 @@ class RecorderApp:
             sticky="ew",
         )
         self.root.after(50, self._update_preview)
+        self.csv_status = tk.StringVar(value='CSV: 영상 연결 시 자동 기록 시작')
+        ttk.Label(record_controls, textvariable=self.csv_status, style='App.TLabel',
+                  wraplength=1100).grid(row=2, column=0, columnspan=5, sticky='ew')
 
         turn_controls = ttk.Frame(controls, style="App.TFrame")
         turn_controls.grid(row=2, column=0, sticky="ew", pady=(6, 0))
@@ -691,6 +696,9 @@ class RecorderApp:
         )
         self.sources["bev"].url = self.bev_url_override or f"rtsp://{ip}:8553/bev"
         self.sources["depth"].url = f"rtsp://{ip}:8556/depth"
+        if self.csv_logger is None:
+            self.csv_logger = FrameCsvLogger(ip, self.output_dir.parent / 'telemetry')
+            self.csv_logger.start()
         for source in self.sources.values():
             source.start()
         self.connect_button.configure(text="영상 연결 중...", state=tk.DISABLED)
@@ -749,6 +757,10 @@ class RecorderApp:
         return None
 
     def _update_preview(self) -> None:
+        if self.csv_logger is not None:
+            log = self.csv_logger
+            self.csv_status.set(f'CSV {log.status} | 프레임 {log.frames:,}건 / 객체 {log.objects:,}건 '
+                                f'/ 누락 {log.gaps:,} | {log.path}')
         self._drain_connection_events()
         result_connected, result_frame = self.sources["yolopv2"].snapshot()
         rgb_connected, rgb_frame = self.sources["rgb"].snapshot()
@@ -928,6 +940,8 @@ class RecorderApp:
             self.unsaved_paths.clear()
         for source in self.sources.values():
             source.close()
+        if self.csv_logger is not None:
+            self.csv_logger.close()
         self.root.destroy()
 
 

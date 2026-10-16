@@ -9,6 +9,44 @@ pixel coordinate system.
 
 ## Desktop multiview (0.13.0)
 
+### Frame telemetry CSV (0.14.0, 2026-10-16)
+
+Connecting video in the desktop UI starts automatic CSV logging, independent
+of the MP4 recording button. The UI shows path, successfully flushed frame
+and object row counts, sequence gaps and connection/storage errors. Closing
+the app closes the CSV files; reconnecting appends within the same session.
+Each new UI run gets a unique directory beside recordings: `telemetry/<date_id>`.
+Files grow until the app closes; no automatic rotation/deletion is implemented.
+
+- `frames.csv`: frame/NN/depth sequences and monotonic timestamps, estimated
+  capture wall time, PC UTC receive time, c0..c3, validity/tracking/turn state,
+  object count, sequence gaps, clock offset/RTT/age, estimated reception delays.
+- `objects.csv`: one row per detection, joined by device session + frame_seq;
+  index is per-frame, NOT a persistent track ID. Normalized box, class ID,
+  confidence, valid depth flag and camera optical X/Y/Z in meters. Z is axial
+  depth, not Euclidean distance. Invalid distances are blank. Empty detection
+  frames still have a frames.csv row. Invalid centerline coefficients are blank.
+
+This is a direct TCP JSON subscriber on port 8557, not a ROS subscriber.
+The read-only endpoint is unauthenticated/unencrypted, for a trusted camera LAN
+only; do not expose it to the Internet. A bounded 100-frame queue per client
+protects perception from slow consumers. Lost data is not replayed; gaps are
+explicit. Frame timestamps are preserved separately for RGB, NN and Depth.
+
+Clock offset is estimated by a request/reply exchange every five seconds.
+Delay uses the two hosts' monotonic clocks and their estimated offset, not
+wall-clock subtraction. UTC wall times are retained separately for correlation.
+`receive_delay_est_ms` estimates RGB frame timestamp to telemetry reception,
+NOT RTSP decode/display latency or hardware exposure-to-screen latency.
+`transport_delay_est_ms` estimates telemetry publish-to-receive latency.
+These are not PTP-synchronized measurements. Negative/nonphysical values,
+large RTT yield blank estimates with
+`invalid_clock_or_asymmetry`; raw values remain for diagnosis. Positive values
+can still be biased by clock drift/asymmetric network delay. Camera timestamp
+to wall-time conversion is itself an estimate. No hard accuracy bound is claimed.
+Centerline coefficients remain uncalibrated development BEV units, not meters.
+During turn preview they describe the road centerline, not the purple turn path.
+
 The desktop recorder receives RGB, result, BEV and colorized Depth directly
 over RTSP. The Depth preview is 640x360 at a configured 10 FPS on
 `rtsp://<device-ip>:8556/depth`. It samples the aligned 1920x1080 depth at 3:1.

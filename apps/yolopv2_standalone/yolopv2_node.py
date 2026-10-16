@@ -8,6 +8,7 @@ from adaptive_order import AdaptiveOrderSelector
 from conservative_centerline import ConservativeCenterline
 from far_corridor import guide_to_far_corridor, draw_goal
 from turn_preview import TurnPreview, TurnMailbox, draw_turn
+from telemetry_server import TelemetryServer
 
 from centerline import (
     CenterlineEstimate,
@@ -246,6 +247,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self.result = self.createOutput(possibleDatatypes=img_frame_type)
         self._source_size = (1920, 1080)
         self._result_size = (960, 540)
+        self._telemetry = TelemetryServer()
         self._confidence_threshold = 0.30
         self._iou_threshold = 0.45
         self._frames = 0
@@ -584,6 +586,29 @@ class Yolopv2Postprocess(dai.node.HostNode):
                                                np.interp(rows, filtered_points[:, 1], filtered_points[:, 0]))) * 3)
         self._centerline_samples.append((centerline.valid, corridor_centerline.corridor_state, gap_px,
                                         centerline.model_degree, ordered_centerline.target_degree))
+        capture_s = preview.getTimestamp().total_seconds()
+        capture_wall = time.time() - (dai.Clock.now().total_seconds() - capture_s)
+        capture_mono = time.monotonic() - (dai.Clock.now().total_seconds() - capture_s)
+        self._telemetry.publish({
+            'frame_seq': int(preview.getSequenceNum()),
+            'nn_seq': int(nn_data.getSequenceNum()),
+            'depth_seq': int(aligned_depth.getSequenceNum()),
+            'capture_timestamp_s': capture_s,
+            'nn_timestamp_s': nn_data.getTimestamp().total_seconds(),
+            'depth_timestamp_s': aligned_depth.getTimestamp().total_seconds(),
+            'capture_wall_est_s': capture_wall,
+            'capture_monotonic_est_s': capture_mono,
+            'centerline_valid': bool(centerline.valid),
+            'tracking_state': centerline.tracking_state,
+            'coefficients': [float(v) for v in centerline.coefficients] if centerline.valid else None,
+            'turn_mode': self._turn_preview.mode,
+            'objects': [dict(label=d.label, confidence=d.confidence,
+                             xmin=d.xmin, ymin=d.ymin, xmax=d.xmax, ymax=d.ymax,
+                             depth_valid=bool(m.valid),
+                             x_m=m.x_mm/1000 if m.valid else None,
+                             y_m=m.y_mm/1000 if m.valid else None,
+                             z_m=m.z_mm/1000 if m.valid else None)
+                        for d, m in zip(detection_messages, measurements, strict=True)]})
         self.drivable.send(self._mask_frame(drivable, nn_data))
         self.lane.send(self._mask_frame(lane, nn_data))
         self.bev.send(self._bev_frame(bev, nn_data))
