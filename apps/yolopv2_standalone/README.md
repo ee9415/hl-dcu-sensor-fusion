@@ -50,7 +50,7 @@ During turn preview they describe the road centerline, not the purple turn path.
 The desktop recorder receives RGB, result, BEV and colorized Depth directly
 over RTSP. The Depth preview is 640x360 at a configured 10 FPS on
 `rtsp://<device-ip>:8556/depth`. It samples the aligned 1920x1080 depth at 3:1.
-Red is near (0.3 m), blue is far (10 m); values outside this display range
+Red is near (0.3 m), blue is far (25 m, since 0.14.1); values outside this display range
 saturate and invalid values are black. This lossy H.264 preview is not raw
 metric depth. The original millimeter depth used for object XYZ is unchanged.
 

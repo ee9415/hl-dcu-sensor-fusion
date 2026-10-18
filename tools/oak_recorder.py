@@ -363,7 +363,7 @@ class RecorderApp:
         preview_specs = (
             ("rgb", "원본 RGB", "영상 연결 대기"),
             ("yolopv2", "인식 결과", "영상 연결 대기"),
-            ("depth", "Depth · 빨강 0.3m → 파랑 10m · 검정: 무효", "Depth 영상 연결 대기"),
+            ("depth", "Depth · 빨강 0.3m → 파랑 25m · 검정: 무효", "Depth 영상 연결 대기"),
             ("bev", "BEV · 가상 중심선", "BEV 출력 연동 대기"),
         )
         for index, (key, title, placeholder) in enumerate(preview_specs):
