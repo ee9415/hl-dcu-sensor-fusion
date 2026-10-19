@@ -1,5 +1,7 @@
 # YOLOPv2 standalone OAK App
 
+한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
+
 This app is intended to run entirely on an OAK4-D Pro (RVC4). It keeps the
 validated `1920x1080 NV12 -> H.264` camera path at a configured 10 FPS and branches the same frames
 through a letterbox resize and RGB conversion for a fixed `1x3x320x320`
