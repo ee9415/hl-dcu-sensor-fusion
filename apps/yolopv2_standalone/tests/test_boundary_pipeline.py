@@ -59,10 +59,20 @@ class BoundaryPipelineTests(unittest.TestCase):
         with patch.dict(sys.modules, {'depthai': dai}):
             node = importlib.import_module('yolopv2_node')
         road = np.full((180, 320), 255, np.uint8)
+        from lane_boundaries import projection_for, transform, draw_polyline
+        mask_rgb = np.zeros((180,320,3),np.uint8)
+        forward = np.linspace(.5,25,60)
+        for side in (-2.5,3.):
+            points = transform(np.column_stack(((np.full(60,side)/12+.5)*639,
+                                                (1-forward/40)*479)),projection_for(road.shape))
+            draw_polyline(mask_rgb,points,(255,255,255),thickness=1)
+        lane = mask_rgb[:,:,0]
+        source = np.repeat(np.repeat(mask_rgb,6,axis=0),6,axis=1)
         with patch.object(node, 'TelemetryServer') as server, \
              patch.object(node, 'decode_heads'), \
              patch.object(node, 'non_max_suppression', return_value=[]), \
-             patch.object(node, 'segmentation_masks', return_value=(road, np.zeros_like(road))):
+             patch.object(node, 'segmentation_masks', return_value=(road, lane)), \
+             patch.object(Frame, 'getCvFrame', return_value=source):
             processor = node.Yolopv2Postprocess()
             processor._tensor = MagicMock()
             processor.process(Frame(), Frame(), Frame())
@@ -72,8 +82,8 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertIsNone(payload['coefficients'])
             self.assertEqual(payload['turn_mode'], 'disabled')
             self.assertEqual(payload['frame_seq'], 7)
-            np.testing.assert_allclose(np.array(payload['right_boundary_dev'])-
-                                       payload['left_boundary_dev'], 2.4)
+            self.assertGreater(payload['boundary_width_min_dev'],4.5)
+            self.assertTrue(payload['clearance_sufficient'])
             result = processor.result.send.call_args.args[0]
             bev = processor.bev.send.call_args.args[0]
             self.assertEqual(result.data.shape, (540,960,3))

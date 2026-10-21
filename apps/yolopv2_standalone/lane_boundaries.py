@@ -20,6 +20,7 @@ class BoundaryConfig:
     max_lateral_rate_m_s: float = 1.0
     max_missing_s: float = .5
     max_forward_m: float = 25.0
+    max_lane_gap_s: float = 2.0
 
     def __post_init__(self):
         for field in fields(self):
@@ -61,6 +62,25 @@ def projection_for(shape):
     return np.linalg.inv(np.append(np.linalg.solve(a, b), 1).reshape(3, 3))
 
 
+def white_lane_evidence(rgb, lane):
+    """Refine the NN lane region to local white/gray paint peaks in the RGB image."""
+    h, w = lane.shape
+    sy, sx = rgb.shape[0]//h, rgb.shape[1]//w
+    if rgb.shape[:2] != (h*sy, w*sx):
+        raise ValueError('RGB size must be an integer multiple of the lane mask')
+    image = rgb.reshape(h, sy, w, sx, 3).mean(axis=(1, 3))
+    brightness = image.mean(axis=2)
+    padded = np.pad(brightness, ((0, 0), (4, 4)), mode='edge')
+    background = (padded[:, :w]+padded[:, 8:8+w])*.5
+    supported = np.zeros_like(lane, bool)
+    for offset in range(-3, 4):
+        source = np.arange(w)+offset
+        valid = (source >= 0) & (source < w)
+        supported[:, valid] |= lane[:, source[valid]] != 0
+    neutral = image.max(axis=2)-image.min(axis=2) < 75
+    return (supported & neutral & (brightness >= 75) & (brightness-background >= 10)).astype(np.uint8)*255
+
+
 @dataclass(frozen=True)
 class BoundaryEstimate:
     valid: bool
@@ -77,6 +97,10 @@ class BoundaryEstimate:
                     left_boundary_state=self.left_state, right_boundary_state=self.right_state,
                     vehicle_width_m=config.vehicle_width_m, left_margin_m=config.left_margin_m,
                     right_margin_m=config.right_margin_m, corridor_width_m=config.width_m,
+                    minimum_clearance_width_m=config.width_m,
+                    boundary_width_min_dev=float(np.min(self.right-self.left)) if self.valid else None,
+                    boundary_width_max_dev=float(np.max(self.right-self.left)) if self.valid else None,
+                    clearance_sufficient=bool(np.min(self.right-self.left) >= config.width_m) if self.valid else False,
                     boundary_units='uncalibrated_bev_development_units',
                     boundary_forward_dev=self.forward.tolist() if self.valid else [],
                     left_boundary_dev=self.left.tolist() if self.valid else [],
@@ -89,11 +113,15 @@ class BoundaryTracker:
         self.previous = None
         self.last_time = None
         self.last_supported_time = None
+        self.side_observed_time = [None, None]
+        self.pending_acquisition = None
 
-    def update(self, road, lane, timestamp_s):
+    def update(self, road, lane, timestamp_s, rgb=None):
         road, lane = np.asarray(road), np.asarray(lane)
         if road.ndim != 2 or min(road.shape) < 2 or road.shape != lane.shape:
             raise ValueError('Road and lane masks must have the same non-empty 2-D shape')
+        if rgb is not None:
+            lane = white_lane_evidence(rgb, lane)
         return self.update_bev(*self._sample(road, lane), timestamp_s,
                                projection=projection_for(road.shape))
 
@@ -125,17 +153,17 @@ class BoundaryTracker:
         return forward, lateral, *outputs
 
     def update_bev(self, forward, lateral, road, lane, timestamp_s, projection=None):
-        """Fit two quadratic boundary polynomials with an exact width constraint.
-
-        Each side selects observations against its own prediction. A joint equality
-        constraint keeps right(s)-left(s)=configured width. No midpoint is computed.
-        """
+        """Track each painted boundary directly. Vehicle width never sets its position."""
         c = self.config
         projection = np.eye(3) if projection is None else projection
         empty = np.empty(0)
+
         def invalid(state):
-            self.previous = None
-            self.last_supported_time = None
+            # Expired paint evidence is hidden, but must not trigger immediate
+            # acquisition of the much wider road's remote outer stripes.
+            if state != 'lane_unavailable':
+                self.previous = None
+                self.side_observed_time = [None, None]
             return BoundaryEstimate(False, state, empty, empty, empty, projection)
 
         if not np.isfinite(timestamp_s):
@@ -145,99 +173,131 @@ class BoundaryTracker:
         dt = .1 if self.last_time is None else min(timestamp_s-self.last_time, .2)
         if self.last_time is not None and timestamp_s-self.last_time > c.max_missing_s:
             self.previous = None
-            self.last_supported_time = None
+            self.side_observed_time = [None, None]
         self.last_time = timestamp_s
         forward, lateral = np.asarray(forward), np.asarray(lateral)
         prior = self.previous
-        left = np.full(len(forward), -c.vehicle_width_m/2-c.left_margin_m)
-        right = np.full(len(forward), c.vehicle_width_m/2+c.right_margin_m)
-        if prior is not None:
-            left = np.interp(forward, prior.forward, prior.left)
-            right = np.interp(forward, prior.forward, prior.right)
-        basis = np.column_stack((np.ones(len(forward)), forward/40, (forward/40)**2))
-        rows, targets, weights, observation_indices, observation_sides = [], [], [], [], []
-        observed = [0, 0]
-        supported = np.zeros(len(forward), bool)
-        blocked = np.zeros(len(forward), bool)
-        for i, (lo, hi) in enumerate(zip(left, right)):
-            indices = np.flatnonzero(road[i])
-            runs = np.split(indices, np.flatnonzero(np.diff(indices) > 1)+1)
-            # Select only a connected road run overlapping this boundary pair.
-            candidates = [r for r in runs if len(r) and lateral[r[-1]] >= lo and lateral[r[0]] <= hi]
-            if not candidates:
-                continue
-            run = max(candidates, key=lambda r: min(hi, lateral[r[-1]])-max(lo, lateral[r[0]]))
-            road_lo, road_hi = lateral[run[0]], lateral[run[-1]]
-            if road_hi-road_lo < c.width_m-.05:
-                blocked[i] = True
-                continue
-            supported[i] = road_lo <= lo+.08 and road_hi >= hi-.08
-            lane_x = lateral[np.flatnonzero(lane[i])]
-            for side, prediction in enumerate((lo, hi)):
-                # Keep left/right associations separate, including a missing side.
-                choices = lane_x[np.abs(lane_x-prediction) <= c.observation_gate_m]
-                choices = choices[(choices >= road_lo-.1) & (choices <= road_hi+.1)]
-                edge = road_lo if side == 0 else road_hi
-                weight = 6.
-                if len(choices):
-                    value = choices[np.argmin(np.abs(choices-prediction))]
-                elif abs(edge-prediction) <= c.observation_gate_m:
-                    value, weight = edge, 1.
-                else:
-                    continue  # Wide road edge must not pull the pair outward.
-                row = np.zeros(6)
-                row[side*3:side*3+3] = basis[i]
-                rows.append(row); targets.append(value); weights.append(weight)
-                observation_indices.append(i); observation_sides.append(side)
-                observed[side] += 1
-        # Never draw through a visible near constriction. Far constrictions truncate.
-        stop = np.flatnonzero(blocked)
-        end = int(stop[0]) if len(stop) else len(forward)
-        if end < 12:
-            if len(stop):
-                return invalid('insufficient_width')
-        support = supported[:end]
-        if np.count_nonzero(support) < 12:
-            # A visible conflicting road is not a dropout; never hold across it.
-            if not np.any(road[:12]) and prior is not None and self.last_supported_time is not None and timestamp_s-self.last_supported_time <= c.max_missing_s:
+        if np.count_nonzero(np.any(road, axis=1)) < 12:
+            if prior is not None and self.last_supported_time is not None and timestamp_s-self.last_supported_time <= c.max_missing_s:
                 return BoundaryEstimate(True, 'held', prior.forward, prior.left, prior.right,
                                         projection, 'held', 'held')
-            return invalid('boundary_conflict' if np.any(road[:12]) else 'road_unavailable')
-        self.last_supported_time = timestamp_s
-        selected = [i for i, sample in enumerate(observation_indices) if sample < end]
-        rows = [rows[i] for i in selected]
-        targets = [targets[i] for i in selected]
-        weights = [weights[i] for i in selected]
-        observed = [sum(observation_sides[i] == side for i in selected) for side in (0, 1)]
-        # Prior/vehicle-anchored boundaries regularize sparse markings independently.
-        for side, prediction in enumerate((left, right)):
-            for i in range(end):
-                row = np.zeros(6); row[side*3:side*3+3] = basis[i]
-                rows.append(row); targets.append(prediction[i]); weights.append(2.)
-        a = np.asarray(rows); b = np.asarray(targets); w = np.sqrt(weights)
-        a, b = a*w[:, None], b*w
-        constraint = np.column_stack((-np.eye(3), np.eye(3)))
-        system = np.block([[a.T@a+np.eye(6)*1e-6, constraint.T],
-                           [constraint, np.zeros((3, 3))]])
-        rhs = np.r_[a.T@b, c.width_m, 0., 0.]
-        coef = np.linalg.solve(system, rhs)[:6]
-        fitted_left, fitted_right = basis@coef[:3], basis@coef[3:]
-        # A common bounded shift preserves the exact pair width after smoothing.
-        delta = fitted_left-left
-        shift = delta * min(1., c.max_lateral_rate_m_s*dt/max(float(np.max(np.abs(delta))), 1e-9))
-        fitted_left = left+shift
-        fitted_right = right+shift
-        # Validate both curves against every available road row, not just observations.
-        for i in range(end):
-            between = (lateral >= fitted_left[i]+.05) & (lateral <= fitted_right[i]-.05)
-            if not np.any(between) or not np.all(road[i, between]):
+            return invalid('road_unavailable')
+        predictions = [None, None] if prior is None else [
+            np.interp(forward, prior.forward, prior.left),
+            np.interp(forward, prior.forward, prior.right)]
+        if prior is not None and any(t is None or timestamp_s-t > c.max_lane_gap_s
+                                     for t in self.side_observed_time):
+            # Reacquire a stable returning pair after a long gap, without accepting
+            # the expanded road's much wider outer stripes as the current lane.
+            fresh = BoundaryTracker(c).update_bev(forward, lateral, road, lane,
+                                                  timestamp_s, projection)
+            allowed = fresh.valid and np.median(fresh.right-fresh.left) <= 1.25*np.median(prior.right-prior.left)
+            if allowed:
+                pending = self.pending_acquisition
+                stable = pending is not None and all(
+                    np.median(abs(getattr(fresh, side)-np.interp(fresh.forward, pending[0].forward,
+                              getattr(pending[0], side)))) < .25 for side in ('left', 'right'))
+                count = pending[1]+1 if stable else 1
+                self.pending_acquisition = (fresh, count)
+                if count >= 3:
+                    self.previous = fresh
+                    self.side_observed_time = [timestamp_s, timestamp_s]
+                    self.last_supported_time = timestamp_s
+                    self.pending_acquisition = None
+                    return fresh
+            else:
+                self.pending_acquisition = None
+        candidates = []
+        for i in range(len(forward)):
+            indices = np.flatnonzero(lane[i])
+            runs = [r for r in np.split(indices, np.flatnonzero(np.diff(indices) > 1)+1) if len(r)]
+            # Use the middle of each paint stripe, not its inward-facing pixel.
+            values = [float(np.median(lateral[r])) for r in runs if lateral[r[-1]]-lateral[r[0]] <= .7]
+            values = [v for v in values if np.any(road[i, abs(lateral-v) <= .4])]
+            candidates.append(values)
+        curves, states, supports = [], [], []
+        for side in (0, 1):
+            chosen_i, chosen_x = [], []
+            prediction = predictions[side]
+            for i, values in enumerate(candidates):
+                values = np.asarray(values)
+                if prediction is None:
+                    # Acquire the nearest stripe on each side of the camera axis.
+                    values = values[values < -.15] if side == 0 else values[values > .15]
+                    reference = (chosen_x[-1] if chosen_x else 0.)
+                    if len(chosen_i) >= 2:
+                        slope = (chosen_x[-1]-chosen_x[-2])/(forward[chosen_i[-1]]-forward[chosen_i[-2]])
+                        reference += np.clip(slope, -.5, .5)*(forward[i]-forward[chosen_i[-1]])
+                    gate = c.observation_gate_m if chosen_i else 6.
+                else:
+                    reference, gate = prediction[i], c.observation_gate_m
+                values = values[abs(values-reference) <= gate]
+                if len(values):
+                    chosen_i.append(i)
+                    chosen_x.append(float(values[np.argmin(abs(values-reference))]))
+            indices = np.asarray(chosen_i, dtype=int)
+            values = np.asarray(chosen_x)
+            enough = len(indices) >= 8 and np.ptp(forward[indices]) >= 4.
+            if enough:
+                # Robust independent quadratic fit; no equal-width or midpoint constraint.
+                keep = np.ones(len(values), bool)
+                for _ in range(3):
+                    poly = np.polynomial.Polynomial.fit(forward[indices][keep], values[keep], 2)
+                    residual = abs(poly(forward[indices])-values)
+                    keep = residual <= max(.12, 2.5*float(np.median(residual)))
+                    if np.count_nonzero(keep) < 8:
+                        enough = False
+                        break
+                if enough:
+                    indices, values = indices[keep], values[keep]
+                    poly = np.polynomial.Polynomial.fit(forward[indices], values, 2)
+                    curve = poly(forward)
+                    if prediction is not None:
+                        # Observed paint must not be pulled toward vehicle-width anchors.
+                        delta = curve-prediction
+                        curve = prediction + delta*min(1., c.max_lateral_rate_m_s*dt/max(float(np.max(abs(delta))), 1e-9))
+                    self.side_observed_time[side] = timestamp_s
+            if not enough:
+                curve = None
+            curves.append(curve)
+            states.append('observed' if enough else 'inferred')
+            supports.append(indices if enough else np.empty(0, dtype=int))
+        if prior is None and any(curve is None for curve in curves):
+            return invalid('lane_unavailable')
+        for side in (0, 1):
+            if curves[side] is None:
+                last = self.side_observed_time[side]
+                if last is None or timestamp_s-last > c.max_lane_gap_s:
+                    return invalid('lane_unavailable')
+                other = 1-side
+                # Continue the missing side with the last *observed* inter-boundary width.
+                delta = curves[other]-predictions[other] if curves[other] is not None else 0.
+                curves[side] = predictions[side]+delta
+        left, right = curves
+        # Do not extrapolate past the observed road, or turn road expansion into new width.
+        end = len(forward)
+        start = 0
+        if all(len(s) for s in supports):
+            start = max(int(s[0]) for s in supports)
+            end = min(end, *(int(s[-1])+1 for s in supports))
+        elif prior is not None:
+            start = int(np.searchsorted(forward, prior.forward[0]))
+            end = min(end, int(np.searchsorted(forward, prior.forward[-1], side='right')))
+        for i in range(start, end):
+            if right[i]-left[i] < .5:
                 end = i
                 break
-        if end < 12:
+            interior = (lateral >= left[i]+.15) & (lateral <= right[i]-.15)
+            if not np.any(interior) or np.mean(road[i, interior]) < .90:
+                end = i
+                break
+        if end-start < 12:
             return invalid('boundary_conflict')
-        states = ['observed' if n >= 8 else 'inferred' for n in observed]
-        result = BoundaryEstimate(True, 'tracking' if all(n >= 8 for n in observed) else 'inferred',
-                                  forward[:end].copy(), fitted_left[:end], fitted_right[:end],
+        self.last_supported_time = timestamp_s
+        state = 'tracking' if all(s == 'observed' for s in states) else 'inferred'
+        if np.min(right[start:end]-left[start:end]) < c.width_m:
+            state = 'insufficient_width'
+        result = BoundaryEstimate(True, state, forward[start:end].copy(), left[start:end], right[start:end],
                                   projection, *states)
         self.previous = result
         return result

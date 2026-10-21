@@ -34,6 +34,10 @@ class TelemetryTests(unittest.TestCase):
                                         left_boundary_state='inferred', right_boundary_state='inferred',
                                         vehicle_width_m=1.8, left_margin_m=.3, right_margin_m=.3,
                                         corridor_width_m=2.4,
+                                        minimum_clearance_width_m=2.4,
+                                        boundary_width_min_dev=2.4 if seq != 4 else None,
+                                        boundary_width_max_dev=2.4 if seq != 4 else None,
+                                        clearance_sufficient=seq != 4,
                                         boundary_units='uncalibrated_bev_development_units',
                                         boundary_forward_dev=[1., 2.] if seq != 4 else [],
                                         left_boundary_dev=[-1.2, -1.2] if seq != 4 else [],
@@ -52,6 +56,9 @@ class TelemetryTests(unittest.TestCase):
                 self.assertEqual(rows[0]['c0'], '')
                 self.assertEqual(rows[0]['boundary_state'], 'inferred')
                 self.assertEqual(float(rows[0]['corridor_width_m']), 2.4)
+                self.assertEqual(float(rows[0]['minimum_clearance_width_m']), 2.4)
+                self.assertEqual(float(rows[0]['boundary_width_min_dev']), 2.4)
+                self.assertEqual(rows[2]['boundary_width_max_dev'], '')
                 import json
                 self.assertEqual(json.loads(rows[0]['left_boundary_dev']), [-1.2, -1.2])
                 self.assertEqual(json.loads(rows[2]['right_boundary_dev']), [])

@@ -410,10 +410,8 @@ class Yolopv2Postprocess(dai.node.HostNode):
         if rendered.shape[:2] != (result_height, result_width):
             raise ValueError(f"Unexpected result shape: {rendered.shape}")
         drivable_up = np.repeat(np.repeat(drivable, 3, axis=0), 3, axis=1)
-        lane_up = np.repeat(np.repeat(lane, 3, axis=0), 3, axis=1)
 
-        self._blend_mask(rendered, drivable_up, (0, 180, 0), 0.45)
-        self._blend_mask(rendered, lane_up, (0, 0, 255), 0.70)
+        self._blend_mask(rendered, drivable_up, (0, 180, 0), 0.20)
         draw_boundaries(rendered, boundaries, (drivable.shape[1], drivable.shape[0]))
         self._draw_text(rendered, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' '),
                         10, 12, (0, 220, 255))
@@ -516,7 +514,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
             self._source_size,
         )
         boundaries = self._boundary_tracker.update(
-            drivable, lane, nn_data.getTimestamp().total_seconds())
+            drivable, lane, nn_data.getTimestamp().total_seconds(), rgb=preview.getCvFrame())
         bev = render_boundary_bev(boundaries)
         self._draw_text(bev, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' '),
                         10, 10, (0, 220, 255))

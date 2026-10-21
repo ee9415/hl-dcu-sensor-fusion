@@ -20,7 +20,8 @@ FRAME_FIELDS = ['session', 'frame_seq', 'nn_seq', 'depth_seq', 'capture_timestam
                 'c0', 'c1', 'c2', 'c3', 'turn_mode', 'object_count',
                 'boundary_valid', 'boundary_state', 'left_boundary_state', 'right_boundary_state',
                 'vehicle_width_m', 'left_margin_m', 'right_margin_m', 'corridor_width_m',
-                'boundary_units', 'boundary_forward_dev', 'left_boundary_dev', 'right_boundary_dev']
+                'minimum_clearance_width_m', 'boundary_width_min_dev', 'boundary_width_max_dev',
+                'clearance_sufficient', 'boundary_units', 'boundary_forward_dev', 'left_boundary_dev', 'right_boundary_dev']
 OBJECT_FIELDS = ['session', 'frame_seq', 'object_index', 'label', 'confidence',
                  'xmin', 'ymin', 'xmax', 'ymax', 'depth_valid', 'x_m', 'y_m', 'z_m']
 

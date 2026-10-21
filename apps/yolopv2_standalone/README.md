@@ -2,57 +2,61 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: Halla campus virtual boundary pair (0.15.0, 2026-10-21)
+## Current: observed white lane boundaries (0.16.2, 2026-10-21)
 
-The active pipeline estimates left/right virtual corridor boundaries directly;
-it does not compute or display a center path, goal or turn preview. Existing
-centerline modules/tests remain available as development history. Sections below
-describing centerline behavior refer to earlier versions.
+The active pipeline fits the actual left/right painted boundaries independently.
+There is no center path, fixed corridor width, goal or turn preview. A local
+white/gray paint contrast test refines the NN lane mask using aligned RGB; each
+side acquires the nearest longitudinal stripe on its side of the camera axis.
+Robust quadratic fitting and per-side association/rate limits follow the paint.
+Only observed ranges with road support are drawn; horizontal wide markings are
+rejected. The broad red NN lane overlay is hidden to make alignment visible.
 
-Edit `lane_boundaries.json` before building/running the camera app:
+`lane_boundaries.json` settings load at app startup:
 
-| Setting | Initial value | Meaning |
+| Setting | Default | Meaning |
 | --- | ---: | --- |
 | `vehicle_width_m` | 1.8 | Provisional overall vehicle width |
-| `left_margin_m` | 0.3 | Provisional left clearance |
-| `right_margin_m` | 0.3 | Provisional right clearance |
-| `observation_gate_m` | 0.65 | Maximum distance to associate a boundary observation |
-| `max_lateral_rate_m_s` | 1.0 | Maximum boundary lateral change per second |
-| `max_missing_s` | 0.5 | Hold timeout for missing road evidence |
-| `max_forward_m` | 25.0 | Development BEV forward extent to process |
+| `left_margin_m` / `right_margin_m` | 0.3 / 0.3 | Provisional clearance |
+| `observation_gate_m` | 0.65 | Boundary association distance in development coordinates |
+| `max_lateral_rate_m_s` | 1.0 | Per-side change limit after acquisition |
+| `max_missing_s` | 0.5 | Hold timeout for absent road input |
+| `max_forward_m` | 25.0 | Maximum development forward extent |
+| `max_lane_gap_s` | 2.0 | Maximum continuation of missing paint evidence |
 
-These are development defaults, not measured Halla vehicle specifications.
-Settings load at app startup. For an installed app, rebuild/redeploy after editing;
-for a development run, restart with the edited source. Invalid settings fail
-explicitly. Width is `vehicle_width_m + left_margin_m + right_margin_m`.
-The existing IPM is uncalibrated: meter-named settings do not establish actual
-physical clearance. The width constraint is lateral at equal forward samples,
-not a validated perpendicular swept vehicle envelope on sharp curves.
+Vehicle width plus margins is a **minimum clearance check only**, never a
+boundary offset or fitted width constraint. Actual paint positions remain visible
+even when the development width estimate is below this threshold; state is then
+`insufficient_width`. The IPM is uncalibrated, so this does not establish physical
+clearance or an actual narrow-road condition. Real vehicle dimensions and IPM
+calibration remain necessary.
 
-Lane-mask observations are preferred near each predicted boundary. Nearby road
-edges provide weaker observations; distant edges of a widened road are ignored.
-Two quadratic boundary polynomials are fitted jointly with a fixed separation,
-then rate-limited together. A broad, unmarked road retains the previous pair;
-at startup it seeds separate vehicle-left/right offsets. Such boundaries are
-inferred, not recognized painted lane boundaries or an identified route.
-Left is yellow, right is light blue; solid means observation-supported, dashed
-means inferred/held. Missing evidence expires; visible constrictions invalidate
-or shorten the pair rather than forcing it through the road boundary.
+When one boundary disappears, continue it using the last observed width profile
+and the visible side's change. When both disappear, retain their previous shapes
+for up to `max_lane_gap_s` while road support remains. Distant stripes of a suddenly
+wider road are rejected. After expiry hide the pair while retaining association
+references, preventing immediate reacquisition of the wide road edges. A returning
+pair is reacquired after three stable observations if its median width is no
+more than 1.25 times the previous median width. Startup
+requires evidence for both sides; no vehicle-width corridor is invented on a
+completely unmarked road. New turns/route choice and prolonged unmarked sections
+still require further development. Yellow is left, light blue is right; solid
+means observation-supported and dashed means inferred/held.
 
-RGB, object/depth outputs, recording, RTSP ports and timing metadata are retained.
-The historical `CenterlineBEV` RemoteConnection identifier remains for transport
-compatibility, but its image contains the virtual boundary pair. Turn buttons
-are absent and the camera no longer polls the turn mailbox.
+Settings edits require restarting a development run, or rebuilding/redeploying
+an installed app. Invalid values fail explicitly. Existing centerline modules
+and tests remain as history; they are not imported by the active processing node.
+Earlier sections below describe historical versions.
 
-`frames.csv` additionally stores boundary validity/state, per-side state, the
-three width settings, total width, development coordinate units, and JSON arrays
-`boundary_forward_dev`, `left_boundary_dev`, `right_boundary_dev`. Arrays share
-indices; invalid results use `[]`. Legacy centerline columns remain disabled/
-empty (`centerline_valid=False`, no c0..c3), preserving older readers.
-The old/new telemetry payloads remain readable by the updated logger.
+RGB, object/depth outputs, recording, timing metadata and RTSP ports are retained.
+The historical `CenterlineBEV` transport identifier remains, but its image has
+only boundaries. CSV keeps disabled/empty legacy centerline columns and adds
+`minimum_clearance_width_m`, `boundary_width_min_dev`, `boundary_width_max_dev`,
+`clearance_sufficient`. The older `corridor_width_m` field is retained as an alias
+of the configured minimum, not the measured lane width. Boundary arrays remain
+JSON arrays sharing `boundary_forward_dev` indices. Invalid results use `[]`.
 
-Validation and limitations:
-[2026-10-21 boundary verification](../../docs/verification/camera/virtual_boundaries_20261021.md).
+Verification: [white-lane alignment](../../docs/verification/camera/white_lane_alignment_20261021.md).
 
 This app is intended to run entirely on an OAK4-D Pro (RVC4). It keeps the
 validated `1920x1080 NV12 -> H.264` camera path at a configured 10 FPS and branches the same frames
