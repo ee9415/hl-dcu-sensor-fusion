@@ -2,14 +2,15 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: observed white lane boundaries (0.17.1, 2026-10-21)
+## Current: observed white lane boundaries (0.18.0, 2026-10-21)
 
 The active pipeline fits the actual left/right painted boundaries independently.
 There is no center path, fixed corridor width, goal or turn preview. A local
 white/gray paint contrast test refines the NN lane mask using aligned RGB; each
 side acquires the nearest longitudinal stripe on its side of the camera axis.
 Robust quadratic fitting and per-side association/rate limits follow the paint.
-Only observed ranges with road support are drawn; horizontal wide markings are
+Observed ranges require road support; historical inferred ranges are retained even
+when segmentation changes. Horizontal wide markings are
 rejected. The broad red NN lane overlay is hidden to make alignment visible.
 
 `lane_boundaries.json` settings load at app startup:
@@ -20,9 +21,9 @@ rejected. The broad red NN lane overlay is hidden to make alignment visible.
 | `left_margin_m` / `right_margin_m` | 0.3 / 0.3 | Provisional clearance |
 | `observation_gate_m` | 0.65 | Boundary association distance in development coordinates |
 | `max_lateral_rate_m_s` | 1.0 | Per-side change limit after acquisition |
-| `max_missing_s` | 0.5 | Hold timeout for absent road input |
+| `max_missing_s` | 0.5 | Reset threshold for a gap between input frame timestamps |
 | `max_forward_m` | 25.0 | Maximum development forward extent |
-| `max_lane_gap_s` | 2.0 | Maximum continuation of missing paint evidence |
+| `max_lane_gap_s` | 2.0 | Delay before wider-search pair reacquisition; NOT a hold timeout |
 
 Vehicle width plus margins is a **minimum clearance check only**, never a
 boundary offset or fitted width constraint. Actual paint positions remain visible
@@ -32,17 +33,18 @@ clearance or an actual narrow-road condition. Real vehicle dimensions and IPM
 calibration remain necessary.
 
 Each side has its own observation range, history, association reference and
-expiry. A single observed side is valid and rendered even at startup. An unseen
+observation age. A single observed side is valid and rendered even at startup. An unseen
 opposite side is not invented. When one boundary disappears, continue only that
 side from its own previous shape and the visible side's bounded observed change. When both disappear, retain their previous shapes
-for up to `max_lane_gap_s` while road support remains. Distant stripes of a suddenly
-wider road are rejected. After expiry hide each expired side while retaining association
-references, preventing immediate reacquisition of the wide road edges. The visible
-side remains active when the missing side expires. A returning
+without an age limit while input frames remain continuous, including absent road
+segmentation. Road widening alone never changes their width or direction. Distant
+stripes of a suddenly wider road are rejected. A returning
 pair is reacquired after three stable observations if its median width is no
 more than 1.25 times the previous median width. Startup accepts either side independently; no vehicle-width corridor is invented
-on a completely unmarked road. New turns/route choice and prolonged unmarked sections
-still require further development. Yellow is left, light blue is right; solid
+on a completely unmarked road. Timestamp discontinuities reset history. This is
+image/BEV history continuation, not vehicle-motion compensation or route prediction;
+alignment during real turns on unmarked roads still needs field validation.
+Yellow is left, light blue is right; solid
 means observation-supported and dashed means inferred/held.
 
 Settings edits require restarting a development run, or rebuilding/redeploying

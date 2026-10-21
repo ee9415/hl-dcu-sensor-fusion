@@ -94,11 +94,12 @@ class BoundaryTests(unittest.TestCase):
         road[:, abs(self.lateral) < .4] = False
         self.assertFalse(self.update((road, lane)).valid)
 
-    def test_visible_shifted_road_does_not_hold_old_pair(self):
-        self.update(self.masks())
+    def test_segmentation_change_does_not_erase_historical_pair(self):
+        first=self.update(self.masks())
         result = self.update(self.masks(2., 5., False), .1)
-        self.assertFalse(result.valid)
-        self.assertIn(result.state, ('boundary_conflict','lane_unavailable'))
+        self.assertTrue(result.pair_valid)
+        np.testing.assert_allclose(result.left,first.left)
+        np.testing.assert_allclose(result.right,first.right)
 
     def test_mask_projection_render_and_json(self):
         h, w = 180, 320
@@ -162,15 +163,17 @@ class BoundaryTests(unittest.TestCase):
         np.testing.assert_allclose(result.left,-2.5,atol=.03)
         np.testing.assert_allclose(result.right,3.,atol=.03)
 
-    def test_lane_gap_expires_and_remote_new_stripes_do_not_pull_pair_outward(self):
+    def test_long_lane_gap_and_remote_new_stripes_do_not_pull_pair_outward(self):
         first=self.update(self.masks(-2.5,3.))
         result=self.update(self.masks(-5.,5.),.1)
         self.assertTrue(result.valid)
         np.testing.assert_allclose(result.left,first.left)
         np.testing.assert_allclose(result.right,first.right)
-        for n in range(2,23):
+        for n in range(2,602):
             result=self.update(self.masks(-5.,5.),n*.1)
-        self.assertFalse(result.valid)
+            self.assertTrue(result.pair_valid)
+            np.testing.assert_allclose(result.left,first.left)
+            np.testing.assert_allclose(result.right,first.right)
 
     def test_returning_shifted_pair_reacquires_after_gap(self):
         self.update(self.masks(-2.5,3.))
@@ -208,11 +211,11 @@ class BoundaryTests(unittest.TestCase):
             self.assertTrue(np.any(np.all(bev==visible_color,axis=2)))
             self.assertFalse(np.any(np.all(bev==missing_color,axis=2)))
 
-    def test_occluded_side_continues_then_expires_without_hiding_visible_side(self):
+    def test_occluded_side_continues_long_term_with_visible_side(self):
         for visible in (0,1):
             self.tracker=BoundaryTracker()
             first=self.update(self.masks(-2.5,3.))
-            for n in range(1,27):
+            for n in range(1,302):
                 shift=.15*np.sin(n*.1)
                 road,lane=self.masks(-2.5+shift,3.+shift)
                 road[:]=True
@@ -221,12 +224,8 @@ class BoundaryTests(unittest.TestCase):
                 self.assertTrue(result.valid)
                 self.assertTrue(result.left_valid if visible==0 else result.right_valid)
                 self.assertEqual(result.left_state if visible==0 else result.right_state,'observed')
-                if n<=20:
-                    self.assertEqual(result.right_state if visible==0 else result.left_state,'inferred')
-                    np.testing.assert_allclose(result.right-result.left,first.right-first.left,atol=1e-6)
-                else:
-                    self.assertEqual(result.state,'partial')
-                    self.assertFalse(result.right_valid if visible==0 else result.left_valid)
+                self.assertEqual(result.right_state if visible==0 else result.left_state,'inferred')
+                np.testing.assert_allclose(result.right-result.left,first.right-first.left,atol=1e-6)
 
     def test_left_and_right_have_independent_visible_ranges(self):
         road,lane=self.masks(-2.5,3.)
@@ -247,7 +246,21 @@ class BoundaryTests(unittest.TestCase):
         result=self.update((road,lane),.1)
         self.assertTrue(result.valid)
         self.assertTrue(result.left_valid)
-        self.assertFalse(result.right_valid)
+        self.assertTrue(result.right_valid)
+        self.assertEqual(result.right_state,'inferred')
+
+    def test_long_unmarked_widening_and_segmentation_loss_preserve_curvature(self):
+        bend=.4*(self.forward/25)**2
+        first=self.update(self.masks(-2.5+bend,3.+bend))
+        for n in range(1,602):
+            road,lane=self.masks(-5,5,False)
+            if n>300:
+                road[:]=False
+            result=self.update((road,lane),n*.1)
+            self.assertTrue(result.pair_valid)
+            np.testing.assert_allclose(result.left,first.left)
+            np.testing.assert_allclose(result.right,first.right)
+        self.assertEqual(result.state,'held')
 
     def test_short_visible_range_does_not_warp_long_occluded_boundary(self):
         first=self.update(self.masks(-2.5,3.))

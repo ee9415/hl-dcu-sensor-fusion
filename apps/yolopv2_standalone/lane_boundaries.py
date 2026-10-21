@@ -20,7 +20,7 @@ class BoundaryConfig:
     max_lateral_rate_m_s: float = 1.0
     max_missing_s: float = .5
     max_forward_m: float = 25.0
-    max_lane_gap_s: float = 2.0
+    max_lane_gap_s: float = 2.0  # Delay before wider-search reacquisition, not expiry.
 
     def __post_init__(self):
         for field in fields(self):
@@ -219,7 +219,7 @@ class BoundaryTracker:
         return prediction+delta*scale
 
     def update_bev(self, forward, lateral, road, lane, timestamp_s, projection=None):
-        """Observe, continue, expire and render each side independently."""
+        """Observe and continue each side independently during continuous input."""
         c = self.config
         projection = np.eye(3) if projection is None else projection
         empty = np.empty(0)
@@ -309,8 +309,9 @@ class BoundaryTracker:
             if curves[side] is not None:
                 continue
             last, history = self.side_observed_time[side], histories[side]
-            timeout = c.max_lane_gap_s if road_present else c.max_missing_s
-            if history is None or last is None or timestamp_s-last > timeout:
+            # A paint/segmentation gap has no age limit. Frame discontinuities
+            # above still reset tracking; startup never invents an unseen side.
+            if history is None or last is None:
                 continue
             other = 1-side
             delta = np.zeros(len(forward))
@@ -331,7 +332,7 @@ class BoundaryTracker:
             curve, indices = curves[side], supports[side]
             if curve is not None and len(indices):
                 selected = np.arange(indices[0], indices[-1]+1)
-                if road_present:
+                if road_present and states[side] == 'observed':
                     # Validate this edge against nearby pavement, independently
                     # of visibility/road coverage at the opposite edge.
                     nearby = np.array([np.any(road[i, abs(lateral-curve[i]) <= .45]) for i in selected])
