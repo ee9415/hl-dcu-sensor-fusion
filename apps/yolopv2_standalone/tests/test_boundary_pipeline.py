@@ -1,0 +1,84 @@
+"""Host-node integration without a camera or the RVC4 DepthAI runtime."""
+from datetime import timedelta
+import importlib
+import sys
+import types
+import unittest
+from unittest.mock import MagicMock, patch
+
+import numpy as np
+
+
+class Frame:
+    Type = types.SimpleNamespace(NV12=0, BGR888i=1)
+
+    def __init__(self):
+        self.data = None
+        self.timestamp = timedelta(seconds=10)
+        self.sequence = 7
+
+    def setCvFrame(self, data, kind):
+        self.data = data
+
+    def getCvFrame(self):
+        return np.zeros((1080, 1920, 3), np.uint8)
+
+    def getFrame(self):
+        return np.zeros((1080, 1920), np.uint16)
+
+    def getTransformation(self):
+        return None
+
+    def getTimestamp(self):
+        return self.timestamp
+
+    def getSequenceNum(self):
+        return self.sequence
+
+    def setTimestamp(self, value):
+        self.timestamp = value
+
+    def setSequenceNum(self, value):
+        self.sequence = value
+
+
+class BoundaryPipelineTests(unittest.TestCase):
+    def test_result_bev_and_telemetry_use_boundary_pair(self):
+        class Host:
+            def createOutput(self, **kwargs):
+                return MagicMock()
+
+        dai = types.SimpleNamespace(node=types.SimpleNamespace(HostNode=Host, ThreadedHostNode=Host),
+                                    Node=MagicMock(), DatatypeEnum=MagicMock(), ImgFrame=Frame,
+                                    ImgDetections=Frame, SpatialImgDetections=Frame,
+                                    LengthUnit=MagicMock(),
+                                    Clock=types.SimpleNamespace(now=lambda: timedelta(seconds=10)))
+        # Annotations are evaluated during import in yolopv2_node.py.
+        dai.NNData = type('NNData', (), {})
+        dai.ImgDetection = type('ImgDetection', (), {})
+        with patch.dict(sys.modules, {'depthai': dai}):
+            node = importlib.import_module('yolopv2_node')
+        road = np.full((180, 320), 255, np.uint8)
+        with patch.object(node, 'TelemetryServer') as server, \
+             patch.object(node, 'decode_heads'), \
+             patch.object(node, 'non_max_suppression', return_value=[]), \
+             patch.object(node, 'segmentation_masks', return_value=(road, np.zeros_like(road))):
+            processor = node.Yolopv2Postprocess()
+            processor._tensor = MagicMock()
+            processor.process(Frame(), Frame(), Frame())
+            payload = server.return_value.publish.call_args.args[0]
+            self.assertTrue(payload['boundary_valid'])
+            self.assertFalse(payload['centerline_valid'])
+            self.assertIsNone(payload['coefficients'])
+            self.assertEqual(payload['turn_mode'], 'disabled')
+            self.assertEqual(payload['frame_seq'], 7)
+            np.testing.assert_allclose(np.array(payload['right_boundary_dev'])-
+                                       payload['left_boundary_dev'], 2.4)
+            result = processor.result.send.call_args.args[0]
+            bev = processor.bev.send.call_args.args[0]
+            self.assertEqual(result.data.shape, (540,960,3))
+            self.assertEqual(bev.data.shape, (480,640,3))
+            self.assertEqual(result.getSequenceNum(), 7)
+            self.assertEqual(bev.getTimestamp(), timedelta(seconds=10))
+            for color in ((0,220,255), (255,180,0)):
+                self.assertTrue(np.any(np.all(result.data == color, axis=2)))

@@ -186,7 +186,7 @@ with dai.Pipeline(device) as pipeline:
                     "/bev",
                 )
                 print(
-                    "Centerline BEV RTSP: rtsp://<device-ip>:8553/bev",
+                    "Virtual boundaries BEV RTSP: rtsp://<device-ip>:8553/bev",
                     flush=True,
                 )
 

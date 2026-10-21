@@ -245,7 +245,7 @@ class RecorderApp:
         self.sources = {
             "rgb": CaptureSource("rgb", "원본 RGB", ""),
             "yolopv2": CaptureSource("yolopv2", "YOLO 결과", ""),
-            "bev": CaptureSource("bev", "BEV · 가상 중심선", ""),
+            "bev": CaptureSource("bev", "BEV · 가상 좌우 경계선", ""),
             "depth": CaptureSource("depth", "RGB 정렬 Depth", ""),
         }
         self.selected = {
@@ -364,7 +364,7 @@ class RecorderApp:
             ("rgb", "원본 RGB", "영상 연결 대기"),
             ("yolopv2", "인식 결과", "영상 연결 대기"),
             ("depth", "Depth · 빨강 0.3m → 파랑 25m · 검정: 무효", "Depth 영상 연결 대기"),
-            ("bev", "BEV · 가상 중심선", "BEV 출력 연동 대기"),
+            ("bev", "BEV · 가상 좌우 경계선", "BEV 출력 연동 대기"),
         )
         for index, (key, title, placeholder) in enumerate(preview_specs):
             self._build_preview_panel(
@@ -489,14 +489,13 @@ class RecorderApp:
         ttk.Label(record_controls, textvariable=self.csv_status, style='App.TLabel',
                   wraplength=1100).grid(row=2, column=0, columnspan=5, sticky='ew')
 
-        turn_controls = ttk.Frame(controls, style="App.TFrame")
-        turn_controls.grid(row=2, column=0, sticky="ew", pady=(6, 0))
-        self.turn_status = tk.StringVar(value="교차로 경로 미리보기 · 차량 제어 아님")
+        # Legacy command handler is retained, but no turn controls are exposed in
+        # the boundary-only UI and the camera no longer polls the turn mailbox.
+        self.turn_status = tk.StringVar(value="경계선 전용 모드")
         self.turn_busy = False
-        for label, mode in (("좌회전 미리보기", "left"), ("우회전 미리보기", "right"), ("일반 도로 복귀", "road")):
-            ttk.Button(turn_controls, text=label,
-                       command=lambda m=mode: self.request_turn(m)).pack(side=tk.LEFT, padx=3)
-        ttk.Label(turn_controls, textvariable=self.turn_status, style="App.TLabel").pack(side=tk.LEFT, padx=8)
+        ttk.Label(controls,
+                  text="가상 경계선: 왼쪽 노랑 / 오른쪽 하늘색 · 실선 관측 / 점선 추정·유지",
+                  style="App.TLabel").grid(row=2, column=0, sticky="w", pady=(6, 0))
 
     def request_turn(self, mode: str) -> None:
         if self.turn_busy:
@@ -951,7 +950,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device-serial", default=DEFAULT_DEVICE_SERIAL)
     parser.add_argument("--rgb-url", help="override the RGB RTSP URL")
     parser.add_argument("--result-url", help="override the YOLOPv2 RTSP URL")
-    parser.add_argument("--bev-url", help="override the centerline BEV RTSP URL")
+    parser.add_argument("--bev-url", help="override the virtual boundary BEV RTSP URL")
     parser.add_argument("--auto-connect", action="store_true", help="connect after opening the window")
     parser.add_argument(
         "--output-dir",

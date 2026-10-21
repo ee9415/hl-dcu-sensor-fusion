@@ -1,5 +1,19 @@
 # PROJECT_STATUS.md
 
+## 한라대 가상 좌우 경계선 전용 구현 (2026-10-21)
+
+- oakapp 소스 0.15.0: 중심선 계산·표시·목표점·선회 미리보기를 활성 경로에서 제외.
+  기존 중심선 알고리즘 파일과 테스트는 보존했다.
+- `lane_boundaries.py`: 좌우 경계를 직접 공동 피팅하고 두 경계 간격을 차량 폭+
+  좌우 여유 폭으로 제약. 갑자기 넓어진 도로 외곽으로 통로 폭을 확장하지 않는다.
+- `lane_boundaries.json`에 차폭/좌우 여유 폭 등을 설정. 초기 1.8/0.3/0.3 m는
+  임시 개발값이며 실제 차량 제원과 현장 IPM 보정 필요.
+- 결과 영상/BEV는 경계선만 표시, 멀티뷰 선회 버튼 제거. RGB/객체/Depth/녹화
+  경로 유지, CSV에 좌우 경계 좌표 배열·상태·설정값 추가.
+- Windows 번들 Python에서 전체 68개 테스트 통과(경계선·호스트 연결·TCP CSV 포함).
+  실장비 배포·RTSP·GUI 실행·한라대 현장 정확도 검증은 미수행.
+- 상세: `docs/verification/camera/virtual_boundaries_20261021.md`.
+
 ## 개발 빌드 배포 매뉴얼 (2026-10-19)
 
 - `docs/oak4d_development_deployment_manual.md`에 현재 프로젝트의 CMD 기반 실습 절차 작성.

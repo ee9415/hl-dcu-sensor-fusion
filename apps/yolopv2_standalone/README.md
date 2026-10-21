@@ -2,6 +2,58 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
+## Current: Halla campus virtual boundary pair (0.15.0, 2026-10-21)
+
+The active pipeline estimates left/right virtual corridor boundaries directly;
+it does not compute or display a center path, goal or turn preview. Existing
+centerline modules/tests remain available as development history. Sections below
+describing centerline behavior refer to earlier versions.
+
+Edit `lane_boundaries.json` before building/running the camera app:
+
+| Setting | Initial value | Meaning |
+| --- | ---: | --- |
+| `vehicle_width_m` | 1.8 | Provisional overall vehicle width |
+| `left_margin_m` | 0.3 | Provisional left clearance |
+| `right_margin_m` | 0.3 | Provisional right clearance |
+| `observation_gate_m` | 0.65 | Maximum distance to associate a boundary observation |
+| `max_lateral_rate_m_s` | 1.0 | Maximum boundary lateral change per second |
+| `max_missing_s` | 0.5 | Hold timeout for missing road evidence |
+| `max_forward_m` | 25.0 | Development BEV forward extent to process |
+
+These are development defaults, not measured Halla vehicle specifications.
+Settings load at app startup. For an installed app, rebuild/redeploy after editing;
+for a development run, restart with the edited source. Invalid settings fail
+explicitly. Width is `vehicle_width_m + left_margin_m + right_margin_m`.
+The existing IPM is uncalibrated: meter-named settings do not establish actual
+physical clearance. The width constraint is lateral at equal forward samples,
+not a validated perpendicular swept vehicle envelope on sharp curves.
+
+Lane-mask observations are preferred near each predicted boundary. Nearby road
+edges provide weaker observations; distant edges of a widened road are ignored.
+Two quadratic boundary polynomials are fitted jointly with a fixed separation,
+then rate-limited together. A broad, unmarked road retains the previous pair;
+at startup it seeds separate vehicle-left/right offsets. Such boundaries are
+inferred, not recognized painted lane boundaries or an identified route.
+Left is yellow, right is light blue; solid means observation-supported, dashed
+means inferred/held. Missing evidence expires; visible constrictions invalidate
+or shorten the pair rather than forcing it through the road boundary.
+
+RGB, object/depth outputs, recording, RTSP ports and timing metadata are retained.
+The historical `CenterlineBEV` RemoteConnection identifier remains for transport
+compatibility, but its image contains the virtual boundary pair. Turn buttons
+are absent and the camera no longer polls the turn mailbox.
+
+`frames.csv` additionally stores boundary validity/state, per-side state, the
+three width settings, total width, development coordinate units, and JSON arrays
+`boundary_forward_dev`, `left_boundary_dev`, `right_boundary_dev`. Arrays share
+indices; invalid results use `[]`. Legacy centerline columns remain disabled/
+empty (`centerline_valid=False`, no c0..c3), preserving older readers.
+The old/new telemetry payloads remain readable by the updated logger.
+
+Validation and limitations:
+[2026-10-21 boundary verification](../../docs/verification/camera/virtual_boundaries_20261021.md).
+
 This app is intended to run entirely on an OAK4-D Pro (RVC4). It keeps the
 validated `1920x1080 NV12 -> H.264` camera path at a configured 10 FPS and branches the same frames
 through a letterbox resize and RGB conversion for a fixed `1x3x320x320`

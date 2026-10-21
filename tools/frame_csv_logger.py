@@ -17,7 +17,10 @@ FRAME_FIELDS = ['session', 'frame_seq', 'nn_seq', 'depth_seq', 'capture_timestam
                 'raw_receive_delay_ms', 'raw_transport_delay_ms',
                 'receive_delay_est_ms', 'transport_delay_est_ms', 'latency_status',
                 'sequence_gap', 'centerline_valid', 'tracking_state', 'coefficient_units',
-                'c0', 'c1', 'c2', 'c3', 'turn_mode', 'object_count']
+                'c0', 'c1', 'c2', 'c3', 'turn_mode', 'object_count',
+                'boundary_valid', 'boundary_state', 'left_boundary_state', 'right_boundary_state',
+                'vehicle_width_m', 'left_margin_m', 'right_margin_m', 'corridor_width_m',
+                'boundary_units', 'boundary_forward_dev', 'left_boundary_dev', 'right_boundary_dev']
 OBJECT_FIELDS = ['session', 'frame_seq', 'object_index', 'label', 'confidence',
                  'xmin', 'ymin', 'xmax', 'ymax', 'depth_valid', 'x_m', 'y_m', 'z_m']
 
@@ -114,7 +117,9 @@ class FrameCsvLogger:
                                         row['latency_status'] = 'invalid_clock_or_asymmetry'
                                         row['receive_delay_est_ms'] = ''
                                         row['transport_delay_est_ms'] = ''
-                                    for i, value in enumerate(p['coefficients'] or ['', '', '', '']):
+                                    for key in ('boundary_forward_dev', 'left_boundary_dev', 'right_boundary_dev'):
+                                        row[key] = json.dumps(p[key], allow_nan=False) if key in p else ''
+                                    for i, value in enumerate(p.get('coefficients') or ['', '', '', '']):
                                         row[f'c{i}'] = value
                                     try:
                                         for i, obj in enumerate(p['objects']):

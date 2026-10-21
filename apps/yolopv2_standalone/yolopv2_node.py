@@ -3,20 +3,10 @@ import time
 
 import depthai as dai
 import numpy as np
-from corridor import CorridorTracker
-from adaptive_order import AdaptiveOrderSelector
-from conservative_centerline import ConservativeCenterline
-from far_corridor import guide_to_far_corridor, draw_goal
-from turn_preview import TurnPreview, TurnMailbox, draw_turn
 from telemetry_server import TelemetryServer
+from lane_boundaries import (BoundaryConfig, BoundaryTracker, BoundaryEstimate,
+                             draw_boundaries, render_boundary_bev)
 
-from centerline import (
-    CenterlineEstimate,
-    CenterlineTemporalFilter,
-    draw_centerline_overlay,
-    estimate_centerline,
-    render_bev,
-)
 from postprocess import (
     SpatialMeasurement,
     diagnostic_bgr_frame,
@@ -32,12 +22,14 @@ FONT_5X7 = {
     " ": ("00000",)*7,
     "A": ("01110","10001","10001","11111","10001","10001","10001"),
     "B": ("11110","10001","10001","11110","10001","10001","11110"),
+    "C": ("01111","10000","10000","10000","10000","10000","01111"),
     "D": ("11110","10001","10001","10001","10001","10001","11110"),
     "E": ("11111","10000","10000","11110","10000","10000","11111"),
     "F": ("11111","10000","10000","11110","10000","10000","10000"),
     "G": ("01110","10001","10000","10111","10001","10001","01110"),
     "H": ("10001","10001","10001","11111","10001","10001","10001"),
     "I": ("11111","00100","00100","00100","00100","00100","11111"),
+    "K": ("10001","10010","10100","11000","10100","10010","10001"),
     "L": ("10000","10000","10000","10000","10000","10000","11111"),
     "N": ("10001","11001","11001","10101","10011","10011","10001"),
     "O": ("01110","10001","10001","10001","10001","10001","01110"),
@@ -253,16 +245,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._frames = 0
         self._started_at = time.monotonic()
         self._last_health_at = self._started_at
-        self._centerline_filter = CenterlineTemporalFilter(measurement_following=True)
-        self._corridor_tracker = CorridorTracker()
-        self._order_selector = AdaptiveOrderSelector()
-        self._shape_limiter = ConservativeCenterline()
-        self._turn_preview = TurnPreview()
-        self._turn_mailbox = TurnMailbox()
-        self._turn_points = None
-        self._limit_samples = []
-        self._goal_samples = []
-        self._centerline_samples = []
+        self._boundary_tracker = BoundaryTracker(BoundaryConfig.load())
 
     def build(
         self,
@@ -411,8 +394,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         lane: np.ndarray,
         detections: list[dai.ImgDetection],
         measurements: list[SpatialMeasurement],
-        centerline: CenterlineEstimate,
-        measured_centerline: CenterlineEstimate,
+        boundaries: BoundaryEstimate,
     ) -> dai.ImgFrame:
         source = preview.getCvFrame()
         result_width, result_height = self._result_size
@@ -432,16 +414,9 @@ class Yolopv2Postprocess(dai.node.HostNode):
 
         self._blend_mask(rendered, drivable_up, (0, 180, 0), 0.45)
         self._blend_mask(rendered, lane_up, (0, 0, 255), 0.70)
-        draw_centerline_overlay(rendered, measured_centerline,
-                                (drivable.shape[1], drivable.shape[0]), raw=True)
-        if self._turn_preview.mode == 'road':
-            draw_centerline_overlay(rendered, centerline, (drivable.shape[1], drivable.shape[0]))
-            draw_goal(rendered, centerline, (drivable.shape[1], drivable.shape[0]))
-        else:
-            if self._turn_points is not None:
-                draw_turn(rendered, self._turn_points, self._turn_preview.projection,
-                          (drivable.shape[1], drivable.shape[0]))
-            self._draw_text(rendered, 'TURN PREVIEW ONLY', 10, 12, (255, 80, 220))
+        draw_boundaries(rendered, boundaries, (drivable.shape[1], drivable.shape[0]))
+        self._draw_text(rendered, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' '),
+                        10, 12, (0, 220, 255))
         invalid_labels = 0
         for detection, measurement in zip(detections, measurements, strict=True):
             self._draw_box(rendered, detection)
@@ -540,52 +515,11 @@ class Yolopv2Postprocess(dai.node.HostNode):
             self._tensor(nn_data, self.TENSOR_NAMES[4]),
             self._source_size,
         )
-        measured_centerline = estimate_centerline(drivable, roi_top_fraction=.38)
-        corridor_centerline = self._corridor_tracker.update(
-            measured_centerline, timestamp_s=nn_data.getTimestamp().total_seconds()
-        )
-        ordered_centerline = self._order_selector.update(
-            corridor_centerline, timestamp_s=nn_data.getTimestamp().total_seconds())
-        ordered_centerline = guide_to_far_corridor(
-            ordered_centerline, measured_centerline, self._shape_limiter.previous)
-        centerline = self._centerline_filter.update(
-            ordered_centerline, timestamp_s=nn_data.getTimestamp().total_seconds())
-        centerline = self._shape_limiter.update(
-            centerline, timestamp_s=nn_data.getTimestamp().total_seconds())
-        self._limit_samples.append(self._shape_limiter.metrics.copy())
-        if centerline.valid and centerline.goal_position is not None:
-            gx, gy = centerline.goal_position
-            actual = float(np.polynomial.polynomial.polyval(gx, centerline.coefficients))
-            error = abs(actual-gy)
-            endpoint = np.array([(actual/12+.5)*639, (1-gx/40)*479, 1.]) @ centerline.projection.T
-            pixel_error = float(np.linalg.norm(endpoint[:2]/endpoint[2]-centerline.goal_image)*3)
-            self._goal_samples.append((error <= centerline.goal_half_width, pixel_error,
-                                       centerline.goal_image[1] < 90))
-        bev = render_bev(centerline)
-        self._turn_mailbox.poll(self._turn_preview, centerline)
-        self._turn_points = self._turn_preview.update(centerline, nn_data.getTimestamp().total_seconds())
-        if self._turn_preview.mode != 'road':
-            bev[:] = (14, 22, 30)
-            if self._turn_points is not None:
-                draw_turn(bev, self._turn_points)
-            self._draw_text(bev, 'TURN PREVIEW ONLY', 10, 10, (255, 80, 220))
-            self._draw_text(bev, self._turn_preview.mode.upper(), 10, 32, (255, 80, 220))
-            self._draw_text(bev, self._turn_preview.status.upper().replace('_', ' '), 10, 54, (255, 80, 220))
-        gap_px = None
-        if centerline.valid and measured_centerline.valid:
-            raw_points = measured_centerline.image_curve
-            filtered_points = centerline.image_curve
-            raw_points = raw_points[np.argsort(raw_points[:, 1])]
-            filtered_points = filtered_points[np.argsort(filtered_points[:, 1])]
-            lo = max(0., raw_points[0, 1], filtered_points[0, 1])
-            hi = min(drivable.shape[0] - 1., raw_points[-1, 1], filtered_points[-1, 1])
-            if hi - lo >= 5:
-                rows = np.linspace(lo, hi, 40)
-                # Result overlay is three times the segmentation-mask resolution.
-                gap_px = float(np.mean(np.abs(np.interp(rows, raw_points[:, 1], raw_points[:, 0]) -
-                                               np.interp(rows, filtered_points[:, 1], filtered_points[:, 0]))) * 3)
-        self._centerline_samples.append((centerline.valid, corridor_centerline.corridor_state, gap_px,
-                                        centerline.model_degree, ordered_centerline.target_degree))
+        boundaries = self._boundary_tracker.update(
+            drivable, lane, nn_data.getTimestamp().total_seconds())
+        bev = render_boundary_bev(boundaries)
+        self._draw_text(bev, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' '),
+                        10, 10, (0, 220, 255))
         capture_s = preview.getTimestamp().total_seconds()
         capture_wall = time.time() - (dai.Clock.now().total_seconds() - capture_s)
         capture_mono = time.monotonic() - (dai.Clock.now().total_seconds() - capture_s)
@@ -598,10 +532,12 @@ class Yolopv2Postprocess(dai.node.HostNode):
             'depth_timestamp_s': aligned_depth.getTimestamp().total_seconds(),
             'capture_wall_est_s': capture_wall,
             'capture_monotonic_est_s': capture_mono,
-            'centerline_valid': bool(centerline.valid),
-            'tracking_state': centerline.tracking_state,
-            'coefficients': [float(v) for v in centerline.coefficients] if centerline.valid else None,
-            'turn_mode': self._turn_preview.mode,
+            # Legacy columns remain empty/disabled for older CSV consumers.
+            'centerline_valid': False,
+            'tracking_state': 'disabled',
+            'coefficients': None,
+            'turn_mode': 'disabled',
+            **boundaries.telemetry(self._boundary_tracker.config),
             'objects': [dict(label=d.label, confidence=d.confidence,
                              xmin=d.xmin, ymin=d.ymin, xmax=d.xmax, ymax=d.ymax,
                              depth_valid=bool(m.valid),
@@ -619,8 +555,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 lane,
                 detection_messages,
                 measurements,
-                centerline,
-                measured_centerline,
+                boundaries,
             )
         )
 
@@ -629,65 +564,14 @@ class Yolopv2Postprocess(dai.node.HostNode):
         if now - self._last_health_at >= 5.0:
             elapsed = max(now - self._started_at, 1e-6)
             payload = {
-                "centerline_goal_window": {
-                    "valid_goal_frames": len(self._goal_samples),
-                    "inside_far_corridor": sum(int(s[0]) for s in self._goal_samples),
-                    "above_old_roi": sum(int(s[2]) for s in self._goal_samples),
-                    "error_px_mean": float(np.mean([s[1] for s in self._goal_samples])) if self._goal_samples else None,
-                    "error_px_max": max(s[1] for s in self._goal_samples) if self._goal_samples else None},
-                "centerline_goal_xy_dev": centerline.goal_position,
-                "centerline_goal_image": centerline.goal_image,
-                "centerline_goal_error_dev": (float(abs(np.polynomial.polynomial.polyval(
-                    centerline.goal_position[0], centerline.coefficients)-centerline.goal_position[1]))
-                    if centerline.valid and centerline.goal_position else None),
-                "centerline_goal_half_width_dev": centerline.goal_half_width,
-                "turn_preview_mode": self._turn_preview.mode,
-                "turn_preview_status": self._turn_preview.status,
-                "turn_preview_control_eligible": False,
-                "centerline_limit_frames": sum(s['limited'] for s in self._limit_samples),
-                "centerline_constraint_conflicts": sum(s['conflict'] for s in self._limit_samples),
-                "centerline_rate_bounds_max": {
-                    key: np.max([s[key] for s in self._limit_samples if s['compared']], axis=0).tolist()
-                    if any(s['compared'] for s in self._limit_samples) else None
-                    for key in ('input_rate_bounds', 'output_rate_bounds')},
-                "centerline_degree": centerline.model_degree,
-                "centerline_target_degree": ordered_centerline.target_degree,
-                "centerline_order_transition": centerline.order_transition,
-                "centerline_order_fit_error": round(ordered_centerline.order_fit_error, 4),
-                "centerline_degree_counts": {str(d): sum(s[0] and s[3] == d for s in self._centerline_samples)
-                                             for d in (1, 2, 3)},
-                "centerline_window_frames": len(self._centerline_samples),
-                "centerline_window_valid": sum(int(s[0]) for s in self._centerline_samples),
-                "centerline_window_guard": sum(s[1] == "expansion_guard" for s in self._centerline_samples),
-                "centerline_raw_gap_mean_px": (
-                    round(float(np.mean([s[2] for s in self._centerline_samples if s[2] is not None])), 2)
-                    if any(s[2] is not None for s in self._centerline_samples) else None),
-                "centerline_raw_gap_max_frame_mean_px": (
-                    round(max(s[2] for s in self._centerline_samples if s[2] is not None), 2)
-                    if any(s[2] is not None for s in self._centerline_samples) else None),
+                **boundaries.telemetry(self._boundary_tracker.config),
                 "status": "running",
                 "frames": self._frames,
                 "average_fps": round(self._frames / elapsed, 2),
                 "postprocess_ms": round((now - started_at) * 1000.0, 2),
                 "detections": len(detection_messages),
                 "depth_valid_detections": len(spatial_messages),
-                "centerline_valid": centerline.valid,
-                "centerline_corridor_state": corridor_centerline.corridor_state,
-                "centerline_tracking_state": centerline.tracking_state,
-                "centerline_measurement_age_s": round(centerline.measurement_age_s, 3),
-                "centerline_motion_compensated": centerline.motion_compensated,
-                "centerline_coefficients": (
-                    [round(value, 6) for value in centerline.coefficients]
-                    if centerline.valid
-                    else None
-                ),
-                "centerline_residual_m": (
-                    round(centerline.residual_m, 3) if centerline.valid else None
-                ),
                 "input_shape": [1, 3, 320, 320],
             }
             print(f"HEALTH {json.dumps(payload)}", flush=True)
-            self._centerline_samples.clear()
-            self._limit_samples.clear()
-            self._goal_samples.clear()
             self._last_health_at = now
