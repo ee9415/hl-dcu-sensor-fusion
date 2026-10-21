@@ -2,7 +2,7 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: observed white lane boundaries (0.18.0, 2026-10-21)
+## Current: observed white lane boundaries (0.18.1, 2026-10-21)
 
 The active pipeline fits the actual left/right painted boundaries independently.
 There is no center path, fixed corridor width, goal or turn preview. A local
@@ -46,6 +46,11 @@ image/BEV history continuation, not vehicle-motion compensation or route predict
 alignment during real turns on unmarked roads still needs field validation.
 Yellow is left, light blue is right; solid
 means observation-supported and dashed means inferred/held.
+
+Returning paint always uses the displayed history and the configured lateral rate
+limit over the common range, even if road segmentation has moved. Road support is
+checked against the raw measurement so interpolation does not disappear before it
+reaches the paint. Newly visible ranges have no previous coordinates for comparison.
 
 Settings edits require restarting a development run, or rebuilding/redeploying
 an installed app. Invalid values fail explicitly. Existing centerline modules

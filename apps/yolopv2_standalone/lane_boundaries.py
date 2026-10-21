@@ -292,15 +292,9 @@ class BoundaryTracker:
         raw_curves = list(curves)
         for side in (0, 1):
             if curves[side] is not None:
-                smooth_prediction = predictions[side]
-                if smooth_prediction is not None:
-                    indices = supports[side]
-                    supported = [np.any(road[i, abs(lateral-smooth_prediction[i]) <= .45]) for i in indices]
-                    # An old edge outside the newly observed road is not a valid
-                    # interpolation anchor; reacquire the actual visible paint.
-                    if np.mean(supported) < .5:
-                        smooth_prediction = None
-                curves[side] = self._smooth_side(curves[side], smooth_prediction, forward,
+                # Returning paint may lie on a different segmentation region.
+                # Keep the displayed history as the interpolation anchor anyway.
+                curves[side] = self._smooth_side(curves[side], predictions[side], forward,
                                                 supports[side], histories[side], dt)
         # Missing sides use only their own history, moved by the other side's
         # observed change when available. Never invent an unseen opposite edge.
@@ -335,7 +329,10 @@ class BoundaryTracker:
                 if road_present and states[side] == 'observed':
                     # Validate this edge against nearby pavement, independently
                     # of visibility/road coverage at the opposite edge.
-                    nearby = np.array([np.any(road[i, abs(lateral-curve[i]) <= .45]) for i in selected])
+                    # Validate the measurement, not the in-flight interpolation:
+                    # otherwise a returning edge disappears until it has moved
+                    # all the way into the newly segmented road.
+                    nearby = np.array([np.any(road[i, abs(lateral-raw_curves[side][i]) <= .45]) for i in selected])
                     runs = [r for r in np.split(selected[nearby], np.flatnonzero(np.diff(selected[nearby]) > 1)+1) if len(r)]
                     selected = max(runs, key=len) if runs else np.empty(0, dtype=int)
                 if len(selected) >= 8 and np.ptp(forward[selected]) >= 3.:

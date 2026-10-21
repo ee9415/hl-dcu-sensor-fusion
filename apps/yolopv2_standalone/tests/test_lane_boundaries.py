@@ -275,6 +275,21 @@ class BoundaryTests(unittest.TestCase):
         self.assertLessEqual(np.nanmax(abs(result.left-first.left)),.100001)
         self.assertLessEqual(abs(result.left[-1]-result.left[22]),.000001)
 
+    def test_return_outside_old_pavement_is_rate_limited_until_aligned(self):
+        previous=self.update(self.masks(-2.5,3.))
+        for n in range(1,61):
+            previous=self.update(self.masks(-5,5,False),n*.1)
+        # Old left edge is more than .45 outside the new pavement. Previously
+        # this bypassed smoothing and jumped directly to the returned paint.
+        for n in range(61,91):
+            result=self.update(self.masks(-1.,4.5),n*.1)
+            self.assertTrue(result.pair_valid)
+            self.assertLessEqual(np.max(abs(result.left-previous.left)),.100001)
+            self.assertLessEqual(np.max(abs(result.right-previous.right)),.100001)
+            previous=result
+        np.testing.assert_allclose(result.left,-1.,atol=.03)
+        np.testing.assert_allclose(result.right,4.5,atol=.03)
+
 
 if __name__ == '__main__':
     unittest.main()
