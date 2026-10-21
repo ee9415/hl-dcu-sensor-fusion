@@ -179,8 +179,88 @@ class BoundaryTests(unittest.TestCase):
         for n in range(24,27):
             result=self.update(self.masks(-3.5,2.),n*.1)
         self.assertTrue(result.valid)
+        self.assertLessEqual(np.max(abs(result.left+2.5)),.100001)
+        for n in range(27,40):
+            result=self.update(self.masks(-3.5,2.),n*.1)
         np.testing.assert_allclose(result.left,-3.5,atol=.03)
         np.testing.assert_allclose(result.right,2.,atol=.03)
+
+    def test_single_side_startup_renders_without_inventing_other_side(self):
+        for visible in (0,1):
+            self.tracker=BoundaryTracker()
+            road,lane=self.masks(-2.5,3.)
+            lane[:,self.lateral>0 if visible==0 else self.lateral<0]=False
+            result=self.update((road,lane))
+            self.assertTrue(result.valid)
+            self.assertEqual(result.state,'partial')
+            self.assertEqual(result.left_valid,visible==0)
+            self.assertEqual(result.right_valid,visible==1)
+            self.assertFalse(result.pair_valid)
+            payload=result.telemetry(self.tracker.config)
+            missing='right_boundary_dev' if visible==0 else 'left_boundary_dev'
+            self.assertTrue(all(v is None for v in payload[missing]))
+            self.assertIsNone(payload['boundary_width_min_dev'])
+            self.assertIsNone(payload['clearance_sufficient'])
+            json.dumps(payload,allow_nan=False)
+            bev=render_boundary_bev(result)
+            visible_color=(0,220,255) if visible==0 else (255,180,0)
+            missing_color=(255,180,0) if visible==0 else (0,220,255)
+            self.assertTrue(np.any(np.all(bev==visible_color,axis=2)))
+            self.assertFalse(np.any(np.all(bev==missing_color,axis=2)))
+
+    def test_occluded_side_continues_then_expires_without_hiding_visible_side(self):
+        for visible in (0,1):
+            self.tracker=BoundaryTracker()
+            first=self.update(self.masks(-2.5,3.))
+            for n in range(1,27):
+                shift=.15*np.sin(n*.1)
+                road,lane=self.masks(-2.5+shift,3.+shift)
+                road[:]=True
+                lane[:,self.lateral>0 if visible==0 else self.lateral<0]=False
+                result=self.update((road,lane),n*.1)
+                self.assertTrue(result.valid)
+                self.assertTrue(result.left_valid if visible==0 else result.right_valid)
+                self.assertEqual(result.left_state if visible==0 else result.right_state,'observed')
+                if n<=20:
+                    self.assertEqual(result.right_state if visible==0 else result.left_state,'inferred')
+                    np.testing.assert_allclose(result.right-result.left,first.right-first.left,atol=1e-6)
+                else:
+                    self.assertEqual(result.state,'partial')
+                    self.assertFalse(result.right_valid if visible==0 else result.left_valid)
+
+    def test_left_and_right_have_independent_visible_ranges(self):
+        road,lane=self.masks(-2.5,3.)
+        lane[:25,self.lateral>0]=False
+        lane[40:,self.lateral<0]=False
+        result=self.update((road,lane))
+        self.assertTrue(result.left_valid)
+        self.assertTrue(result.right_valid)
+        self.assertTrue(np.all(np.isnan(result.right[:25])))
+        self.assertTrue(np.all(np.isnan(result.left[40:])))
+        self.assertTrue(result.pair_valid)
+
+    def test_conflicting_road_at_hidden_side_does_not_hide_visible_edge(self):
+        self.update(self.masks(-2.5,3.))
+        road,lane=self.masks(-2.5,3.)
+        road[:,self.lateral>1.5]=False
+        lane[:,self.lateral>0]=False
+        result=self.update((road,lane),.1)
+        self.assertTrue(result.valid)
+        self.assertTrue(result.left_valid)
+        self.assertFalse(result.right_valid)
+
+    def test_short_visible_range_does_not_warp_long_occluded_boundary(self):
+        first=self.update(self.masks(-2.5,3.))
+        bend=.1*(self.forward/8.)**2
+        road,lane=self.masks(-2.5,3.+bend)
+        road[:]=True
+        lane[:,self.lateral<0]=False
+        lane[22:]=False
+        result=self.update((road,lane),.1)
+        self.assertTrue(result.left_valid)
+        self.assertEqual(result.left_state,'inferred')
+        self.assertLessEqual(np.nanmax(abs(result.left-first.left)),.100001)
+        self.assertLessEqual(abs(result.left[-1]-result.left[22]),.000001)
 
 
 if __name__ == '__main__':

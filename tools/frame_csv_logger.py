@@ -18,7 +18,7 @@ FRAME_FIELDS = ['session', 'frame_seq', 'nn_seq', 'depth_seq', 'capture_timestam
                 'receive_delay_est_ms', 'transport_delay_est_ms', 'latency_status',
                 'sequence_gap', 'centerline_valid', 'tracking_state', 'coefficient_units',
                 'c0', 'c1', 'c2', 'c3', 'turn_mode', 'object_count',
-                'boundary_valid', 'boundary_state', 'left_boundary_state', 'right_boundary_state',
+                'boundary_valid', 'boundary_pair_valid', 'left_boundary_valid', 'right_boundary_valid', 'boundary_state', 'left_boundary_state', 'right_boundary_state',
                 'vehicle_width_m', 'left_margin_m', 'right_margin_m', 'corridor_width_m',
                 'minimum_clearance_width_m', 'boundary_width_min_dev', 'boundary_width_max_dev',
                 'clearance_sufficient', 'boundary_units', 'boundary_forward_dev', 'left_boundary_dev', 'right_boundary_dev']

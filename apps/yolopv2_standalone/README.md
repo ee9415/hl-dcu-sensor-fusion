@@ -2,7 +2,7 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: observed white lane boundaries (0.16.2, 2026-10-21)
+## Current: observed white lane boundaries (0.17.1, 2026-10-21)
 
 The active pipeline fits the actual left/right painted boundaries independently.
 There is no center path, fixed corridor width, goal or turn preview. A local
@@ -31,15 +31,17 @@ even when the development width estimate is below this threshold; state is then
 clearance or an actual narrow-road condition. Real vehicle dimensions and IPM
 calibration remain necessary.
 
-When one boundary disappears, continue it using the last observed width profile
-and the visible side's change. When both disappear, retain their previous shapes
+Each side has its own observation range, history, association reference and
+expiry. A single observed side is valid and rendered even at startup. An unseen
+opposite side is not invented. When one boundary disappears, continue only that
+side from its own previous shape and the visible side's bounded observed change. When both disappear, retain their previous shapes
 for up to `max_lane_gap_s` while road support remains. Distant stripes of a suddenly
-wider road are rejected. After expiry hide the pair while retaining association
-references, preventing immediate reacquisition of the wide road edges. A returning
+wider road are rejected. After expiry hide each expired side while retaining association
+references, preventing immediate reacquisition of the wide road edges. The visible
+side remains active when the missing side expires. A returning
 pair is reacquired after three stable observations if its median width is no
-more than 1.25 times the previous median width. Startup
-requires evidence for both sides; no vehicle-width corridor is invented on a
-completely unmarked road. New turns/route choice and prolonged unmarked sections
+more than 1.25 times the previous median width. Startup accepts either side independently; no vehicle-width corridor is invented
+on a completely unmarked road. New turns/route choice and prolonged unmarked sections
 still require further development. Yellow is left, light blue is right; solid
 means observation-supported and dashed means inferred/held.
 
@@ -52,11 +54,16 @@ RGB, object/depth outputs, recording, timing metadata and RTSP ports are retaine
 The historical `CenterlineBEV` transport identifier remains, but its image has
 only boundaries. CSV keeps disabled/empty legacy centerline columns and adds
 `minimum_clearance_width_m`, `boundary_width_min_dev`, `boundary_width_max_dev`,
-`clearance_sufficient`. The older `corridor_width_m` field is retained as an alias
+`clearance_sufficient`. Version 0.17.0 adds `left_boundary_valid`,
+`right_boundary_valid`, `boundary_pair_valid`. `boundary_valid` now means at least
+one valid edge; pair validity requires enough common forward samples. A missing
+side or a sample outside that side's range is JSON `null` in its coordinate array,
+with the shared forward-array index preserved. Unknown width/clearance is blank
+in CSV, not a zero width or a confirmed failure. The older `corridor_width_m` field is retained as an alias
 of the configured minimum, not the measured lane width. Boundary arrays remain
 JSON arrays sharing `boundary_forward_dev` indices. Invalid results use `[]`.
 
-Verification: [white-lane alignment](../../docs/verification/camera/white_lane_alignment_20261021.md).
+Verification: [independent left/right boundaries](../../docs/verification/camera/independent_boundaries_20261021.md).
 
 This app is intended to run entirely on an OAK4-D Pro (RVC4). It keeps the
 validated `1920x1080 NV12 -> H.264` camera path at a configured 10 FPS and branches the same frames

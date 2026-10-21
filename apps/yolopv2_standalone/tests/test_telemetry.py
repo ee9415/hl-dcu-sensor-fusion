@@ -30,18 +30,20 @@ class TelemetryTests(unittest.TestCase):
                                         capture_monotonic_est_s=time.monotonic()+(1 if seq == 4 else -.1),
                                         coefficients=None, objects=[obj] if seq == 1 else [],
                                         centerline_valid=False, boundary_valid=seq != 4,
+                                        boundary_pair_valid=seq == 1,
+                                        left_boundary_valid=seq != 4, right_boundary_valid=seq == 1,
                                         boundary_state='inferred' if seq != 4 else 'road_unavailable',
                                         left_boundary_state='inferred', right_boundary_state='inferred',
                                         vehicle_width_m=1.8, left_margin_m=.3, right_margin_m=.3,
                                         corridor_width_m=2.4,
                                         minimum_clearance_width_m=2.4,
-                                        boundary_width_min_dev=2.4 if seq != 4 else None,
-                                        boundary_width_max_dev=2.4 if seq != 4 else None,
-                                        clearance_sufficient=seq != 4,
+                                        boundary_width_min_dev=2.4 if seq == 1 else None,
+                                        boundary_width_max_dev=2.4 if seq == 1 else None,
+                                        clearance_sufficient=True if seq == 1 else None,
                                         boundary_units='uncalibrated_bev_development_units',
                                         boundary_forward_dev=[1., 2.] if seq != 4 else [],
                                         left_boundary_dev=[-1.2, -1.2] if seq != 4 else [],
-                                        right_boundary_dev=[1.2, 1.2] if seq != 4 else []))
+                                        right_boundary_dev=[1.2, 1.2] if seq == 1 else ([None,None] if seq == 3 else [])))
                 deadline = time.monotonic()+5
                 while logger.frames < 3 and time.monotonic() < deadline:
                     time.sleep(.01)
@@ -62,6 +64,11 @@ class TelemetryTests(unittest.TestCase):
                 import json
                 self.assertEqual(json.loads(rows[0]['left_boundary_dev']), [-1.2, -1.2])
                 self.assertEqual(json.loads(rows[2]['right_boundary_dev']), [])
+                self.assertEqual(json.loads(rows[1]['right_boundary_dev']), [None,None])
+                self.assertEqual(rows[1]['left_boundary_valid'], 'True')
+                self.assertEqual(rows[1]['right_boundary_valid'], 'False')
+                self.assertEqual(rows[1]['boundary_pair_valid'], 'False')
+                self.assertEqual(rows[1]['clearance_sufficient'], '')
                 self.assertEqual(objects[0]['z_m'], '')
                 self.assertEqual(rows[0]['latency_status'], 'estimated_not_ptp')
                 self.assertGreater(float(rows[0]['receive_delay_est_ms']), 50)
