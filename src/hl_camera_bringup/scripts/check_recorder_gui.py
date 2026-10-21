@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 import tkinter as tk
+from tkinter import ttk
 
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "tools"))
@@ -31,7 +32,14 @@ def main():
                             "shape": list(frame.shape) if frame is not None else None,
                             "preview": bool(getattr(app.preview_labels[key], "image", None))}
         result.update(window_mapped=bool(root.winfo_ismapped()), streams=streams)
-        result['turn_controls'] = hasattr(app, 'request_turn') and bool(app.turn_status.get())
+        def descendants(widget):
+            for child in widget.winfo_children():
+                yield child
+                yield from descendants(child)
+        result['turn_controls'] = any(
+            isinstance(widget, ttk.Button) and widget.winfo_ismapped()
+            and widget.cget('text') in ('좌회전 미리보기', '우회전 미리보기', '일반 도로 복귀')
+            for widget in descendants(root))
         result['turn_status'] = app.turn_status.get()
         logger = app.csv_logger
         result['csv'] = {'path': str(logger.path), 'frames': logger.frames,

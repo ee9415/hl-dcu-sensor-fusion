@@ -73,3 +73,56 @@ p50 21.44 ms, p95 23.28 ms. 장비 FPS나 RVC4 성능 측정값은 아니다.
 ## 변경 이력
 
 - 2026-10-21: 경계선 전용 소스 0.15.0 및 호스트 검증 최초 기록.
+
+## 0.15.1 실장비 배포 확인 (2026-10-21)
+
+- 대상: 192.168.0.4, OAK4D Pro 1142227768. `app run --detach` 개발 배포.
+  설치용 oakapp 패키지 생성/설치 및 부팅 자동 실행 설정은 수행하지 않았다.
+- 컨테이너 `OAKAGENT_APP_VERSION=0.15.1` 확인. 장비 `lane_boundaries.py` SHA256
+  `379f8eaad7c3effa5c9fa7ab2abdcd2370b9dc79d2810d0a4ac32a44355b8224`.
+  후처리 파일은 줄바꿈 정규화 후 로컬과 동일함을 diff로 확인했다.
+- 최초 실영상에서 boundary_conflict가 반복됐다. 차선 표식이 주행 가능 마스크의
+  좁은 틈으로 남을 수 있어, 차선 마스크가 있는 짧은 수평 틈만 보완했다.
+  320픽셀 입력 기준 최대 6픽셀, 양 끝 도로 존재 조건. 넓거나 차선 근거가 없는
+  틈은 연결하지 않는다. 이 수정이 모든 충돌을 해결한다는 의미는 아니다.
+- 마스크 진단용 임시 저장 코드는 최종 소스에서 제거했다.
+- 전체 회귀 테스트 69개 통과. 기존 GUI 검사에서 메서드 존재를 버튼 표시로
+  오인하던 `turn_controls` 판정을 실제 표시 버튼 검사로 수정했다.
+
+Ubuntu 멀티뷰 실행:
+
+```bash
+python3 src/hl_camera_bringup/scripts/check_recorder_gui.py --device-ip 192.168.0.4 --keep-open --wait-seconds 45
+```
+
+초기 GUI 수신 검사에서 window_mapped/네 스트림 connected/preview 모두 true,
+CSV 447프레임/5,811객체/누락 0 확인. 이후 카메라 재배포 동안 멀티뷰 자동 재연결.
+실제 화면에서 중심선·목표점·선회 경로/버튼 없이 노랑/하늘색 경계선 두 개를
+확인했다. 멀티뷰는 검증 후 열린 상태로 유지했다.
+
+최종 네 RTSP 직접 수신 표본도 모두 저장 성공:
+RGB 1920×1080, 결과 960×540, Depth 640×360, BEV 640×480.
+`capture_boundary_streams.py`는 앱 시작 없이 읽기만 하는 검증 도구다.
+
+최종 세션 `e3ca49bb-1cdd-4c39-880d-b25341c3e2c0`의 초반 349프레임 집계:
+
+| 항목 | 결과 |
+| --- | --- |
+| 경계 유효 | 343/349 (98.28%) |
+| 상태 | inferred 306, tracking 37, road_unavailable 4, boundary_conflict 2 |
+| 중심선 true / 계수 기록 | 0 / 0 |
+| 설정 폭 | 차폭 1.8 + 좌우 각 0.3 = 2.4 |
+| 좌우 간격과 설정 폭 차이 최대 | 4.89e-15 개발 단위 (부동소수점 오차) |
+| CSV 시퀀스 누락 | 0 |
+
+이 유효율은 한정된 표본의 통계이며 경계 정답 정확도나 무소실 보장이 아니다.
+현재 카메라는 모니터에서 재생되는 도로 영상을 촬영한다. 실제 한라대 차량 장착
+주행 시험이 아니며, Depth는 영상 속 도로까지 거리가 아니다. 넓은 무표시 영역의
+inferred 선은 실제 차로를 인식했다는 의미가 아니다. 물리 폭/IPM 보정과 다양한
+한라대 도로에서의 정확도·소실·곡선 추종 검증은 남아 있다.
+
+로컬 증거(미추적 산출물):
+
+- `artifacts/boundary_validation/gui_check.log`, `deployment_metrics.json`
+- `artifacts/boundary_validation/deployed_0151/streams.json`, `result.jpg`, `bev.jpg` 등
+- `artifacts/telemetry/20261021_162235_7db50247/frames.csv`, `objects.csv`

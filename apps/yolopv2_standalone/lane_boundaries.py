@@ -98,6 +98,17 @@ class BoundaryTracker:
                                projection=projection_for(road.shape))
 
     def _sample(self, road, lane):
+        # The segmentation heads may exclude painted lane pixels from the road.
+        # Restore only short, lane-supported horizontal holes bracketed by road;
+        # a marking must not split otherwise connected pavement into two roads.
+        road = road.copy()
+        max_gap = max(1, round(road.shape[1] * 6 / 320))
+        for y in range(road.shape[0]):
+            indices = np.flatnonzero(road[y])
+            gaps = np.flatnonzero(np.diff(indices) > 1)
+            for a, b in zip(indices[gaps], indices[gaps+1]):
+                if 1 < b-a <= max_gap+1 and np.any(lane[y, a+1:b]):
+                    road[y, a+1:b] = 255
         # A small fixed BEV raster bounds runtime. Nearest-neighbor binary sampling.
         lateral = np.linspace(-6, 6, 241)
         forward = np.linspace(.5, self.config.max_forward_m, 60)

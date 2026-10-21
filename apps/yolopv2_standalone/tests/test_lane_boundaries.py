@@ -116,6 +116,17 @@ class BoundaryTests(unittest.TestCase):
         self.assertEqual(len(payload['left_boundary_dev']), len(payload['right_boundary_dev']))
         json.dumps(payload, allow_nan=False)
 
+    def test_lane_supported_thin_road_hole_is_not_a_constriction(self):
+        road = np.full((180, 320), 255, np.uint8)
+        lane = np.zeros_like(road)
+        road[:, 158:162] = 0
+        lane[:, 158:162] = 255
+        self.assertTrue(self.tracker.update(road, lane, 0).valid)
+        self.assertFalse(BoundaryTracker().update(road, np.zeros_like(lane), 0).valid)
+        road[:, 145:175] = 0
+        lane[:, 145:175] = 255
+        self.assertFalse(BoundaryTracker().update(road, lane, .1).valid)
+
 
 if __name__ == '__main__':
     unittest.main()
