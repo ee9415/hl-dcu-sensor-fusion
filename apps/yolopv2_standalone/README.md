@@ -2,12 +2,18 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: observed white lane boundaries (0.18.1, 2026-10-21)
+## Current: observed white lane boundaries (0.19.2, 2026-10-21)
 
 The active pipeline fits the actual left/right painted boundaries independently.
 There is no center path, fixed corridor width, goal or turn preview. A local
-white/gray paint contrast test refines the NN lane mask using aligned RGB; each
-side acquires the nearest longitudinal stripe on its side of the camera axis.
+white/gray paint contrast test refines the NN lane mask using aligned RGB. An
+independent multi-scale RGB ridge detector also works when the NN lane mask is
+empty. Gaussian smoothing suppresses asphalt grain, while requiring contrast on
+both sides of an RGB-only ridge rejects broad bright vehicle edges. Road support
+is still required; this is independent of the lane head, not the road head.
+Each side tries several seeds and selects a long, continuous longitudinal stripe.
+Fresh candidates within 0.6 development units of the camera axis are excluded to
+reduce confusion with central road symbols. This is not a computed center path.
 Robust quadratic fitting and per-side association/rate limits follow the paint.
 Observed ranges require road support; historical inferred ranges are retained even
 when segmentation changes. Horizontal wide markings are
@@ -23,7 +29,7 @@ rejected. The broad red NN lane overlay is hidden to make alignment visible.
 | `max_lateral_rate_m_s` | 1.0 | Per-side change limit after acquisition |
 | `max_missing_s` | 0.5 | Reset threshold for a gap between input frame timestamps |
 | `max_forward_m` | 25.0 | Maximum development forward extent |
-| `max_lane_gap_s` | 2.0 | Delay before wider-search pair reacquisition; NOT a hold timeout |
+| `max_lane_gap_s` | 2.0 | Delay for short-evidence reacquisition; long evidence can recover earlier |
 
 Vehicle width plus margins is a **minimum clearance check only**, never a
 boundary offset or fitted width constraint. Actual paint positions remain visible
@@ -38,9 +44,15 @@ opposite side is not invented. When one boundary disappears, continue only that
 side from its own previous shape and the visible side's bounded observed change. When both disappear, retain their previous shapes
 without an age limit while input frames remain continuous, including absent road
 segmentation. Road widening alone never changes their width or direction. Distant
-stripes of a suddenly wider road are rejected. A returning
-pair is reacquired after three stable observations if its median width is no
-more than 1.25 times the previous median width. Startup accepts either side independently; no vehicle-width corridor is invented
+stripes of a suddenly wider road are rejected. A returning side is reacquired
+independently after three stable observations, including outside the old gate.
+A candidate with at least 16 samples and 8 more than a tracked fragment can
+replace that fragment. When both fresh sides are available, a crossing pair or
+median width over 1.25 times the previous width blocks that replacement.
+The width gate permits recovery from a short wrong pair when BOTH fresh sides
+have at least 20 samples and 8 more than their historical ranges. Road widening
+without actual paint still does not expand the retained pair.
+Startup accepts either side independently; no vehicle-width corridor is invented
 on a completely unmarked road. Timestamp discontinuities reset history. This is
 image/BEV history continuation, not vehicle-motion compensation or route prediction;
 alignment during real turns on unmarked roads still needs field validation.

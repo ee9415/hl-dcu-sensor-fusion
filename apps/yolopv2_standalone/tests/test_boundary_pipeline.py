@@ -92,11 +92,19 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertEqual(bev.getTimestamp(), timedelta(seconds=10))
             for color in ((0,220,255), (255,180,0)):
                 self.assertTrue(np.any(np.all(result.data == color, axis=2)))
+            with patch.object(node,'segmentation_masks',return_value=(road,np.zeros_like(lane))):
+                rgb_only=node.Yolopv2Postprocess()
+                rgb_only._tensor=MagicMock()
+                rgb_only.process(Frame(),Frame(),Frame())
+            self.assertTrue(server.return_value.publish.call_args.args[0]['boundary_pair_valid'])
             # A fresh pipeline with only the left stripe must still publish and
             # display that stripe, with no fabricated right edge or center path.
             partial_lane=lane.copy()
             partial_lane[:,160:]=0
-            with patch.object(node,'segmentation_masks',return_value=(road,partial_lane)):
+            partial_source=source.copy()
+            partial_source[:,960:]=0
+            with patch.object(node,'segmentation_masks',return_value=(road,partial_lane)), \
+                 patch.object(Frame,'getCvFrame',return_value=partial_source):
                 partial=node.Yolopv2Postprocess()
                 partial._tensor=MagicMock()
                 partial.process(Frame(),Frame(),Frame())

@@ -63,13 +63,19 @@ def projection_for(shape):
 
 
 def white_lane_evidence(rgb, lane):
-    """Refine the NN lane region to local white/gray paint peaks in the RGB image."""
+    """Find neutral paint ridges, including regions missed by the NN lane head."""
     h, w = lane.shape
     sy, sx = rgb.shape[0]//h, rgb.shape[1]//w
     if rgb.shape[:2] != (h*sy, w*sx):
         raise ValueError('RGB size must be an integer multiple of the lane mask')
     image = rgb.reshape(h, sy, w, sx, 3).mean(axis=(1, 3))
     brightness = image.mean(axis=2)
+    # Suppress asphalt grain before looking for narrow paint ridges.
+    padded_image = np.pad(brightness, 1, mode='edge')
+    brightness = sum(weight*padded_image[dy:dy+h, dx:dx+w]
+                     for dy, wy in enumerate((1, 2, 1))
+                     for dx, wx in enumerate((1, 2, 1))
+                     for weight in (wy*wx,))/16.
     padded = np.pad(brightness, ((0, 0), (4, 4)), mode='edge')
     background = (padded[:, :w]+padded[:, 8:8+w])*.5
     supported = np.zeros_like(lane, bool)
@@ -78,7 +84,15 @@ def white_lane_evidence(rgb, lane):
         valid = (source >= 0) & (source < w)
         supported[:, valid] |= lane[:, source[valid]] != 0
     neutral = image.max(axis=2)-image.min(axis=2) < 75
-    return (supported & neutral & (brightness >= 75) & (brightness-background >= 10)).astype(np.uint8)*255
+    # Independent RGB evidence must be brighter than BOTH shoulders; a single
+    # bright vehicle/curb edge is insufficient. Multiple scales cover perspective.
+    ridge = np.zeros_like(lane, bool)
+    for radius in (2, 4, 6):
+        padded = np.pad(brightness, ((0, 0), (radius, radius)), mode='edge')
+        shoulders = np.maximum(padded[:, :w], padded[:, 2*radius:2*radius+w])
+        ridge |= brightness-shoulders >= 12
+    evidence = (supported & (brightness-background >= 10)) | ridge
+    return (evidence & neutral & (brightness >= 75)).astype(np.uint8)*255
 
 
 @dataclass(frozen=True)
@@ -172,17 +186,36 @@ class BoundaryTracker:
             outputs.append(sampled.reshape(xx.shape))
         return forward, lateral, *outputs
 
-    def _observe_side(self, forward, candidates, side, prediction=None):
+    def _observe_side(self, forward, candidates, side, prediction=None, seed=None):
+        if prediction is None and seed is None:
+            # Try several longitudinal tracks instead of locking onto the
+            # closest bright fragment at the bottom (arrows/parking crossbars).
+            fits = []
+            first = next((i for i, values in enumerate(candidates)
+                          if any(v < -.6 if side == 0 else v > .6 for v in values)), 0)
+            for start in sorted(set([first, *range(0, len(forward)//2, 5)])):
+                values = np.asarray(candidates[start])
+                values = values[values < -.6] if side == 0 else values[values > .6]
+                for value in sorted(values, key=abs)[:4]:
+                    curve, indices = self._observe_side(forward, candidates, side,
+                                                        seed=(start, value))
+                    if curve is not None:
+                        fits.append((curve, indices))
+            if fits:
+                return max(fits, key=lambda fit: (len(fit[1]), np.ptp(forward[fit[1]])))
+            return None, np.empty(0, dtype=int)
         chosen_i, chosen_x = [], []
         for i, values in enumerate(candidates):
+            if seed is not None and i < seed[0]:
+                continue
             values = np.asarray(values)
             if prediction is None:
-                values = values[values < -.15] if side == 0 else values[values > .15]
-                reference = chosen_x[-1] if chosen_x else 0.
+                values = values[values < -.6] if side == 0 else values[values > .6]
+                reference = chosen_x[-1] if chosen_x else seed[1]
                 if len(chosen_i) >= 2:
                     slope = (chosen_x[-1]-chosen_x[-2])/(forward[chosen_i[-1]]-forward[chosen_i[-2]])
                     reference += np.clip(slope, -.5, .5)*(forward[i]-forward[chosen_i[-1]])
-                gate = self.config.observation_gate_m if chosen_i else 6.
+                gate = self.config.observation_gate_m if chosen_i else .05
             else:
                 reference, gate = prediction[i], self.config.observation_gate_m
             values = values[abs(values-reference) <= gate]
@@ -196,10 +229,16 @@ class BoundaryTracker:
         for _ in range(3):
             poly = np.polynomial.Polynomial.fit(forward[indices][keep], values[keep], 2)
             residual = abs(poly(forward[indices])-values)
-            keep = residual <= max(.12, 2.5*float(np.median(residual)))
+            keep = residual <= min(.25, max(.12, 2.5*float(np.median(residual))))
             if np.count_nonzero(keep) < 8:
                 return None, np.empty(0, dtype=int)
         indices, values = indices[keep], values[keep]
+        # Do not span disconnected paint/noise clusters with a fitted curve.
+        groups = np.split(np.arange(len(indices)), np.flatnonzero(np.diff(indices) > 3)+1)
+        longest = max(groups, key=len)
+        indices, values = indices[longest], values[longest]
+        if len(indices) < 8:
+            return None, np.empty(0, dtype=int)
         if np.ptp(forward[indices]) < 3.:
             return None, np.empty(0, dtype=int)
         poly = np.polynomial.Polynomial.fit(forward[indices], values, 2)
@@ -260,13 +299,13 @@ class BoundaryTracker:
             supports.append(indices)
             states.append('observed' if curve is not None else 'unavailable')
 
-        # A returning pair can reacquire after a long gap without choosing the
-        # much wider road's outside stripes. Partial observation never depends on it.
+        # Search independently of old association. Stable, longer evidence can
+        # replace a stale short fragment; one side does not require the other.
         expired = [histories[i] is not None and self.side_observed_time[i] is not None and
                    timestamp_s-self.side_observed_time[i] > c.max_lane_gap_s for i in (0, 1)]
-        if any(expired[i] and curves[i] is None for i in (0, 1)):
+        if any(histories[i] is not None for i in (0, 1)):
             fresh = [self._observe_side(forward, candidates, i) for i in (0, 1)]
-            allowed = False
+            pair_widens = False
             if all(f[0] is not None for f in fresh) and all(h is not None for h in histories):
                 lo = max(h[0][0] for h in histories)
                 hi = min(h[0][-1] for h in histories)
@@ -274,16 +313,26 @@ class BoundaryTracker:
                 if np.any(common):
                     old_width = predictions[1][common]-predictions[0][common]
                     new_width = fresh[1][0][common]-fresh[0][0][common]
-                    allowed = np.all(new_width > .5) and np.median(new_width) <= 1.25*np.median(old_width)
+                    pair_widens = np.any(new_width <= .5) or np.median(new_width) > 1.25*np.median(old_width)
+                    # A short, wrongly acquired pair must not permanently lock
+                    # out much longer actual paint solely because of its width.
+                    stronger_pair = all(len(fresh[i][1]) >= max(20, len(histories[i][0])+8)
+                                        for i in (0, 1))
+                    if stronger_pair and np.all(new_width > .5):
+                        pair_widens = False
             for side in (0, 1):
-                if not expired[side] or curves[side] is not None:
-                    continue
-                if not allowed:
+                candidate, indices = fresh[side]
+                if candidate is None or histories[side] is None:
                     self.pending_acquisition[side] = None
                     continue
-                candidate, indices = fresh[side]
+                # A short noisy fragment must not outrank a continuous stripe.
+                better = len(indices) >= max(16, len(supports[side])+8)
+                missing = curves[side] is None and (expired[side] or len(indices) >= 16)
+                if pair_widens or not (missing or better):
+                    self.pending_acquisition[side] = None
+                    continue
                 pending = self.pending_acquisition[side]
-                count = pending[1]+1 if pending is not None and np.median(abs(candidate-pending[0])) < .25 else 1
+                count = pending[1]+1 if pending is not None and np.median(abs(candidate[indices]-pending[0][indices])) < .25 else 1
                 self.pending_acquisition[side] = (candidate, count)
                 if count >= 3:
                     curves[side], supports[side], states[side] = candidate, indices, 'observed'

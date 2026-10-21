@@ -153,6 +153,61 @@ class BoundaryTests(unittest.TestCase):
         self.assertFalse(np.any(paint[:,240:243]))
         self.assertFalse(np.any(paint[:,:85]))
 
+    def test_rgb_detects_paint_without_nn_and_rejects_broad_bright_edge(self):
+        rgb=np.full((180,320,3),60,np.uint8)
+        rgb[:,90:93]=220
+        rgb[:,180:240]=230
+        lane=np.zeros((180,320),np.uint8)
+        paint=white_lane_evidence(rgb,lane)
+        self.assertTrue(np.all(paint[:,90:93]))
+        self.assertFalse(np.any(paint[:,180:240]))
+
+    def test_one_side_reacquires_far_from_history_without_other_side(self):
+        self.update(self.masks(-2.5,3.))
+        road,lane=self.masks(-1.,4.5)
+        road[:]=True
+        lane[:,self.lateral>0]=False
+        for n in range(1,31):
+            result=self.update((road,lane),n*.1)
+        self.assertEqual(result.left_state,'observed')
+        np.testing.assert_allclose(result.left,-1.,atol=.03)
+        self.assertEqual(result.right_state,'inferred')
+
+    def test_long_white_stripe_beats_short_inner_marking(self):
+        road,lane=self.masks(-2.5,3.)
+        road[:]=True
+        lane[:12,np.argmin(abs(self.lateral+.8))]=True
+        lane[:12,np.argmin(abs(self.lateral-.8))]=True
+        result=self.update((road,lane))
+        self.assertTrue(result.pair_valid)
+        np.testing.assert_allclose(result.left,-2.5,atol=.03)
+        np.testing.assert_allclose(result.right,3.,atol=.03)
+
+    def test_short_wrong_pair_does_not_lock_out_long_actual_white_lines(self):
+        road,lane=self.masks(-.8,.8)
+        road[:]=True
+        lane[16:]=False
+        self.update((road,lane))
+        for n in range(1,41):
+            result=self.update(self.masks(-2.5,3.),n*.1)
+        self.assertTrue(result.pair_valid)
+        np.testing.assert_allclose(result.left,-2.5,atol=.03)
+        np.testing.assert_allclose(result.right,3.,atol=.03)
+
+    def test_rgb_only_boundary_pipeline_with_empty_nn_lane_mask(self):
+        from lane_boundaries import draw_polyline
+        rgb=np.full((180,320,3),60,np.uint8)
+        projection=projection_for((180,320))
+        for side in (-2.5,3.):
+            points=transform(np.column_stack(((np.full(60,side)/12+.5)*639,
+                                             (1-self.forward/40)*479)),projection)
+            draw_polyline(rgb,points,(230,230,230),thickness=1)
+        result=self.tracker.update(np.full((180,320),255,np.uint8),
+                                   np.zeros((180,320),np.uint8),0.,rgb=rgb)
+        self.assertTrue(result.pair_valid)
+        np.testing.assert_allclose(result.left,-2.5,atol=.3)
+        np.testing.assert_allclose(result.right,3.,atol=.3)
+
     def test_missing_nearest_road_and_paint_does_not_discard_visible_lines(self):
         road,lane=self.masks(-2.5,3.)
         road[:4]=False
