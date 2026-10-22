@@ -26,7 +26,8 @@ FRAME_FIELDS = ['session', 'frame_seq', 'nn_seq', 'depth_seq', 'capture_timestam
                 'normal_width_error_dev', 'road_coverage', 'corridor_feasible',
                 'boundary_reference_side','left_boundary_confidence','right_boundary_confidence',
                 'boundary_confidence_kind','stop_line_state','stop_line_confidence',
-                'stop_line_confidence_kind','stop_line_valid','stop_line_points']
+                'stop_line_confidence_kind','stop_line_valid','stop_line_points', 'boundary_model',
+                'left_boundary_image','right_boundary_image','motion_confidence','motion_matrix']
 OBJECT_FIELDS = ['session', 'frame_seq', 'object_index', 'label', 'confidence',
                  'xmin', 'ymin', 'xmax', 'ymax', 'depth_valid', 'x_m', 'y_m', 'z_m']
 
@@ -124,7 +125,7 @@ class FrameCsvLogger:
                                         row['receive_delay_est_ms'] = ''
                                         row['transport_delay_est_ms'] = ''
                                     for key in ('boundary_forward_dev', 'left_boundary_dev', 'right_boundary_dev',
-                                                'left_boundary_coefficients', 'right_boundary_coefficients', 'stop_line_points'):
+                                                'left_boundary_coefficients', 'right_boundary_coefficients', 'stop_line_points', 'left_boundary_image', 'right_boundary_image', 'motion_matrix'):
                                         row[key] = json.dumps(p[key], allow_nan=False) if key in p else ''
                                     for i, value in enumerate(p.get('coefficients') or ['', '', '', '']):
                                         row[f'c{i}'] = value

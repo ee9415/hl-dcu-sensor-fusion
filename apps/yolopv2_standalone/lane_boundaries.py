@@ -512,6 +512,8 @@ def draw_polyline(frame, points, color, thickness=2, dashed=False):
 
 
 def boundary_points(estimate, side):
+    if hasattr(estimate, 'image_'+side):
+        return transform(getattr(estimate,'image_'+side),np.linalg.inv(estimate.projection))
     return np.column_stack(((getattr(estimate, side)/12+.5)*639,
                             (1-estimate.forward/40)*479))
 
@@ -525,7 +527,8 @@ def draw_boundaries(frame, estimate, mask_size=None):
             continue
         points = boundary_points(estimate, side)
         if mask_size is not None:
-            points = transform(points, estimate.projection)
+            points = (getattr(estimate,'image_'+side).copy() if hasattr(estimate,'image_'+side)
+                      else transform(points, estimate.projection))
             points *= np.array([frame.shape[1]/mask_size[0], frame.shape[0]/mask_size[1]])
         draw_polyline(frame, points, color, thickness=3, dashed=False)
 

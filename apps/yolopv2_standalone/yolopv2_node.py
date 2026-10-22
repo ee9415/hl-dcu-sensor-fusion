@@ -5,7 +5,8 @@ import depthai as dai
 import numpy as np
 from telemetry_server import TelemetryServer
 from stop_line import StopLineTracker, draw_stop_line
-from lane_boundaries import (BoundaryConfig, BoundaryTracker, BoundaryEstimate,
+from image_boundaries import ImageBoundaryTracker
+from lane_boundaries import (BoundaryConfig, BoundaryEstimate,
                              draw_boundaries, render_boundary_bev)
 
 from postprocess import (
@@ -246,7 +247,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._frames = 0
         self._started_at = time.monotonic()
         self._last_health_at = self._started_at
-        self._boundary_tracker = BoundaryTracker(BoundaryConfig.load())
+        self._boundary_tracker = ImageBoundaryTracker(BoundaryConfig.load())
         self._stop_line_tracker = StopLineTracker()
 
     def build(
@@ -523,7 +524,8 @@ class Yolopv2Postprocess(dai.node.HostNode):
         )
         boundary_started = time.monotonic()
         boundaries = self._boundary_tracker.update(
-            drivable, lane, nn_data.getTimestamp().total_seconds(), rgb=preview.getCvFrame())
+            drivable, lane, nn_data.getTimestamp().total_seconds(), rgb=preview.getCvFrame(),
+            detections=detection_messages)
         boundary_finished = time.monotonic()
         stop_line=self._stop_line_tracker.update(preview.getCvFrame(),boundaries,
                          nn_data.getTimestamp().total_seconds(),detection_messages)

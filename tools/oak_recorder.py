@@ -245,7 +245,7 @@ class RecorderApp:
         self.sources = {
             "rgb": CaptureSource("rgb", "원본 RGB", ""),
             "yolopv2": CaptureSource("yolopv2", "YOLO 결과", ""),
-            "bev": CaptureSource("bev", "BEV · 가상 좌우 경계선", ""),
+            "bev": CaptureSource("bev", "BEV · 참고 투영 (미보정)", ""),
             "depth": CaptureSource("depth", "RGB 정렬 Depth", ""),
         }
         self.selected = {
@@ -364,7 +364,7 @@ class RecorderApp:
             ("rgb", "원본 RGB", "영상 연결 대기"),
             ("yolopv2", "인식 결과", "영상 연결 대기"),
             ("depth", "Depth · 빨강 0.3m → 파랑 25m · 검정: 무효", "Depth 영상 연결 대기"),
-            ("bev", "BEV · 가상 좌우 경계선", "BEV 출력 연동 대기"),
+            ("bev", "BEV · 참고 투영 (미보정)", "BEV 출력 연동 대기"),
         )
         for index, (key, title, placeholder) in enumerate(preview_specs):
             self._build_preview_panel(
@@ -490,7 +490,7 @@ class RecorderApp:
                   wraplength=1100).grid(row=2, column=0, columnspan=5, sticky='ew')
 
         ttk.Label(controls,
-                  text="경계선: 왼쪽 노랑 / 오른쪽 하늘색 · 시작점·폭 고정 · 실선 유지 · 공간 상태는 영상 상단 표시",
+                  text="경계선: 왼쪽 노랑 / 오른쪽 하늘색 · 영상 흰색선 우선 · 움직임 보정 추정 · 고정 폭 없음",
                   style="App.TLabel").grid(row=2, column=0, sticky="w", pady=(6, 0))
 
     def _build_preview_panel(

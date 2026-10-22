@@ -61,11 +61,10 @@ class BoundaryPipelineTests(unittest.TestCase):
         road = np.full((180, 320), 255, np.uint8)
         from lane_boundaries import projection_for, transform, draw_polyline
         mask_rgb = np.zeros((180,320,3),np.uint8)
-        forward = np.linspace(.5,25,60)
-        for side in (-2.5,3.):
-            points = transform(np.column_stack(((np.full(60,side)/12+.5)*639,
-                                                (1-forward/40)*479)),projection_for(road.shape))
-            draw_polyline(mask_rgb,points,(255,255,255),thickness=1)
+        for y in range(78,176):
+            for x in (160-(y-65)*.9,160+(y-65)*.9):
+                x=int(x)
+                mask_rgb[y,x-1:x+2]=230
         lane = mask_rgb[:,:,0]
         source = np.repeat(np.repeat(mask_rgb,6,axis=0),6,axis=1)
         with patch.object(node, 'TelemetryServer') as server, \
@@ -82,13 +81,11 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertIsNone(payload['coefficients'])
             self.assertEqual(payload['turn_mode'], 'disabled')
             self.assertEqual(payload['frame_seq'], 7)
-            self.assertLessEqual(payload['normal_width_error_dev'],.08)
-            config=processor._boundary_tracker.config
-            self.assertAlmostEqual(payload['left_boundary_dev'][0],-config.vehicle_width_m/2-config.left_margin_m)
-            self.assertAlmostEqual(payload['right_boundary_dev'][0],config.vehicle_width_m/2+config.right_margin_m)
-            self.assertEqual(len(payload['left_boundary_coefficients']),3)
-            self.assertTrue(payload['corridor_feasible'])
-            self.assertTrue(payload['clearance_sufficient'])
+            self.assertIsNone(payload['corridor_width_m'])
+            self.assertIsNone(payload['normal_width_error_dev'])
+            self.assertEqual(payload['boundary_model'],'image_motion')
+            self.assertGreater(len(payload['left_boundary_image']),12)
+            self.assertGreater(len(payload['right_boundary_image']),12)
             result = processor.result.send.call_args.args[0]
             bev = processor.bev.send.call_args.args[0]
             self.assertEqual(result.data.shape, (540,960,3))
@@ -102,7 +99,7 @@ class BoundaryPipelineTests(unittest.TestCase):
                 rgb_only._tensor=MagicMock()
                 rgb_only.process(Frame(),Frame(),Frame())
             self.assertTrue(server.return_value.publish.call_args.args[0]['boundary_pair_valid'])
-            # The fixed-width pair is present even when only one stripe exists.
+            # A fresh tracker must not fabricate the unseen side without history.
             partial_lane=lane.copy()
             partial_lane[:,160:]=0
             partial_source=source.copy()
@@ -115,10 +112,9 @@ class BoundaryPipelineTests(unittest.TestCase):
             payload=server.return_value.publish.call_args.args[0]
             self.assertTrue(payload['boundary_valid'])
             self.assertTrue(payload['left_boundary_valid'])
-            self.assertTrue(payload['right_boundary_valid'])
-            self.assertTrue(payload['boundary_pair_valid'])
-            self.assertTrue(all(v is not None for v in payload['right_boundary_dev']))
+            self.assertFalse(payload['right_boundary_valid'])
+            self.assertFalse(payload['boundary_pair_valid'])
             self.assertFalse(payload['centerline_valid'])
             result=partial.result.send.call_args.args[0]
             self.assertTrue(np.any(np.all(result.data==(0,220,255),axis=2)))
-            self.assertTrue(np.any(np.all(result.data==(255,180,0),axis=2)))
+            self.assertFalse(np.any(np.all(result.data==(255,180,0),axis=2)))

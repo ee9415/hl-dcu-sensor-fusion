@@ -2,7 +2,37 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: fixed-anchor BEV boundary pair (0.23.0, 2026-10-22)
+## Current: image-first motion-compensated boundaries (0.24.0, 2026-10-22)
+
+The active node uses `ImageBoundaryTracker`, not the fixed-anchor BEV candidate search.
+Each side follows RGB white-paint evidence near the segmented pavement, excluding
+object boxes. Brightness relative to pavement, connected support over 32 image rows,
+and robust quadratic residual gate observations. Image coordinates are 320x180.
+No fixed C0 or 2.1 width is imposed, and no centerline is produced.
+
+A 160x90 sparse patch matcher estimates robust affine road-image motion between
+consecutive frames. Missing observed boundaries are warped into the current frame;
+when motion is unreliable they are held with faster confidence decay. No timeout
+alone deletes a line, but out-of-view geometry, timestamp gaps/resets and scene cuts
+can invalidate it. A previously measured image-width profile can supply an unseen
+side. Without any observation/history, an arbitrary initial pair is not fabricated.
+
+Reacquisition blends with the motion prediction (8 tracking pixels per-frame correction
+by interpolating complete quadratic curves). ALIGNING is distinguished from OBSERVED, and
+confidence decreases with disagreement. This is not a calibrated probability or a
+bound on camera-motion displacement or newly entering image regions. Handheld motion, parallax, shadows,
+worn markings and long occlusions remain validation limitations.
+
+BEV is only an **uncalibrated reference projection for display**. Its parameters in
+`lane_boundaries.json` do not constrain image tracking. Legacy width/C0/search settings
+are inactive in the new tracker. Telemetry sets corridor_width_m and metric error fields
+to null, exports left/right_boundary_image, motion_matrix and motion_confidence.
+The existing stop-line detector operates between the image boundaries.
+
+## Historical: fixed-anchor BEV boundary pair (0.23.0)
+
+The following describes the retained legacy tracker/regression fixtures only.
+
 
 The active algorithm jointly selects two quadratic boundaries in BEV. Both near
 anchors stay fixed at forward distance zero. The requested normal width is vehicle

@@ -36,8 +36,8 @@ def main():
     moves=[]
     rates=[]
     for a,b in zip(frames,frames[1:]):
-        move=max(abs(y-x) for side in ('left_boundary_dev','right_boundary_dev')
-                 for x,y in zip(a[side],b[side]))
+        move=max((abs(y-x) for side in ('left_boundary_dev','right_boundary_dev')
+                  for x,y in zip(a[side],b[side]) if x is not None and y is not None),default=0.)
         dt=b['nn_timestamp_s']-a['nn_timestamp_s']
         moves.append(move)
         if dt>0:
@@ -55,11 +55,16 @@ def main():
                 invalid_pairs=sum(not f['boundary_pair_valid'] for f in frames),
                 centerline_valid_count=sum(bool(f['centerline_valid']) for f in frames),
                 width_settings=sorted({f['corridor_width_m'] for f in frames}),
-                left_anchors=sorted({f['left_boundary_coefficients'][0] for f in frames}),
-                right_anchors=sorted({f['right_boundary_coefficients'][0] for f in frames}),
-                max_normal_width_error=max(f['normal_width_error_dev'] for f in frames),
+                left_anchors=sorted({f['left_boundary_coefficients'][0] for f in frames if f['left_boundary_coefficients']}),
+                right_anchors=sorted({f['right_boundary_coefficients'][0] for f in frames if f['right_boundary_coefficients']}),
+                max_normal_width_error=max((f['normal_width_error_dev'] for f in frames if f['normal_width_error_dev'] is not None),default=None),
                 max_frame_lateral_step=max(moves),
-                max_lateral_rate=max(rates) if rates else None)
+                max_lateral_rate=max(rates) if rates else None,
+                motion_valid_frames=sum(f.get('motion_confidence',0)>0 for f in frames),
+                boundary_models=dict(Counter(f.get('boundary_model','bev') for f in frames)))
+    if any(f.get('boundary_model')=='image_motion' for f in frames):
+        report['max_frame_lateral_step']=None
+        report['max_lateral_rate']=None
     (args.output/'report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report),flush=True)
 

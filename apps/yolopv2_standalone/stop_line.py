@@ -44,11 +44,13 @@ class StopLineTracker:
         # Projection is expressed in the segmentation's fixed 320x180 image.
         edges=[transform(boundary_points(boundaries,s),boundaries.projection)
                for s in ('left','right')]
+        edges=[e[np.isfinite(e).all(axis=1)] for e in edges]
+        edges=[e[np.argsort(e[:,1])] for e in edges]
         rows=[]
         for y in range(int(h*.5),int(h*.94)):
-            if any(y<e[:,1].min() or y>e[:,1].max() for e in edges):
+            if any(len(e)<8 or y<e[:,1].min() or y>e[:,1].max() for e in edges):
                 continue
-            limits=[np.interp(y,e[::-1,1],e[::-1,0]) for e in edges]
+            limits=[np.interp(y,e[:,1],e[:,0]) for e in edges]
             a,b=int(np.ceil(limits[0])),int(np.floor(limits[1]))
             a,b=max(1,a),min(w-2,b)
             if b-a<20:
