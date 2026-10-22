@@ -2,7 +2,7 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: fixed-anchor BEV boundary pair (0.21.0, 2026-10-22)
+## Current: fixed-anchor BEV boundary pair (0.21.1, 2026-10-22)
 
 The active algorithm jointly selects two quadratic boundaries in BEV. Both near
 anchors stay fixed at forward distance zero. The requested normal width is vehicle
@@ -22,6 +22,14 @@ A feasible full-width candidate wins over an infeasible candidate. If none fits,
 the best-supported direction is approached without reducing width; state stays
 blocked until the displayed pair itself fits. Smoothing regenerates paired geometry
 and checks width error, anchors and per-frame displacement at every step.
+
+Default search grid: 21 curvature values × 5 heading values; geometry filtering
+leaves 35 valid pairs (previously 150). While supported, search nearby pairs,
+with global reacquisition every fifth processed frame or after unsupported input.
+The current interpolated pair is also scored to avoid coarse-grid snapping.
+Polyline rasterization batches segments before applying the same square brush;
+solid-line pixels are unchanged. HEALTH reports boundary_ms, bev_draw_ms and
+boundary_candidates separately from total postprocess_ms.
 
 ### Startup settings: `lane_boundaries.json`
 

@@ -118,6 +118,36 @@ class BoundaryTests(unittest.TestCase):
         lane[:,self.lateral>0]=False
         self.assert_geometry(self.update((road,lane)))
 
+    def test_coarse_search_local_tracking_and_periodic_reacquisition(self):
+        self.assertLess(len(self.tracker.candidates),60)
+        self.update(self.masks(),0)
+        full=self.tracker.last_candidate_count
+        self.update(self.masks(),.1)
+        self.assertLess(self.tracker.last_candidate_count,full)
+        for n in range(2,5): self.update(self.masks(),n*.1)
+        self.assertEqual(self.tracker.last_candidate_count,full)
+        self.update(self.masks(-.5,.5),.5)
+        self.update(self.masks(),.6)
+        self.assertEqual(self.tracker.last_candidate_count,full)
+
+    def test_batched_stroke_matches_original_raster(self):
+        from lane_boundaries import draw_polyline
+        points=np.array([[-5.,3.],[15.5,27.2],[40.,10.],[85.,70.]])
+        for dashed in (False,True):
+            expected=np.zeros((60,70,3),np.uint8)
+            actual=expected.copy()
+            for i,(start,end) in enumerate(zip(points[:-1],points[1:])):
+                if dashed and i%6>=3: continue
+                count=min(2000,int(np.max(np.abs(end-start)))+2)
+                x,y=np.rint(np.linspace(start,end,count)).astype(int).T
+                for dy in range(-3,4):
+                    for dx in range(-3,4):
+                        xx,yy=x+dx,y+dy
+                        valid=(xx>=0)&(xx<70)&(yy>=0)&(yy<60)
+                        expected[yy[valid],xx[valid]]=(0,220,255)
+            draw_polyline(actual,points,(0,220,255),3,dashed)
+            np.testing.assert_array_equal(actual,expected)
+
     def test_heading_follows_paint_in_broad_road_without_moving_anchors(self):
         target=self.tracker._geometry(-.002,.15)
         road,lane=self.masks()

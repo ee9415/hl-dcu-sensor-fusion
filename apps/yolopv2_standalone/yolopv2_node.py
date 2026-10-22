@@ -513,9 +513,12 @@ class Yolopv2Postprocess(dai.node.HostNode):
             self._tensor(nn_data, self.TENSOR_NAMES[4]),
             self._source_size,
         )
+        boundary_started = time.monotonic()
         boundaries = self._boundary_tracker.update(
             drivable, lane, nn_data.getTimestamp().total_seconds(), rgb=preview.getCvFrame())
+        boundary_finished = time.monotonic()
         bev = render_boundary_bev(boundaries)
+        bev_finished = time.monotonic()
         self._draw_text(bev, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' '),
                         10, 10, (0, 220, 255))
         capture_s = preview.getTimestamp().total_seconds()
@@ -567,6 +570,9 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 "frames": self._frames,
                 "average_fps": round(self._frames / elapsed, 2),
                 "postprocess_ms": round((now - started_at) * 1000.0, 2),
+                "boundary_ms": round((boundary_finished-boundary_started)*1000,2),
+                "bev_draw_ms": round((bev_finished-boundary_finished)*1000,2),
+                "boundary_candidates": self._boundary_tracker.last_candidate_count,
                 "detections": len(detection_messages),
                 "depth_valid_detections": len(spatial_messages),
                 "input_shape": [1, 3, 320, 320],

@@ -186,20 +186,23 @@ class BoundaryTracker:
         self.curvature = 0.
         self.heading = 0.
         self.last_time = None
+        self.search_frames = 0
+        self.last_feasible = False
+        self.last_candidate_count = 0
         self.candidates = []
         for value in np.linspace(-self.config.max_curvature_coefficient,
-                                 self.config.max_curvature_coefficient, 81):
+                                 self.config.max_curvature_coefficient, 21):
             geometry = self._geometry(float(value))
             if geometry is not None:
                 self.candidates.append((float(value), geometry))
 
         # Nonzero heading frees the tangent without moving either anchor.
         for heading in np.linspace(-self.config.max_heading_coefficient,
-                                   self.config.max_heading_coefficient, 9):
+                                   self.config.max_heading_coefficient, 5):
             if abs(heading) < 1e-10:
                 continue
             for curvature in np.linspace(-self.config.max_curvature_coefficient,
-                                         self.config.max_curvature_coefficient, 41):
+                                         self.config.max_curvature_coefficient, 21):
                 geometry = self._geometry(float(curvature), float(heading))
                 if geometry is not None:
                     self.candidates.append(((float(curvature),float(heading)),geometry))
@@ -329,6 +332,7 @@ class BoundaryTracker:
                 or np.any(np.diff(forward)<=0) or np.any(np.diff(lateral)<=0)):
             raise ValueError('BEV masks require increasing finite coordinate axes')
         geometry = self._geometry(self.curvature,self.heading)
+        self.last_candidate_count = 0
         state, feasible, coverage = 'held', None, 0.
         time_valid = np.isfinite(timestamp_s) and (self.last_time is None or timestamp_s>self.last_time)
         if time_valid:
@@ -343,7 +347,19 @@ class BoundaryTracker:
                 following = np.minimum.accumulate(paint_x[:,::-1],axis=1)[:,::-1]
                 paint_distance = np.minimum(lateral[None,:]-previous,following-lateral[None,:])
                 ranked = []
-                for (value,heading), candidate in self.candidates:
+                self.search_frames += 1
+                candidates = self.candidates
+                # Reacquire globally whenever unsupported and periodically even
+                # while tracking, so a coarse local search cannot lock the route.
+                if self.last_feasible and self.search_frames % 5:
+                    candidates = [(v,g) for v,g in candidates
+                                  if abs(v[0]-self.curvature) <= c.max_curvature_coefficient*.21
+                                  and abs(v[1]-self.heading) <= c.max_heading_coefficient*.51]
+                # Keep the current interpolated pair as a candidate to avoid
+                # grid snapping when no better coarse route is supported.
+                candidates = candidates+[((self.curvature,self.heading),geometry)]
+                self.last_candidate_count = len(candidates)
+                for (value,heading), candidate in candidates:
                     support, fits, score = self._support(candidate,forward,lateral,road,lane,paint_distance)
                     # Prefer any feasible full-width route, then broader support.
                     score -= .01*abs(value)/c.max_curvature_coefficient
@@ -368,6 +384,7 @@ class BoundaryTracker:
                     fraction *= .5
                 coverage, feasible, _ = self._support(geometry,forward,lateral,road,lane,paint_distance)
                 state = 'tracking' if feasible else 'blocked'
+            self.last_feasible = bool(feasible)
         else:
             state = 'invalid_timestamp'
             if np.isfinite(timestamp_s):
@@ -382,6 +399,7 @@ class BoundaryTracker:
 
 def draw_polyline(frame, points, color, thickness=2, dashed=False):
     h, w = frame.shape[:2]
+    strokes = []
     for index, (start, end) in enumerate(zip(points[:-1], points[1:])):
         if dashed and index % 6 >= 3:
             continue
@@ -389,12 +407,17 @@ def draw_polyline(frame, points, color, thickness=2, dashed=False):
         if not np.all(np.isfinite([start, end])) or np.max(np.abs([start, end])) > 10000:
             continue
         count = min(2000, int(np.max(np.abs(end-start)))+2)
-        x, y = np.rint(np.linspace(start, end, count)).astype(int).T
-        for dy in range(-thickness, thickness+1):
-            for dx in range(-thickness, thickness+1):
-                xx, yy = x+dx, y+dy
-                valid = (xx >= 0) & (xx < w) & (yy >= 0) & (yy < h)
-                frame[yy[valid], xx[valid]] = color
+        strokes.append(np.rint(np.linspace(start, end, count)).astype(int))
+    if not strokes:
+        return
+    # Rasterize all segments before thickening. The identical square brush is
+    # applied once per polyline rather than 81 times, preserving solid pixels.
+    x, y = np.concatenate(strokes).T
+    for dy in range(-thickness, thickness+1):
+        for dx in range(-thickness, thickness+1):
+            xx, yy = x+dx, y+dy
+            valid = (xx >= 0) & (xx < w) & (yy >= 0) & (yy < h)
+            frame[yy[valid], xx[valid]] = color
 
 
 def boundary_points(estimate, side):
