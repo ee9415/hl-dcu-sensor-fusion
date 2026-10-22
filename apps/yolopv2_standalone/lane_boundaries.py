@@ -530,7 +530,19 @@ def draw_boundaries(frame, estimate, mask_size=None):
             points = (getattr(estimate,'image_'+side).copy() if hasattr(estimate,'image_'+side)
                       else transform(points, estimate.projection))
             points *= np.array([frame.shape[1]/mask_size[0], frame.shape[0]/mask_size[1]])
-        draw_polyline(frame, points, color, thickness=3, dashed=False)
+        if hasattr(estimate,'image_'+side):
+            confidence=getattr(estimate,side+'_confidence')
+            strength=.35+.35*float(np.clip(confidence,0,1))
+            muted=tuple(int(c*strength) for c in color)
+            draw_polyline(frame,points,muted,thickness=1,dashed=False)
+            support=getattr(estimate,side+'_support',None)
+            if support is not None and state in ('observed','aligning'):
+                measured_points=points.copy()
+                measured_points[~support]=np.nan
+                highlight=color if state=='observed' else tuple(int(c*.75) for c in color)
+                draw_polyline(frame,measured_points,highlight,thickness=2,dashed=False)
+        else:
+            draw_polyline(frame, points, color, thickness=3, dashed=False)
 
 
 def render_boundary_bev(estimate):

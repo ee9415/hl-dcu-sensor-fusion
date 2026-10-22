@@ -27,7 +27,9 @@ FRAME_FIELDS = ['session', 'frame_seq', 'nn_seq', 'depth_seq', 'capture_timestam
                 'boundary_reference_side','left_boundary_confidence','right_boundary_confidence',
                 'boundary_confidence_kind','stop_line_state','stop_line_confidence',
                 'stop_line_confidence_kind','stop_line_valid','stop_line_points', 'boundary_model',
-                'left_boundary_image','right_boundary_image','motion_confidence','motion_matrix']
+                'left_boundary_image','right_boundary_image','motion_confidence','motion_matrix',
+                'left_display_residual_px','right_display_residual_px',
+                'left_observation_age_s','right_observation_age_s','boundary_ms','stop_line_ms']
 OBJECT_FIELDS = ['session', 'frame_seq', 'object_index', 'label', 'confidence',
                  'xmin', 'ymin', 'xmax', 'ymax', 'depth_valid', 'x_m', 'y_m', 'z_m']
 

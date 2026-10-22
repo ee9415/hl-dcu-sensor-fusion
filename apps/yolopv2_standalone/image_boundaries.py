@@ -17,6 +17,12 @@ class ImageBoundaryEstimate:
     motion_matrix: np.ndarray
     state: str
     reference_side: str
+    left_support: object = None
+    right_support: object = None
+    left_residual_px: object = None
+    right_residual_px: object = None
+    left_observation_age_s: float = 0.
+    right_observation_age_s: float = 0.
 
     @property
     def left_valid(self):
@@ -46,7 +52,10 @@ class ImageBoundaryEstimate:
                     boundary_confidence_kind='heuristic_not_probability',boundary_units='image_pixels_320x180',
                     boundary_model='image_motion',left_boundary_image=points(self.image_left),
                     right_boundary_image=points(self.image_right),motion_confidence=self.motion_confidence,
-                    motion_matrix=self.motion_matrix.tolist(),corridor_width_m=None,
+                    motion_matrix=self.motion_matrix.tolist(),
+                    left_display_residual_px=self.left_residual_px,right_display_residual_px=self.right_residual_px,
+                    left_observation_age_s=self.left_observation_age_s,right_observation_age_s=self.right_observation_age_s,
+                    corridor_width_m=None,
                     normal_width_error_dev=None,left_boundary_coefficients=[],right_boundary_coefficients=[],
                     boundary_forward_dev=[],left_boundary_dev=[],right_boundary_dev=[],
                     corridor_feasible=None,clearance_sufficient=None)
@@ -109,15 +118,31 @@ class ImageBoundaryTracker:
         self.width=None
         self.last_candidate_count=0
         self.motion_velocity=np.zeros((2,3))
-        self.missing_seconds=0.
+        self.ages=[0.,0.]
+        self.pending=[[],[]]
+        self.support=[None,None]
+        self.width_pair=None
+        self.predicted_pair=[None,None]
 
     def _complete(self, points):
-        """Keep a full curve model; visibility must not erode temporal memory."""
+        """Interpolate support, extend endpoint tangents; never extrapolate c2."""
         good=np.isfinite(points).all(axis=1)
-        if good.sum()<8:
+        p=points[good]
+        if len(p)<8:
             return None
-        coeff=np.polynomial.polynomial.polyfit((points[good,1]-125)/50,points[good,0],2)
-        values=np.polynomial.polynomial.polyval((self.rows-125)/50,coeff)
+        p=p[np.argsort(p[:,1])]
+        y=p[:,1];x=p[:,0]
+        if np.ptp(y)<1:
+            return None
+        values=np.interp(self.rows,y,x)
+        for end,indices in ((0,slice(0,5)),(-1,slice(-5,None))):
+            slope=float(np.clip(np.polyfit(y[indices],x[indices],1)[0],-2.,2.))
+            outside=self.rows<y[0] if end==0 else self.rows>y[-1]
+            values[outside]=x[end]+slope*(self.rows[outside]-y[end])
+        # An affine road patch model is valid locally, not indefinitely outside
+        # the image. Bound latent geometry to a small offscreen margin so repeated
+        # expansion cannot grow to thousands of pixels and block reacquisition.
+        values=np.clip(values,-32.,352.)
         return np.column_stack((values,self.rows))
 
     def _warp(self, points, matrix):
@@ -125,20 +150,39 @@ class ImageBoundaryTracker:
             return None
         good=np.isfinite(points).all(axis=1)
         p=np.column_stack((points[good],np.ones(good.sum())))@matrix.T
-        order=np.argsort(p[:,1]);p=p[order]
-        if len(p)<8:
+        return self._complete(p)
+
+    def _associate(self, observation, prior, side):
+        """Reject isolated remote paint; three consistent candidates in five frames."""
+        history=self.pending[side]
+        candidate=None if observation is None else observation[0]
+        history.append(None if candidate is None else candidate.copy())
+        del history[:-5]
+        if observation is None or prior is None:
+            return observation
+        valid=np.isfinite(candidate[:,0])&np.isfinite(prior[:,0])
+        if valid.sum()<8:
             return None
-        result=self._complete(p)
-        if result is None or np.count_nonzero((result[:,0]>0)&(result[:,0]<319))<12:
-            return points.copy()
-        return result
+        innovation=float(np.percentile(abs(candidate[valid,0]-prior[valid,0]),75))
+        gate=min(28.,7.+2.*self.ages[side])
+        if innovation<=gate:
+            return observation
+        matches=0
+        for past in history:
+            if past is None:continue
+            common=valid&np.isfinite(past[:,0])
+            if common.sum()>=8 and np.percentile(abs(past[common,0]-candidate[common,0]),75)<5:
+                matches+=1
+        return observation if matches>=3 else None
 
     def _detect(self, paint, side, prior):
         # Start at any supported near/middle row, not at a fixed C0 anchor.
         seeds=[]
         for row in (168,156,144,132):
             xs=np.flatnonzero(paint[row])
-            xs=xs[(xs>8)&(xs<312)&((xs<175) if side==0 else (xs>145))]
+            xs=xs[(xs>3)&(xs<316)]
+            if prior is None:
+                xs=xs[(xs<175) if side==0 else (xs>145)]
             if len(xs):
                 groups=np.split(xs,np.flatnonzero(np.diff(xs)>2)+1)
                 seeds.extend((row,float(np.mean(g))) for g in groups if len(g)<=12)
@@ -162,7 +206,12 @@ class ImageBoundaryTracker:
             good=np.ones(len(xs),bool)
             for _ in range(3):
                 if good.sum()<10:break
-                coeff=np.polynomial.polynomial.polyfit((ys[good]-125)/50,xs[good],2)
+                degree=1 if np.ptp(ys[good])<40 else 2
+                coeff=np.polynomial.polynomial.polyfit((ys[good]-125)/50,xs[good],degree)
+                if degree==2:
+                    coeff[2]=np.clip(coeff[2],-12.,12.)
+                    coeff[:2]=np.polynomial.polynomial.polyfit((ys[good]-125)/50,
+                                xs[good]-coeff[2]*((ys[good]-125)/50)**2,1)
                 residual=abs(np.polynomial.polynomial.polyval((ys-125)/50,coeff)-xs)
                 good=residual<3.5
             if good.sum()<10 or np.ptp(ys[good])<20:
@@ -175,16 +224,25 @@ class ImageBoundaryTracker:
             values[~valid]=np.nan
             if valid.sum()<12 or score<.65:
                 continue
+            other=self.predicted_pair[1-side]
+            if other is not None and self.scores[1-side]>.2:
+                common=valid&np.isfinite(other[:,0])
+                signed=(other[:,0]-values) if side==0 else (values-other[:,0])
+                if common.sum()>=8 and np.median(signed[common])<8:
+                    continue  # Never acquire the reliable opposite paint as this side.
             near=values[np.flatnonzero(valid)[0]]
-            if (side==0 and near>185) or (side==1 and near<135):
+            if prior is None and ((side==0 and near>185) or (side==1 and near<135)):
                 continue
-            temporal=0.
+            temporal=0.;inside=False
             if prior is not None:
                 common=valid&np.isfinite(prior[:,0])
                 if common.sum()>=8:
-                    temporal=float(np.exp(-np.median(abs(values[common]-prior[common,0]))/20))
-            # Long continuous paint dominates; past position is only a tie-breaker.
-            rank=score+.10*temporal+.08*min(1,len(xs)/40)
+                    error=float(np.percentile(abs(values[common]-prior[common,0]),75))
+                    gate=min(28.,7.+2.*self.ages[side])
+                    inside=error<=gate
+                    temporal=float(np.exp(-error/gate))
+            # Prefer plausible nearby paint while a reliable history exists.
+            rank=(bool(inside and self.scores[side]>.2),score+.8*temporal+.08*min(1,len(xs)/40))
             if best is None or rank>best[0]:
                 best=(rank,np.column_stack((values,self.rows)),score)
         return None if best is None else best[1:]
@@ -192,9 +250,16 @@ class ImageBoundaryTracker:
     def update(self, road, lane, timestamp_s, rgb=None, detections=()):
         if rgb is None:
             raise ValueError('Image boundary tracking requires RGB')
-        # Full RGB resize matches segmentation coordinates; fixed-cost CPU path.
-        image=rgb[np.linspace(0,rgb.shape[0]-1,180).astype(int)[:,None],
-                  np.linspace(0,rgb.shape[1]-1,320).astype(int)[None,:]]
+        # Four subpixel samples reduce thin-paint aliasing without full-frame filtering.
+        if rgb.shape[:2]==(180,320):
+            image=rgb
+        else:
+            image=np.zeros((180,320,3),np.float32)
+            for offset in (.2,.7):
+                for offset_x in (.2,.7):
+                    yy=np.minimum(((np.arange(180)+offset)*rgb.shape[0]/180).astype(int),rgb.shape[0]-1)
+                    xx=np.minimum(((np.arange(320)+offset_x)*rgb.shape[1]/320).astype(int),rgb.shape[1]-1)
+                    image+=rgb[yy[:,None],xx[None,:]]*.25
         if lane.shape!=(180,320):
             lane=lane[np.linspace(0,lane.shape[0]-1,180).astype(int)[:,None],
                       np.linspace(0,lane.shape[1]-1,320).astype(int)[None,:]]
@@ -209,9 +274,11 @@ class ImageBoundaryTracker:
             for dx in (0,2,5,8,10):
                 allowed |= padded[dy:dy+180,dx:dx+320]
         brightness=image.mean(axis=2)
-        pavement=brightness[road & (np.indices(road.shape)[0]>90)]
-        threshold=max(125.,float(np.median(pavement))+25.) if len(pavement) else 150.
-        paint &= brightness>=threshold
+        thresholds=np.full(180,125.)
+        for row in range(78,180):
+            pavement=brightness[row,road[row]]
+            if len(pavement):thresholds[row]=max(110.,float(np.median(pavement))+18.)
+        paint &= brightness>=thresholds[:,None]
         for box in detections:
             a,b=np.clip([int(box.xmin*320),int(np.ceil(box.xmax*320))],0,320)
             c,d=np.clip([int(box.ymin*180),int(np.ceil(box.ymax*180))],0,180)
@@ -225,97 +292,125 @@ class ImageBoundaryTracker:
         reset=not np.isfinite(timestamp_s) or dt<=0 or dt>1.
         if reset:
             self.history=[None,None];self.previous=None;self.width=None;self.scores=[0.,0.]
-            self.motion_velocity[:]=0.;self.missing_seconds=0.
+            self.motion_velocity[:]=0.;self.ages=[0.,0.];self.pending=[[],[]]
+            self.support=[None,None];self.width_pair=None
         motion,motion_score=road_motion(self.previous,gray,allowed[::2,::2])
-        # A discontinuous source cut must not carry old boundaries into a new scene.
         if self.previous is not None and motion_score==0 and np.mean(abs(gray-self.previous))>45:
             self.history=[None,None];self.width=None;self.scores=[0.,0.]
-            self.motion_velocity[:]=0.;self.missing_seconds=0.
+            self.motion_velocity[:]=0.;self.ages=[0.,0.];self.pending=[[],[]]
+            self.support=[None,None];self.width_pair=None
         self.previous=gray;self.last_time=timestamp_s if np.isfinite(timestamp_s) else None
         identity=np.array([[1.,0.,0.],[0.,1.,0.]])
         step=float(np.clip(dt if np.isfinite(dt) else .1,.01,.2))
         if motion_score:
-            # Filter motion velocity, so noisy alternating flow cannot reverse
-            # the boundary instantly. This is visual inertia, not measured IMU.
+            # A valid registration maps old pixels to THIS frame. Never lag or
+            # attenuate it. Smoothed velocity is only a fallback motion prior.
             alpha=1-np.exp(-step/.25)
             self.motion_velocity=(1-alpha)*self.motion_velocity+alpha*(motion-identity)/step
         else:
             self.motion_velocity*=np.exp(-step/.6)
-        # Unobserved motion decays to a retained shape instead of drifting away.
-        motion=identity+self.motion_velocity*step*np.exp(-self.missing_seconds/1.5)
+            motion=identity+self.motion_velocity*step
         predicted=[self._warp(p,motion) for p in self.history]
-        observations=[self._detect(paint,s,predicted[s]) for s in (0,1)]
-        self.missing_seconds=0. if any(o is not None for o in observations) else self.missing_seconds+step
-        output=[];states=[];scores=[]
-        for s,observation in enumerate(observations):
-            prior=predicted[s]
+        self.predicted_pair=predicted
+        if self.width_pair is not None:
+            self.width_pair=[self._warp(p,motion) for p in self.width_pair]
+            if all(p is not None for p in self.width_pair):
+                self.width=self.width_pair[1][:,0]-self.width_pair[0][:,0]
+        for side in (0,1):
+            self.ages[side]+=step
+            if self.support[side] is not None and self.history[side] is not None:
+                lo,hi=self.support[side]
+                old=self.history[side]
+                ends=np.column_stack((np.interp([lo,hi],self.rows[::-1],old[::-1,0]),[lo,hi],np.ones(2)))@motion.T
+                self.support[side]=(float(ends[:,1].min()),float(ends[:,1].max()))
+        previous_ages=self.ages.copy()
+        previous_support=self.support.copy()
+        observations=[self._associate(self._detect(paint,s,predicted[s]),predicted[s],s) for s in (0,1)]
+        output=[];states=[];scores=[];residuals=[None,None];supports=[]
+        for side,observation in enumerate(observations):
+            prior=predicted[side]
+            decay=self.scores[side]*np.exp(-step*(.3 if motion_score else .8))
+            support=np.zeros(48,bool)
             if observation is not None:
-                p,score=observation
+                measured,score=observation
+                support=np.isfinite(measured[:,0])
+                lo=float(self.rows[support].min());hi=float(self.rows[support].max())
+                target=self._complete(measured)
                 if prior is not None:
-                    common=np.isfinite(p[:,0])&np.isfinite(prior[:,0])
-                    old_good=np.isfinite(prior[:,0]);new_good=np.isfinite(p[:,0])
-                    old_coeff=np.polynomial.polynomial.polyfit((prior[old_good,1]-125)/50,prior[old_good,0],2)
-                    new_coeff=np.polynomial.polynomial.polyfit((p[new_good,1]-125)/50,p[new_good,0],2)
-                    old_curve=np.polynomial.polynomial.polyval((self.rows-125)/50,old_coeff)
-                    new_curve=np.polynomial.polynomial.polyval((self.rows-125)/50,new_coeff)
-                    delta=new_curve-old_curve
-                    # Blend whole polynomials, not separately clipped fragments:
-                    # refitting inconsistent fragments can amplify a tiny clamp.
-                    fraction=min(.65,8./max(float(np.max(abs(delta[old_good|new_good]))),1e-6))
-                    p[new_good,0]=(old_curve+fraction*delta)[new_good]
-                    final_error=np.median(abs(delta[common])) if common.any() else 30.
-                    state='observed' if final_error<6 else 'aligning'
-                    score*=float(np.exp(-max(0.,final_error-3)/30))
+                    delta=target[:,0]-prior[:,0]
+                    fraction=min(.65,8./max(float(np.max(abs(delta))),1e-6))
+                    # Blend complete curves without refitting or a local taper:
+                    # tapers accumulate kinks between old and observed sections.
+                    # Outside support the target is only an endpoint tangent.
+                    p=prior.copy();p[:,0]+=fraction*delta
                 else:
-                    state='observed'
+                    p=target
+                residual=float(np.percentile(abs(p[support,0]-measured[support,0]),90))
+                state='observed' if residual<=4. else 'aligning'
+                score=float(score*np.exp(-residual/6.))
+                self.support[side]=(lo,hi)
+                self.ages[side]=0.
+                residuals[side]=residual
             elif prior is not None:
-                p=prior;score=self.scores[s]*np.exp(-max(.01,dt)*(.25 if motion_score else .8))
-                state='predicted' if motion_score else 'held'
+                p=prior;score=decay
+                state='predicted' if motion_score or np.max(abs(motion-identity))>.02 else 'held'
             else:
                 p=np.column_stack((np.full(48,np.nan),self.rows));score=0.;state='unavailable'
-            good=np.isfinite(p[:,0])
-            if good.sum()>=8:
-                # Blending partial supports pointwise can create a kink at their
-                # junction. Refit the entire displayed curve, unconstrained C0.
-                coeff=np.polynomial.polynomial.polyfit((p[good,1]-125)/50,p[good,0],2)
-                p[good,0]=np.polynomial.polynomial.polyval((p[good,1]-125)/50,coeff)
-                p=self._complete(p)
-            output.append(p);states.append(state);scores.append(float(score))
-        common=np.isfinite(output[0][:,0])&np.isfinite(output[1][:,0])
-        if common.sum()>=8 and np.any(output[0][common,0]+6>=output[1][common,0]):
+            output.append(p);states.append(state);scores.append(float(score));supports.append(support)
+        # Reject crossing observations only where BOTH have actual support.
+        common=supports[0]&supports[1]
+        if common.any() and np.any(output[0][common,0]+2>=output[1][common,0]):
             loser=int(scores[1]<scores[0])
+            observations[loser]=None;supports[loser][:]=False;residuals[loser]=None
+            self.ages[loser]=previous_ages[loser]
+            self.support[loser]=previous_support[loser]
             if predicted[loser] is not None:
-                output[loser]=predicted[loser].copy();states[loser]='held';scores[loser]*=.5
+                output[loser]=predicted[loser].copy()
+                states[loser]='predicted' if motion_score else 'held'
+                scores[loser]=self.scores[loser]*np.exp(-step*.8)*.5
             else:
                 output[loser][:,0]=np.nan;states[loser]='unavailable';scores[loser]=0.
-        if all(o is not None for o in observations):
-            widths=output[1][:,0]-output[0][:,0]
-            valid=np.isfinite(widths)&(widths>12)
-            if valid.sum()>=12:
-                learned=np.interp(self.rows[::-1],self.rows[valid][::-1],widths[valid][::-1])[::-1]
-                self.width=learned if self.width is None else .9*self.width+.1*learned
-        # Only a previously observed width profile may supply an unseen side.
-        for s in (0,1):
-            if observations[s] is None and observations[1-s] is not None:
-                # Bootstrap is a low-confidence image perspective prior, never
-                # a physical 2.1m constraint. Replace it with measured spacing.
+        if states==['observed','observed']:
+            common=supports[0]&supports[1]
+            if common.sum()>=8 and np.all(output[1][common,0]-output[0][common,0]>2):
+                self.width_pair=[p.copy() for p in output]
+                self.width=output[1][:,0]-output[0][:,0]
+        for side in (0,1):
+            # Own warped history is primary. Opposite-side geometry must never
+            # overwrite a valid independent prediction on every frame.
+            stale=predicted[side] is not None and self.scores[side]<.1 and self.ages[side]>1.
+            if (predicted[side] is None or stale) and observations[side] is None and states[1-side]=='observed':
                 width=self.width if self.width is not None else np.clip(1.6*(self.rows-65),24,240)
-                target=output[1-s][:,0]+width*(-1 if s==0 else 1)
-                if predicted[s] is not None:
-                    delta=target-predicted[s][:,0]
-                    fraction=min(.15,3./max(float(np.max(abs(delta))),1e-6))
-                    target=predicted[s][:,0]+fraction*delta
-                output[s]=np.column_stack((target,self.rows))
-                scores[s]=min(scores[1-s]*.4,max(scores[s],.05));states[s]='inferred'
-        common=np.isfinite(output[0][:,0])&np.isfinite(output[1][:,0])
-        if common.any() and np.any(output[0][common,0]+6>=output[1][common,0]):
-            # Keep the last coherent pair if an observation would cross sides.
-            if all(p is not None for p in self.history):
-                output=[p.copy() for p in self.history];states=['held','held']
+                target=output[1-side][:,0]+np.clip(width,12,280)*(-1 if side==0 else 1)
+                target=np.clip(target,-32,352)
+                if stale:
+                    delta=target-output[side][:,0]
+                    output[side][:,0]+=delta*min(.25,8./max(np.max(abs(delta)),1e-6))
+                    scores[side]=min(scores[side],.09)
+                else:
+                    output[side]=np.column_stack((target,self.rows))
+                    scores[side]=min(.2,scores[1-side]*.3)
+                states[side]='inferred'
+                self.support[side]=self.support[1-side]
+        if all(o is None for o in observations) and all(p is not None for p in self.history):
+            crossed=output[0][:,0]+2>=output[1][:,0]
+            visible_counts=[np.count_nonzero((p[:,0]>=0)&(p[:,0]<=319)) for p in output]
+            if crossed.any() or min(visible_counts)<8:
+                # Registration is local. When its long extrapolation collapses
+                # or leaves the view, retain the last drawable pair explicitly
+                # as HELD with reduced confidence, not as a measured prediction.
+                output=[p.copy() for p in self.history]
+                states=['held','held'];scores=[s*.5 for s in scores]
         self.history=[p.copy() if np.isfinite(p[:,0]).sum()>=8 else None for p in output]
         self.scores=scores
+        # Do not render extrapolated crossings above the measured region.
+        visible=[p.copy() for p in output]
+        both=np.isfinite(visible[0][:,0])&np.isfinite(visible[1][:,0])
+        crossed=both&(visible[0][:,0]+2>=visible[1][:,0])
+        for side in (0,1):
+            visible[side][crossed,0]=np.nan
         observed=[s for s,o in enumerate(observations) if o is not None]
         reference='both' if len(observed)==2 else ('left' if observed==[0] else 'right' if observed==[1] else 'none')
         state='tracking' if observed else 'predicted' if any(p is not None for p in self.history) else 'unavailable'
-        return ImageBoundaryEstimate(*output,projection_for((180,320),self.config),*states,*scores,
-                                     motion_score,motion,state,reference)
+        return ImageBoundaryEstimate(*visible,projection_for((180,320),self.config),*states,*scores,
+                                     motion_score,motion,state,reference,*supports,*residuals,*self.ages)

@@ -543,6 +543,8 @@ class Yolopv2Postprocess(dai.node.HostNode):
         capture_wall = time.time() - (dai.Clock.now().total_seconds() - capture_s)
         capture_mono = time.monotonic() - (dai.Clock.now().total_seconds() - capture_s)
         self._telemetry.publish({
+            'boundary_ms': (boundary_finished-boundary_started)*1000,
+            'stop_line_ms': (stop_finished-boundary_finished)*1000,
             'frame_seq': int(preview.getSequenceNum()),
             'nn_seq': int(nn_data.getSequenceNum()),
             'depth_seq': int(aligned_depth.getSequenceNum()),

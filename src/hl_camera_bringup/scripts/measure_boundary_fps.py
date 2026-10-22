@@ -65,6 +65,13 @@ def main():
     if any(f.get('boundary_model')=='image_motion' for f in frames):
         report['max_frame_lateral_step']=None
         report['max_lateral_rate']=None
+    for field in ('boundary_ms','stop_line_ms','left_display_residual_px','right_display_residual_px'):
+        values=sorted(f[field] for f in frames if f.get(field) is not None)
+        if values:
+            report[field]=dict(mean=sum(values)/len(values),p95=values[int(.95*(len(values)-1))],max=max(values))
+    report['observed_residual_violations']=sum(
+        f.get(side+'_boundary_state')=='observed' and (f.get(side+'_display_residual_px') or 0)>4.0001
+        for f in frames for side in ('left','right'))
     (args.output/'report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report),flush=True)
 

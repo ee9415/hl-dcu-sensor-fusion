@@ -117,4 +117,7 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertFalse(payload['centerline_valid'])
             result=partial.result.send.call_args.args[0]
             self.assertTrue(np.any(np.all(result.data==(0,220,255),axis=2)))
-            self.assertTrue(np.any(np.all(result.data==(255,180,0),axis=2)))
+            self.assertEqual(payload['right_boundary_state'],'inferred')
+            confidence=payload['right_boundary_confidence']
+            muted=tuple(int(c*(.35+.35*confidence)) for c in (255,180,0))
+            self.assertTrue(np.any(np.all(result.data==muted,axis=2)))
