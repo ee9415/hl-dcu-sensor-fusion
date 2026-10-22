@@ -33,7 +33,7 @@ class ImageBoundaryTests(unittest.TestCase):
         a=self.update(t,self.scene(),1)
         b=self.update(t,self.scene(right=False),2)
         self.assertTrue(b.pair_valid)
-        self.assertEqual(b.right_state,'inferred')
+        self.assertIn(b.right_state,('held','predicted'))
         self.assertLess(b.right_confidence,a.right_confidence)
         c=self.update(t,self.scene(5),3)
         self.assertIn(c.right_state,('observed','aligning'))
@@ -116,14 +116,50 @@ class ImageBoundaryTests(unittest.TestCase):
             for i in range(1,301):
                 b=self.update(t,blank,i)
                 self.assertTrue(b.pair_valid)
-                self.assertTrue(np.isfinite(b.image_left).all())
-                self.assertTrue(np.isfinite(b.image_right).all())
+                # Preserve the supported extent, not unobserved full-height extrapolation.
+                for p in (b.image_left,b.image_right):
+                    self.assertGreaterEqual(np.isfinite(p[:,0]).sum(),8)
                 if i==200:late=b.image_left.copy()
-        self.assertLess(np.max(abs(b.image_left-late)),.05)
+        self.assertLess(np.nanmax(abs(b.image_left-late)),.05)
         self.assertLess(b.left_confidence,.01)
         recovered=self.update(t,self.scene(),301)
         self.assertTrue(recovered.pair_valid)
         self.assertIn(recovered.left_state,('observed','aligning'))
+
+    def test_partial_curve_is_never_extrapolated_to_horizon(self):
+        t=ImageBoundaryTracker()
+        u=(t.rows-125)/50
+        points=np.column_stack((230+35*u-53.2891*u*u,t.rows))
+        points[t.rows<120,0]=np.nan
+        completed=t._complete(points)
+        self.assertTrue(np.isnan(completed[t.rows<120,0]).all())
+        np.testing.assert_allclose(completed[t.rows>=120],points[t.rows>=120])
+
+    def test_crossed_candidates_cannot_poison_valid_history(self):
+        t=ImageBoundaryTracker();a=self.update(t,self.scene(),0)
+        previous=[a.image_left.copy(),a.image_right.copy()]
+        # Deliberately invalid predictions and candidates must restore the
+        # separately validated pair, with no false observed confidence.
+        crossed=[previous[1].copy(),previous[0].copy()]
+        b=t._fuse([(crossed[0],.99),(crossed[1],.99)],crossed,
+                  np.array([[1,0,0],[0,1,0]]),0,.1)
+        self.assertTrue(b.pair_valid)
+        self.assertTrue(b.restored_pair)
+        self.assertEqual(b.reference_side,'none')
+        self.assertEqual((b.left_state,b.right_state),('held','held'))
+        self.assertLessEqual(max(b.left_confidence,b.right_confidence),.15)
+        for actual,expected in zip(t.history,previous):
+            np.testing.assert_allclose(actual,expected,equal_nan=True)
+
+    def test_partial_observation_leaves_unseen_rows_unchanged(self):
+        t=ImageBoundaryTracker();a=self.update(t,self.scene(),0)
+        prior=[a.image_left.copy(),a.image_right.copy()]
+        measured=prior[0].copy();measured[:,0]+=5
+        measured[:20,0]=np.nan
+        b=t._fuse([(measured,.9),None],prior,np.array([[1,0,0],[0,1,0]]),0,.1)
+        np.testing.assert_allclose(b.image_left[:20],prior[0][:20],equal_nan=True)
+        np.testing.assert_allclose(b.image_right,prior[1],equal_nan=True)
+        self.assertEqual(b.reference_side,'left')
 
     def test_single_initial_side_supplies_low_confidence_pair(self):
         t=ImageBoundaryTracker();b=self.update(t,self.scene(right=False),0)

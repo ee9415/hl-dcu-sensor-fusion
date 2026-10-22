@@ -2,7 +2,7 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: image-first motion-compensated boundaries (0.25.0, 2026-10-22)
+## Current: supported-row fusion and valid history (0.30.0, 2026-10-23)
 
 The active node uses `ImageBoundaryTracker`, not the fixed-anchor BEV candidate search.
 Each side follows RGB white-paint evidence near the segmented pavement, excluding
@@ -14,21 +14,28 @@ A 160x90 sparse patch matcher estimates robust affine road-image motion between
 consecutive frames. Motion velocity is low-pass filtered (0.25s time constant),
 with 0.6s damping when flow is unreliable. With no observed lines, movement itself
 decays over 1.5s, retaining the last shape instead of drifting indefinitely.
-The full quadratic is retained/replenished over the tracking rows, preventing
-successive warps from eroding visible support. If a warp loses almost all visible
-support the last curve is retained. Confidence still decays independently.
-A visible opposite side gradually guides the missing side using the learned image
-width profile. If only one side has ever been seen, a low-confidence perspective
+Measured rows are retained without refitting/extrapolating a quadratic across the
+entire image. Warping resamples the retained extent; if almost all visible support
+is lost, the last curve is retained. Confidence still decays independently.
+Each side retains its own history. If only one side has ever been seen, a low-confidence perspective
 width prior initializes the opposite side; this is NOT a 2.1m or fixed-C0 constraint.
 Timestamp resets/gaps and scene cuts still clear stale history. Before any side has
 been seen, both boundaries remain unavailable. This is visual motion inertia, not
 vehicle acceleration/IMU measurement or proof of drivable free space.
 
-Reacquisition blends with the motion prediction (8 tracking pixels per-frame correction
-by interpolating complete quadratic curves). ALIGNING is distinguished from OBSERVED, and
+Reacquisition blends supported rows with the motion prediction (80 tracking pixels/second,
+8 pixels at 10 FPS). Unobserved rows retain their prediction. ALIGNING is distinguished from OBSERVED, and
 confidence decreases with disagreement. This is not a calibrated probability or a
 bound on camera-motion displacement or newly entering image regions. Handheld motion, parallax, shadows,
 worn markings and long occlusions remain validation limitations.
+
+Only a noncrossing pair can be committed to history. Invalid fusion first tries each
+side independently against a valid opposite, then restores the last valid pair.
+Restoration clears rejected observation support and caps confidence at 0.15.
+Only concurrently observed rows update the width profile. Bright solid segments show
+accepted current support; muted solid segments show retained/inferred geometry.
+Telemetry adds display residuals and `boundary_restored_pair`. Regression and camera
+results: [0.30.0 verification](../../docs/verification/camera/supported_boundary_fusion_20261023.md).
 
 BEV is only an **uncalibrated reference projection for display**. Its parameters in
 `lane_boundaries.json` do not constrain image tracking. Legacy width/C0/search settings
