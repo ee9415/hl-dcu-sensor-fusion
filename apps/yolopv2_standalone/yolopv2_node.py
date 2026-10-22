@@ -413,7 +413,8 @@ class Yolopv2Postprocess(dai.node.HostNode):
 
         self._blend_mask(rendered, drivable_up, (0, 180, 0), 0.20)
         draw_boundaries(rendered, boundaries, (drivable.shape[1], drivable.shape[0]))
-        self._draw_text(rendered, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' '),
+        self._draw_text(rendered, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' ')
+                        +' REF '+boundaries.reference_side.upper(),
                         10, 12, (0, 220, 255))
         invalid_labels = 0
         for detection, measurement in zip(detections, measurements, strict=True):
@@ -519,7 +520,8 @@ class Yolopv2Postprocess(dai.node.HostNode):
         boundary_finished = time.monotonic()
         bev = render_boundary_bev(boundaries)
         bev_finished = time.monotonic()
-        self._draw_text(bev, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' '),
+        self._draw_text(bev, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' ')
+                        +' REF '+boundaries.reference_side.upper(),
                         10, 10, (0, 220, 255))
         capture_s = preview.getTimestamp().total_seconds()
         capture_wall = time.time() - (dai.Clock.now().total_seconds() - capture_s)

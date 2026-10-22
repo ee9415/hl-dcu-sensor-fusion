@@ -294,3 +294,11 @@
 - 28개 테스트, 카메라120초10.00 FPS/누락0/경계 이동 제한 준수 확인.
 - 실제 커브 흰색선 정합은 잔여 오차 확인, 미완료로 기록.
 - 상세: docs/verification/camera/narrow_boundaries_20261022.md.
+
+## 2026-10-22 — 0.22.0 한쪽 흰색선 기준 추종
+
+- LEFT/RIGHT 개별 관측을 고정 폭 경계쌍의 우선 기준으로 사용.
+- 양쪽 관측이 없으면 이전 곡선 유지, 재등장 시 이동 제한 적용.
+- RGB/BEV에 REF 표시 및 telemetry 기준쪽 필드 추가.
+- 29개 테스트, 카메라120초10.00 FPS/누락0/좌우 경계 유지 확인.
+- 상세: docs/verification/camera/single_side_reference_20261022.md.

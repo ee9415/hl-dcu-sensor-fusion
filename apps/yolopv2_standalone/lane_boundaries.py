@@ -140,6 +140,7 @@ class BoundaryEstimate:
     width_error: float = 0.
     road_coverage: float = 0.
     corridor_feasible: object = None
+    reference_side: str = 'none'
 
     @property
     def left_valid(self):
@@ -160,6 +161,7 @@ class BoundaryEstimate:
         def values(array):
             return [float(v) if np.isfinite(v) else None for v in array] if self.valid else []
         return dict(boundary_valid=self.valid, boundary_pair_valid=self.pair_valid,
+                    boundary_reference_side=self.reference_side,
                     left_boundary_valid=self.left_valid, right_boundary_valid=self.right_valid,
                     boundary_state=self.state,
                     left_boundary_state=self.left_state, right_boundary_state=self.right_state,
@@ -291,6 +293,43 @@ class BoundaryTracker:
             outputs.append(sampled.reshape(xx.shape))
         return forward, lateral, *outputs
 
+    def _observations(self, forward, lateral, lane, geometry):
+        """Follow separate near-connected paint chains, allowing gaps/occlusion.
+
+        Association starts at each fixed anchor, not at a road-mask edge.
+        Missing paint never becomes a fabricated measurement.
+        """
+        observations = []
+        for side,anchor in enumerate((geometry[0][0],geometry[1][0])):
+            rows,values = [],[]
+            slope = 0.
+            for row,x in enumerate(forward):
+                if x > self.config.max_forward_m:
+                    break
+                if values:
+                    predicted=values[-1]+slope*(x-forward[rows[-1]])
+                    gate=min(.75,.25+.2*(x-forward[rows[-1]]))
+                else:
+                    predicted=anchor
+                    gate=.75
+                    if x>self.config.max_forward_m*.35:
+                        break
+                paint=lateral[lane[row]]
+                if not len(paint):
+                    continue
+                value=paint[np.argmin(abs(paint-predicted))]
+                if abs(value-predicted)>gate:
+                    continue
+                rows.append(row);values.append(float(value))
+                if len(rows)>=5:
+                    dx=x-forward[rows[-5]]
+                    if dx>0:
+                        slope=float(np.clip((value-values[-5])/dx,-.6,.6))
+            # Isolated paint spots/crosswalk fragments are not a usable side.
+            if len(rows)>=12 and forward[rows[-1]]-forward[rows[0]]>=4:
+                observations.append((side,np.asarray(rows),np.asarray(values)))
+        return observations
+
     def _support(self, geometry, forward, lateral, road, lane, paint_distance=None):
         def nearest(axis, values):
             upper = np.clip(np.searchsorted(axis,values),1,len(axis)-1)
@@ -337,13 +376,16 @@ class BoundaryTracker:
                 or np.any(np.diff(forward)<=0) or np.any(np.diff(lateral)<=0)):
             raise ValueError('BEV masks require increasing finite coordinate axes')
         geometry = self._geometry(self.curvature,self.heading)
+        observations=self._observations(forward,lateral,lane,geometry)
+        reference=('both' if len(observations)==2 else
+                   ('left' if observations[0][0]==0 else 'right') if observations else 'none')
         self.last_candidate_count = 0
         state, feasible, coverage = 'held', None, 0.
         time_valid = np.isfinite(timestamp_s) and (self.last_time is None or timestamp_s>self.last_time)
         if time_valid:
             dt = .1 if self.last_time is None else min(timestamp_s-self.last_time,.2)
             self.last_time = timestamp_s
-            if np.any(road):
+            if observations:
                 # Compute the paint distance field once per frame, not once per
                 # candidate. Supports nonuniform lateral axes without SciPy.
                 paint_x = np.where(lane,lateral[None,:],-np.inf)
@@ -371,7 +413,15 @@ class BoundaryTracker:
                     score -= .01*abs(value-self.curvature)/c.max_curvature_coefficient
                     score -= .005*abs(heading-self.heading)/c.max_heading_coefficient
                     score -= .005*abs(heading)/c.max_heading_coefficient
-                    ranked.append(((fits,score),(value,heading),candidate))
+                    errors=[]
+                    for side,rows,values in observations:
+                        predicted=np.polynomial.polynomial.polyval(forward[rows],candidate[2+side])
+                        errors.append(float(np.mean(np.minimum(abs(predicted-values),1.5))))
+                    # The visible side is the primary geometry reference. Its
+                    # paired offset supplies the missing side; road is a weak
+                    # tie-breaker and still determines displayed space status.
+                    rank=-np.mean(errors)+.02*score
+                    ranked.append(((rank,fits),(value,heading),candidate))
                 _, (target,target_heading), desired = max(ranked,key=lambda item:item[0])
                 movement = max(np.max(abs(desired[0]-geometry[0])),np.max(abs(desired[1]-geometry[1])))
                 fraction = min(1.,c.max_lateral_rate_m_s*dt/max(movement,1e-9))
@@ -390,6 +440,8 @@ class BoundaryTracker:
                 coverage, feasible, _ = self._support(geometry,forward,lateral,road,lane,paint_distance)
                 state = 'tracking' if feasible else 'blocked'
             self.last_feasible = bool(feasible)
+            if not observations and np.any(road):
+                coverage,feasible,_=self._support(geometry,forward,lateral,road,lane)
         else:
             state = 'invalid_timestamp'
             if np.isfinite(timestamp_s):
@@ -398,7 +450,7 @@ class BoundaryTracker:
         side_state = 'planned' if feasible else 'held'
         result = BoundaryEstimate(True,state,self.forward.copy(),left.copy(),right.copy(),
                                   projection,side_state,side_state,tuple(lc),tuple(rc),
-                                  error,coverage,feasible)
+                                  error,coverage,feasible,reference)
         return result
 
 

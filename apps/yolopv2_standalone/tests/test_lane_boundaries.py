@@ -74,7 +74,7 @@ class BoundaryTests(unittest.TestCase):
         for sign in (-1,1):
             self.tracker=BoundaryTracker()
             shift=sign*.004*self.forward**2
-            road,lane=self.masks(shift-1.5,shift+1.5)
+            road,lane=self.masks(shift-1.5,shift+1.5,True)
             previous=self.update(self.masks())
             for n in range(1,61):
                 result=self.update((road,lane),n*.1)
@@ -94,7 +94,7 @@ class BoundaryTests(unittest.TestCase):
         result=self.update(self.masks(-.6,.6))
         self.assert_geometry(result)
         self.assertFalse(result.corridor_feasible)
-        self.assertEqual(result.state,'blocked')
+        self.assertEqual(result.state,'held')
 
     def test_missing_road_and_time_errors_do_not_erase_pair(self):
         first=self.update(self.masks())
@@ -117,6 +117,32 @@ class BoundaryTests(unittest.TestCase):
         road,lane=self.masks(-2,2,True)
         lane[:,self.lateral>0]=False
         self.assert_geometry(self.update((road,lane)))
+
+    def test_either_single_side_drives_pair_and_missing_both_holds(self):
+        for side in (0,1):
+            self.tracker=BoundaryTracker(BoundaryConfig.load())
+            target=self.tracker._geometry(-.004,.1)
+            road,lane=self.masks()
+            lane[np.arange(81),np.argmin(abs(self.lateral[None,:]-target[side][:,None]),axis=1)]=True
+            previous=None
+            for n in range(60):
+                result=self.update((road,lane),n*.1)
+                self.assertEqual(result.reference_side,('left','right')[side])
+                if previous is not None:
+                    self.assertLessEqual(max(np.max(abs(result.left-previous.left)),
+                                             np.max(abs(result.right-previous.right))),.100001)
+                previous=result
+            self.assert_geometry(result)
+            self.assertLess(np.mean(abs((result.left,result.right)[side]-target[side])),.2)
+            held=self.update((road,np.zeros_like(lane)),10.)
+            self.assertEqual(held.reference_side,'none')
+            np.testing.assert_array_equal(held.left,result.left)
+            np.testing.assert_array_equal(held.right,result.right)
+            # Reappearance after a long gap uses capped dt, never a jump.
+            restored=self.update((road,lane),20.)
+            self.assertLessEqual(max(np.max(abs(restored.left-held.left)),
+                                     np.max(abs(restored.right-held.right))),.200001)
+            self.assert_geometry(restored)
 
     def test_width_reduction_changes_image_width_without_rescaling_camera(self):
         from lane_boundaries import boundary_points
@@ -150,14 +176,14 @@ class BoundaryTests(unittest.TestCase):
 
     def test_coarse_search_local_tracking_and_periodic_reacquisition(self):
         self.assertLess(len(self.tracker.candidates),60)
-        self.update(self.masks(),0)
+        self.update(self.masks(-1.2,1.2,True),0)
         full=self.tracker.last_candidate_count
-        self.update(self.masks(),.1)
+        self.update(self.masks(-1.2,1.2,True),.1)
         self.assertLess(self.tracker.last_candidate_count,full)
-        for n in range(2,5): self.update(self.masks(),n*.1)
+        for n in range(2,5): self.update(self.masks(-1.2,1.2,True),n*.1)
         self.assertEqual(self.tracker.last_candidate_count,full)
-        self.update(self.masks(-.5,.5),.5)
-        self.update(self.masks(),.6)
+        self.update(self.masks(-.5,.5,True),.5)
+        self.update(self.masks(-1.2,1.2,True),.6)
         self.assertEqual(self.tracker.last_candidate_count,full)
 
     def test_batched_stroke_matches_original_raster(self):

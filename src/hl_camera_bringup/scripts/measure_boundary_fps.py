@@ -48,6 +48,7 @@ def main():
                 source_sequence_gaps=sum(max(0,b['frame_seq']-a['frame_seq']-1)
                                          for a,b in zip(frames,frames[1:])),
                 states=dict(Counter(f['boundary_state'] for f in frames)),
+                references=dict(Counter(f.get('boundary_reference_side','unknown') for f in frames)),
                 invalid_pairs=sum(not f['boundary_pair_valid'] for f in frames),
                 centerline_valid_count=sum(bool(f['centerline_valid']) for f in frames),
                 width_settings=sorted({f['corridor_width_m'] for f in frames}),
