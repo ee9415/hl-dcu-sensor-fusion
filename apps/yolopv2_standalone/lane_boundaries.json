@@ -2,9 +2,9 @@
   "vehicle_width_m": 1.8,
   "left_margin_m": 0.3,
   "right_margin_m": 0.3,
-  "observation_gate_m": 0.65,
   "max_lateral_rate_m_s": 1.0,
-  "max_missing_s": 0.5,
   "max_forward_m": 25.0,
-  "max_lane_gap_s": 2.0
+  "max_curvature_coefficient": 0.02,
+  "width_tolerance_m": 0.08,
+  "road_support_threshold": 0.9
 }

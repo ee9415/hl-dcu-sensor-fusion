@@ -16,7 +16,6 @@ def main():
     parser.add_argument("--device-ip", default="192.168.0.4")
     parser.add_argument("--keep-open", action="store_true")
     parser.add_argument("--wait-seconds", type=int, default=60)
-    parser.add_argument("--turn", choices=('left', 'right', 'road'))
     args = parser.parse_args()
     root = tk.Tk()
     app = RecorderApp(root, args.device_ip, DEFAULT_DEVICE_SERIAL,
@@ -40,7 +39,6 @@ def main():
             isinstance(widget, ttk.Button) and widget.winfo_ismapped()
             and widget.cget('text') in ('좌회전 미리보기', '우회전 미리보기', '일반 도로 복귀')
             for widget in descendants(root))
-        result['turn_status'] = app.turn_status.get()
         logger = app.csv_logger
         result['csv'] = {'path': str(logger.path), 'frames': logger.frames,
                          'objects': logger.objects, 'gaps': logger.gaps,
@@ -48,15 +46,11 @@ def main():
         result["passed"] = result["window_mapped"] and all(
             s["connected"] and s["shape"] and s["preview"] for s in streams.values())
         result['passed'] = result['passed'] and logger is not None and logger.frames > 0
-        if args.turn:
-            result['passed'] = result['passed'] and '요청 수락' in app.turn_status.get()
         print(json.dumps(result), flush=True)
         if not args.keep_open:
             app._close()
 
     root.after(200, app.connect_video)
-    if args.turn:
-        root.after(2500, lambda: app.request_turn(args.turn))
     root.after(args.wait_seconds * 1000, report)
     root.mainloop()
     return 0 if result.get("passed") else 1

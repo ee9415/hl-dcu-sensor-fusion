@@ -489,38 +489,9 @@ class RecorderApp:
         ttk.Label(record_controls, textvariable=self.csv_status, style='App.TLabel',
                   wraplength=1100).grid(row=2, column=0, columnspan=5, sticky='ew')
 
-        # Legacy command handler is retained, but no turn controls are exposed in
-        # the boundary-only UI and the camera no longer polls the turn mailbox.
-        self.turn_status = tk.StringVar(value="경계선 전용 모드")
-        self.turn_busy = False
         ttk.Label(controls,
-                  text="가상 경계선: 왼쪽 노랑 / 오른쪽 하늘색 · 실선 관측 / 점선 추정·유지",
+                  text="경계선: 왼쪽 노랑 / 오른쪽 하늘색 · 시작점·폭 고정 · 점선: 공간 부족 또는 인식 없음",
                   style="App.TLabel").grid(row=2, column=0, sticky="w", pady=(6, 0))
-
-    def request_turn(self, mode: str) -> None:
-        if self.turn_busy:
-            return
-        self.turn_busy = True
-        self.turn_status.set("카메라 명령 확인 중...")
-        ip = self.device_ip
-        def send():
-            try:
-                completed = subprocess.run(
-                    [str(OAKCTL_PATH), "app", "exec", "-d", ip,
-                     "00000000-0000-0000-0000-000000000000", "python3", "/app/turn_command.py", mode],
-                    stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                    encoding="utf-8", errors="replace", timeout=15,
-                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-                lines = [line.split('TURN_ACK ', 1)[1] for line in completed.stdout.splitlines() if 'TURN_ACK ' in line]
-                ack = json.loads(lines[-1]) if lines else {}
-                if completed.returncode != 0 or not ack.get('accepted'):
-                    detail = ack.get('error', '명령 확인 실패: 연결 또는 oakctl 재인증 확인')
-                else:
-                    detail = {"left": "좌회전", "right": "우회전", "road": "일반 도로 복귀"}[mode]+" 요청 수락 · 영상 전환 중"
-                self.connection_events.put(('turn', detail))
-            except (OSError, subprocess.SubprocessError, ValueError):
-                self.connection_events.put(('turn', '명령 확인 실패 · 연결/재인증 확인'))
-        threading.Thread(target=send, daemon=True).start()
 
     def _build_preview_panel(
         self,
@@ -711,10 +682,6 @@ class RecorderApp:
                 return
             if event == "ready":
                 self._begin_receivers(detail)
-                continue
-            if event == "turn":
-                self.turn_busy = False
-                self.turn_status.set(detail)
                 continue
 
             self.connect_requested = False

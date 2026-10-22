@@ -82,7 +82,9 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertIsNone(payload['coefficients'])
             self.assertEqual(payload['turn_mode'], 'disabled')
             self.assertEqual(payload['frame_seq'], 7)
-            self.assertGreater(payload['boundary_width_min_dev'],4.5)
+            self.assertAlmostEqual(payload['boundary_width_min_dev'],2.4)
+            self.assertEqual(len(payload['left_boundary_coefficients']),3)
+            self.assertTrue(payload['corridor_feasible'])
             self.assertTrue(payload['clearance_sufficient'])
             result = processor.result.send.call_args.args[0]
             bev = processor.bev.send.call_args.args[0]
@@ -97,8 +99,7 @@ class BoundaryPipelineTests(unittest.TestCase):
                 rgb_only._tensor=MagicMock()
                 rgb_only.process(Frame(),Frame(),Frame())
             self.assertTrue(server.return_value.publish.call_args.args[0]['boundary_pair_valid'])
-            # A fresh pipeline with only the left stripe must still publish and
-            # display that stripe, with no fabricated right edge or center path.
+            # The fixed-width pair is present even when only one stripe exists.
             partial_lane=lane.copy()
             partial_lane[:,160:]=0
             partial_source=source.copy()
@@ -111,10 +112,10 @@ class BoundaryPipelineTests(unittest.TestCase):
             payload=server.return_value.publish.call_args.args[0]
             self.assertTrue(payload['boundary_valid'])
             self.assertTrue(payload['left_boundary_valid'])
-            self.assertFalse(payload['right_boundary_valid'])
-            self.assertFalse(payload['boundary_pair_valid'])
-            self.assertTrue(all(v is None for v in payload['right_boundary_dev']))
+            self.assertTrue(payload['right_boundary_valid'])
+            self.assertTrue(payload['boundary_pair_valid'])
+            self.assertTrue(all(v is not None for v in payload['right_boundary_dev']))
             self.assertFalse(payload['centerline_valid'])
             result=partial.result.send.call_args.args[0]
             self.assertTrue(np.any(np.all(result.data==(0,220,255),axis=2)))
-            self.assertFalse(np.any(np.all(result.data==(255,180,0),axis=2)))
+            self.assertTrue(np.any(np.all(result.data==(255,180,0),axis=2)))

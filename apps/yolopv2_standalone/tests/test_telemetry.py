@@ -37,6 +37,9 @@ class TelemetryTests(unittest.TestCase):
                                         vehicle_width_m=1.8, left_margin_m=.3, right_margin_m=.3,
                                         corridor_width_m=2.4,
                                         minimum_clearance_width_m=2.4,
+                                        left_boundary_coefficients=[-1.2,0.,.004],
+                                        right_boundary_coefficients=[1.2,-.001,.0041],
+                                        normal_width_error_dev=.01,road_coverage=.95,corridor_feasible=True,
                                         boundary_width_min_dev=2.4 if seq == 1 else None,
                                         boundary_width_max_dev=2.4 if seq == 1 else None,
                                         clearance_sufficient=True if seq == 1 else None,
@@ -63,6 +66,10 @@ class TelemetryTests(unittest.TestCase):
                 self.assertEqual(rows[2]['boundary_width_max_dev'], '')
                 import json
                 self.assertEqual(json.loads(rows[0]['left_boundary_dev']), [-1.2, -1.2])
+                self.assertEqual(json.loads(rows[0]['left_boundary_coefficients']),[-1.2,0.,.004])
+                self.assertEqual(json.loads(rows[0]['right_boundary_coefficients']),[1.2,-.001,.0041])
+                self.assertEqual(rows[0]['corridor_feasible'],'True')
+                self.assertEqual(float(rows[0]['normal_width_error_dev']),.01)
                 self.assertEqual(json.loads(rows[2]['right_boundary_dev']), [])
                 self.assertEqual(json.loads(rows[1]['right_boundary_dev']), [None,None])
                 self.assertEqual(rows[1]['left_boundary_valid'], 'True')

@@ -1,4 +1,4 @@
-"""Halla campus virtual boundary pair. No center path is estimated.
+"""Halla campus fixed-anchor BEV boundary pair. No center path is displayed.
 
 Distances use the existing *uncalibrated* development IPM. Width in meters
 is a requested physical width, not a claim of metric accuracy before calibration.
@@ -16,11 +16,11 @@ class BoundaryConfig:
     vehicle_width_m: float = 1.8
     left_margin_m: float = .3
     right_margin_m: float = .3
-    observation_gate_m: float = .65
     max_lateral_rate_m_s: float = 1.0
-    max_missing_s: float = .5
     max_forward_m: float = 25.0
-    max_lane_gap_s: float = 2.0  # Delay before wider-search reacquisition, not expiry.
+    max_curvature_coefficient: float = .02
+    width_tolerance_m: float = .08
+    road_support_threshold: float = .9
 
     def __post_init__(self):
         for field in fields(self):
@@ -31,6 +31,11 @@ class BoundaryConfig:
                 raise ValueError(f'{field.name} is out of range')
         if self.width_m >= 12 or self.max_forward_m > 40:
             raise ValueError('Requested corridor exceeds development BEV extent')
+        if max(self.vehicle_width_m/2+self.left_margin_m,
+               self.vehicle_width_m/2+self.right_margin_m) >= 6:
+            raise ValueError('Fixed anchor exceeds development BEV extent')
+        if self.road_support_threshold > 1 or self.width_tolerance_m >= self.width_m*.25:
+            raise ValueError('Invalid road support or normal-width tolerance')
 
     @property
     def width_m(self):
@@ -105,6 +110,11 @@ class BoundaryEstimate:
     projection: np.ndarray
     left_state: str = 'unavailable'
     right_state: str = 'unavailable'
+    left_coefficients: tuple = ()
+    right_coefficients: tuple = ()
+    width_error: float = 0.
+    road_coverage: float = 0.
+    corridor_feasible: object = None
 
     @property
     def left_valid(self):
@@ -117,7 +127,7 @@ class BoundaryEstimate:
     @property
     def pair_valid(self):
         common = np.isfinite(self.left) & np.isfinite(self.right)
-        return bool(np.count_nonzero(common) >= 8 and np.all(self.right[common]-self.left[common] > .5))
+        return bool(np.count_nonzero(common) >= 8 and np.all(self.right[common]-self.left[common] > 0))
 
     def telemetry(self, config):
         width = self.right-self.left
@@ -133,22 +143,75 @@ class BoundaryEstimate:
                     minimum_clearance_width_m=config.width_m,
                     boundary_width_min_dev=float(np.min(width)) if len(width) else None,
                     boundary_width_max_dev=float(np.max(width)) if len(width) else None,
-                    clearance_sufficient=bool(np.min(width) >= config.width_m) if len(width) else None,
+                    clearance_sufficient=self.corridor_feasible,
                     boundary_units='uncalibrated_bev_development_units',
                     boundary_forward_dev=self.forward.tolist() if self.valid else [],
-                    left_boundary_dev=values(self.left), right_boundary_dev=values(self.right))
+                    left_boundary_dev=values(self.left), right_boundary_dev=values(self.right),
+                    left_boundary_coefficients=list(self.left_coefficients),
+                    right_boundary_coefficients=list(self.right_coefficients),
+                    normal_width_error_dev=self.width_error,
+                    road_coverage=self.road_coverage, corridor_feasible=self.corridor_feasible)
 
 
 class BoundaryTracker:
+    """Joint anchored quadratic boundaries; no displayed or estimated center path.
+
+    The left quadratic supplies a normal-offset construction for the right one.
+    Both C0 anchors are exact. Only pairs within the normal-width tolerance are
+    searched. Paint is a weak tie-breaker; traversable area determines feasibility.
+    """
     def __init__(self, config=None):
         self.config = config or BoundaryConfig()
-        self.previous = None
+        self.forward = np.linspace(0., self.config.max_forward_m, 81)
+        self.curvature = 0.
         self.last_time = None
-        self.last_supported_time = None
-        self.side_observed_time = [None, None]
-        self.pending_acquisition = [None, None]
-        self.side_history = [None, None]
-        self.side_measurement = [None, None]
+        self.candidates = []
+        for value in np.linspace(-self.config.max_curvature_coefficient,
+                                 self.config.max_curvature_coefficient, 81):
+            geometry = self._geometry(float(value))
+            if geometry is not None:
+                self.candidates.append((float(value), geometry))
+
+    def _geometry(self, curvature):
+        c, x = self.config, self.forward
+        left_anchor = -c.vehicle_width_m/2-c.left_margin_m
+        right_anchor = c.vehicle_width_m/2+c.right_margin_m
+        # Tangent at the near anchor is forward, so the fixed horizontal anchor
+        # separation is also the normal width. Fit the offset with C0 fixed.
+        sample = np.linspace(0., c.max_forward_m+c.width_m, 161)
+        slope = 2*curvature*sample
+        norm = np.sqrt(1+slope*slope)
+        offset_x = sample-c.width_m*slope/norm
+        offset_y = left_anchor+curvature*sample**2+c.width_m/norm
+        if np.any(np.diff(offset_x) <= 0):
+            return None
+        use = (offset_x >= 0) & (offset_x <= c.max_forward_m)
+        basis = np.column_stack((offset_x[use], offset_x[use]**2))
+        b1, b2 = np.linalg.lstsq(basis, offset_y[use]-right_anchor, rcond=None)[0]
+        lc = np.array([left_anchor, 0., curvature])
+        rc = np.array([right_anchor, b1, b2])
+        left = np.polynomial.polynomial.polyval(x, lc)
+        right = np.polynomial.polynomial.polyval(x, rc)
+        if np.any(right <= left) or np.min(left) < -6 or np.max(right) > 6:
+            return None
+        # Intersect each left normal with the right quadratic, measuring the
+        # actual fitted pair, not merely the exact offset used as fitting input.
+        slope = 2*curvature*x
+        norm = np.sqrt(1+slope*slope)
+        low, high = np.full_like(x,c.width_m*.5), np.full_like(x,c.width_m*1.5)
+        for _ in range(30):
+            distance = (low+high)*.5
+            hit_x = x-distance*slope/norm
+            residual = np.polynomial.polynomial.polyval(hit_x,rc)-left-distance/norm
+            low = np.where(residual > 0, distance, low)
+            high = np.where(residual > 0, high, distance)
+        distance = (low+high)*.5
+        hit_x = x-distance*slope/norm
+        inside = (hit_x >= 0) & (hit_x <= c.max_forward_m)
+        error = float(np.max(abs(distance[inside]-c.width_m)))
+        if error > c.width_tolerance_m:
+            return None
+        return left, right, lc, rc, error
 
     def update(self, road, lane, timestamp_s, rgb=None):
         road, lane = np.asarray(road), np.asarray(lane)
@@ -173,7 +236,7 @@ class BoundaryTracker:
                     road[y, a+1:b] = 255
         # A small fixed BEV raster bounds runtime. Nearest-neighbor binary sampling.
         lateral = np.linspace(-6, 6, 241)
-        forward = np.linspace(.5, self.config.max_forward_m, 60)
+        forward = np.linspace(0., self.config.max_forward_m, 81)
         xx, yy = np.meshgrid((lateral/12+.5)*639, (1-forward/40)*479)
         pixels = np.rint(transform(np.column_stack((xx.ravel(), yy.ravel())),
                                     projection_for(road.shape))).astype(int)
@@ -186,243 +249,80 @@ class BoundaryTracker:
             outputs.append(sampled.reshape(xx.shape))
         return forward, lateral, *outputs
 
-    def _observe_side(self, forward, candidates, side, prediction=None, seed=None):
-        if prediction is None and seed is None:
-            # Try several longitudinal tracks instead of locking onto the
-            # closest bright fragment at the bottom (arrows/parking crossbars).
-            fits = []
-            first = next((i for i, values in enumerate(candidates)
-                          if any(v < -.6 if side == 0 else v > .6 for v in values)), 0)
-            for start in sorted(set([first, *range(0, len(forward)//2, 5)])):
-                values = np.asarray(candidates[start])
-                values = values[values < -.6] if side == 0 else values[values > .6]
-                for value in sorted(values, key=abs)[:4]:
-                    curve, indices = self._observe_side(forward, candidates, side,
-                                                        seed=(start, value))
-                    if curve is not None:
-                        fits.append((curve, indices))
-            if fits:
-                return max(fits, key=lambda fit: (len(fit[1]), np.ptp(forward[fit[1]])))
-            return None, np.empty(0, dtype=int)
-        chosen_i, chosen_x = [], []
-        for i, values in enumerate(candidates):
-            if seed is not None and i < seed[0]:
-                continue
-            values = np.asarray(values)
-            if prediction is None:
-                values = values[values < -.6] if side == 0 else values[values > .6]
-                reference = chosen_x[-1] if chosen_x else seed[1]
-                if len(chosen_i) >= 2:
-                    slope = (chosen_x[-1]-chosen_x[-2])/(forward[chosen_i[-1]]-forward[chosen_i[-2]])
-                    reference += np.clip(slope, -.5, .5)*(forward[i]-forward[chosen_i[-1]])
-                gate = self.config.observation_gate_m if chosen_i else .05
-            else:
-                reference, gate = prediction[i], self.config.observation_gate_m
-            values = values[abs(values-reference) <= gate]
-            if len(values):
-                chosen_i.append(i)
-                chosen_x.append(float(values[np.argmin(abs(values-reference))]))
-        indices, values = np.asarray(chosen_i, dtype=int), np.asarray(chosen_x)
-        if len(indices) < 8 or np.ptp(forward[indices]) < 3.:
-            return None, np.empty(0, dtype=int)
-        keep = np.ones(len(values), bool)
-        for _ in range(3):
-            poly = np.polynomial.Polynomial.fit(forward[indices][keep], values[keep], 2)
-            residual = abs(poly(forward[indices])-values)
-            keep = residual <= min(.25, max(.12, 2.5*float(np.median(residual))))
-            if np.count_nonzero(keep) < 8:
-                return None, np.empty(0, dtype=int)
-        indices, values = indices[keep], values[keep]
-        # Do not span disconnected paint/noise clusters with a fitted curve.
-        groups = np.split(np.arange(len(indices)), np.flatnonzero(np.diff(indices) > 3)+1)
-        longest = max(groups, key=len)
-        indices, values = indices[longest], values[longest]
-        if len(indices) < 8:
-            return None, np.empty(0, dtype=int)
-        if np.ptp(forward[indices]) < 3.:
-            return None, np.empty(0, dtype=int)
-        poly = np.polynomial.Polynomial.fit(forward[indices], values, 2)
-        return poly(forward), indices
-
-    def _smooth_side(self, curve, prediction, forward, indices, history, dt):
-        if prediction is None or history is None:
-            return curve
-        # Limit only the common observed range. Extrapolated polynomial tails
-        # must not throttle the visible line's response.
-        common = (forward >= max(forward[indices[0]], history[0][0])) & (
-            forward <= min(forward[indices[-1]], history[0][-1]))
-        if not np.any(common):
-            return curve
-        delta = curve-prediction
-        scale = min(1., self.config.max_lateral_rate_m_s*dt/max(float(np.max(abs(delta[common]))), 1e-9))
-        return prediction+delta*scale
+    def _support(self, geometry, forward, lateral, road, lane):
+        def nearest(axis, values):
+            upper = np.clip(np.searchsorted(axis,values),1,len(axis)-1)
+            return upper-(abs(values-axis[upper-1]) <= abs(values-axis[upper]))
+        left, right = geometry[:2]
+        rows = nearest(forward,self.forward)
+        cross = left[:,None]+(right-left)[:,None]*np.linspace(0,1,25)[None,:]
+        columns = nearest(lateral,cross)
+        longitudinal = (self.forward >= forward[0]) & (self.forward <= forward[-1])
+        inside = (cross >= lateral[0]) & (cross <= lateral[-1]) & longitudinal[:,None]
+        coverage_rows = (road[rows[:,None],columns] & inside).mean(axis=1)
+        # Additional pavement outside the pair differentiates wider free space.
+        spare = np.stack((left-.3, right+.3),axis=1)
+        spare_cols = nearest(lateral,spare)
+        spare_inside = (spare >= lateral[0]) & (spare <= lateral[-1]) & longitudinal[:,None]
+        clearance = np.mean(road[rows[:,None],spare_cols] & spare_inside)
+        paint = 0.
+        for edge in (left,right):
+            near = abs(lateral[None,:]-edge[:,None]) <= .2
+            paint += np.mean(np.any(lane[rows] & near,axis=1) & longitudinal)*.5
+        coverage = float(np.mean(coverage_rows))
+        feasible = bool(np.all(coverage_rows >= self.config.road_support_threshold))
+        # Free-space support dominates paint and preference for a gentle curve.
+        score = coverage+clearance*.03+paint*.015
+        return coverage, feasible, score
 
     def update_bev(self, forward, lateral, road, lane, timestamp_s, projection=None):
-        """Observe and continue each side independently during continuous input."""
         c = self.config
         projection = np.eye(3) if projection is None else projection
-        empty = np.empty(0)
-        def unavailable(state):
-            return BoundaryEstimate(False, state, empty, empty, empty, projection)
-        def reset():
-            self.side_history = [None, None]
-            self.side_measurement = [None, None]
-            self.side_observed_time = [None, None]
-            self.pending_acquisition = [None, None]
-            self.previous = None
-
-        if not np.isfinite(timestamp_s):
-            reset()
-            return unavailable('invalid_timestamp')
-        if self.last_time is not None and timestamp_s <= self.last_time:
-            reset()
-            return unavailable('nonmonotonic_timestamp')
-        dt = .1 if self.last_time is None else min(timestamp_s-self.last_time, .2)
-        if self.last_time is not None and timestamp_s-self.last_time > c.max_missing_s:
-            reset()
-        self.last_time = timestamp_s
         forward, lateral = np.asarray(forward), np.asarray(lateral)
-        road_present = np.count_nonzero(np.any(road, axis=1)) >= 8
-        histories = list(self.side_history)
-        predictions = [None if h is None else np.interp(forward, h[0], h[1]) for h in histories]
-        references = [None if h is None else np.interp(forward, h[0], h[1]) for h in self.side_measurement]
-        candidates = []
-        for i in range(len(forward)):
-            indices = np.flatnonzero(lane[i])
-            runs = [r for r in np.split(indices, np.flatnonzero(np.diff(indices) > 1)+1) if len(r)]
-            values = [float(np.median(lateral[r])) for r in runs if lateral[r[-1]]-lateral[r[0]] <= .7]
-            candidates.append([v for v in values if np.any(road[i, abs(lateral-v) <= .4])])
-        curves, supports, states = [], [], []
-        for side in (0, 1):
-            curve, indices = self._observe_side(forward, candidates, side, references[side])
-            curves.append(curve)
-            supports.append(indices)
-            states.append('observed' if curve is not None else 'unavailable')
-
-        # Search independently of old association. Stable, longer evidence can
-        # replace a stale short fragment; one side does not require the other.
-        expired = [histories[i] is not None and self.side_observed_time[i] is not None and
-                   timestamp_s-self.side_observed_time[i] > c.max_lane_gap_s for i in (0, 1)]
-        if any(histories[i] is not None for i in (0, 1)):
-            fresh = [self._observe_side(forward, candidates, i) for i in (0, 1)]
-            pair_widens = False
-            if all(f[0] is not None for f in fresh) and all(h is not None for h in histories):
-                lo = max(h[0][0] for h in histories)
-                hi = min(h[0][-1] for h in histories)
-                common = (forward >= lo) & (forward <= hi)
-                if np.any(common):
-                    old_width = predictions[1][common]-predictions[0][common]
-                    new_width = fresh[1][0][common]-fresh[0][0][common]
-                    pair_widens = np.any(new_width <= .5) or np.median(new_width) > 1.25*np.median(old_width)
-                    # A short, wrongly acquired pair must not permanently lock
-                    # out much longer actual paint solely because of its width.
-                    stronger_pair = all(len(fresh[i][1]) >= max(20, len(histories[i][0])+8)
-                                        for i in (0, 1))
-                    if stronger_pair and np.all(new_width > .5):
-                        pair_widens = False
-            for side in (0, 1):
-                candidate, indices = fresh[side]
-                if candidate is None or histories[side] is None:
-                    self.pending_acquisition[side] = None
-                    continue
-                # A short noisy fragment must not outrank a continuous stripe.
-                better = len(indices) >= max(16, len(supports[side])+8)
-                missing = curves[side] is None and (expired[side] or len(indices) >= 16)
-                if pair_widens or not (missing or better):
-                    self.pending_acquisition[side] = None
-                    continue
-                pending = self.pending_acquisition[side]
-                count = pending[1]+1 if pending is not None and np.median(abs(candidate[indices]-pending[0][indices])) < .25 else 1
-                self.pending_acquisition[side] = (candidate, count)
-                if count >= 3:
-                    curves[side], supports[side], states[side] = candidate, indices, 'observed'
-                    self.pending_acquisition[side] = None
-
-        raw_curves = list(curves)
-        for side in (0, 1):
-            if curves[side] is not None:
-                # Returning paint may lie on a different segmentation region.
-                # Keep the displayed history as the interpolation anchor anyway.
-                curves[side] = self._smooth_side(curves[side], predictions[side], forward,
-                                                supports[side], histories[side], dt)
-        # Missing sides use only their own history, moved by the other side's
-        # observed change when available. Never invent an unseen opposite edge.
-        observed_curves = list(curves)
-        for side in (0, 1):
-            if curves[side] is not None:
-                continue
-            last, history = self.side_observed_time[side], histories[side]
-            # A paint/segmentation gap has no age limit. Frame discontinuities
-            # above still reset tracking; startup never invents an unseen side.
-            if history is None or last is None:
-                continue
-            other = 1-side
-            delta = np.zeros(len(forward))
-            if observed_curves[other] is not None and predictions[other] is not None:
-                measured = supports[other]
-                change = np.clip(observed_curves[other]-predictions[other],
-                                 -c.max_lateral_rate_m_s*dt, c.max_lateral_rate_m_s*dt)
-                # Continue endpoint motion beyond the visible side's range;
-                # never copy an unconstrained polynomial extrapolation tail.
-                delta = np.interp(forward, forward[measured], change[measured])
-            curves[side] = predictions[side]+delta
-            supports[side] = np.flatnonzero((forward >= history[0][0]) & (forward <= history[0][-1]))
-            states[side] = 'inferred' if road_present else 'held'
-
-        rendered = []
-        for side in (0, 1):
-            output = np.full(len(forward), np.nan)
-            curve, indices = curves[side], supports[side]
-            if curve is not None and len(indices):
-                selected = np.arange(indices[0], indices[-1]+1)
-                if road_present and states[side] == 'observed':
-                    # Validate this edge against nearby pavement, independently
-                    # of visibility/road coverage at the opposite edge.
-                    # Validate the measurement, not the in-flight interpolation:
-                    # otherwise a returning edge disappears until it has moved
-                    # all the way into the newly segmented road.
-                    nearby = np.array([np.any(road[i, abs(lateral-raw_curves[side][i]) <= .45]) for i in selected])
-                    runs = [r for r in np.split(selected[nearby], np.flatnonzero(np.diff(selected[nearby]) > 1)+1) if len(r)]
-                    selected = max(runs, key=len) if runs else np.empty(0, dtype=int)
-                if len(selected) >= 8 and np.ptp(forward[selected]) >= 3.:
-                    output[selected] = curve[selected]
-                else:
-                    states[side] = 'unavailable'
-            else:
-                states[side] = 'unavailable'
-            rendered.append(output)
-
-        # If fitted curves cross, suppress only the inferred/weaker conflicting
-        # portion. The other observed edge must remain visible.
-        common = np.isfinite(rendered[0]) & np.isfinite(rendered[1])
-        crossing = np.flatnonzero(common & (rendered[1]-rendered[0] <= .5))
-        if len(crossing):
-            weaker = 0 if states[0] != 'observed' and states[1] == 'observed' else 1
-            rendered[weaker][crossing[0]:] = np.nan
-            if np.count_nonzero(np.isfinite(rendered[weaker])) < 8:
-                rendered[weaker][:] = np.nan
-                states[weaker] = 'unavailable'
-
-        for side in (0, 1):
-            finite = np.isfinite(rendered[side])
-            if np.count_nonzero(finite) >= 8:
-                self.side_history[side] = (forward[finite].copy(), rendered[side][finite].copy())
-                if states[side] == 'observed':
-                    self.side_observed_time[side] = timestamp_s
-                    self.side_measurement[side] = (forward[finite].copy(), raw_curves[side][finite].copy())
-        selected = np.isfinite(rendered[0]) | np.isfinite(rendered[1])
-        if not np.any(selected):
-            return unavailable('lane_unavailable' if road_present else 'road_unavailable')
-        left, right = rendered[0][selected], rendered[1][selected]
-        both = np.isfinite(left) & np.isfinite(right)
-        state = 'partial' if not all(np.count_nonzero(np.isfinite(x)) >= 8 for x in (left, right)) else (
-            'tracking' if all(s == 'observed' for s in states) else 'inferred')
-        if np.count_nonzero(both) >= 8 and np.min(right[both]-left[both]) < c.width_m:
-            state = 'insufficient_width'
-        if not road_present:
-            state = 'held'
-        result = BoundaryEstimate(True, state, forward[selected].copy(), left, right, projection, *states)
-        self.previous = result
+        road, lane = np.asarray(road,dtype=bool), np.asarray(lane,dtype=bool)
+        if (forward.ndim != 1 or lateral.ndim != 1 or len(forward)<2 or len(lateral)<2
+                or road.shape != (len(forward),len(lateral)) or lane.shape != road.shape
+                or not np.all(np.isfinite(forward)) or not np.all(np.isfinite(lateral))
+                or np.any(np.diff(forward)<=0) or np.any(np.diff(lateral)<=0)):
+            raise ValueError('BEV masks require increasing finite coordinate axes')
+        geometry = self._geometry(self.curvature)
+        state, feasible, coverage = 'held', None, 0.
+        time_valid = np.isfinite(timestamp_s) and (self.last_time is None or timestamp_s>self.last_time)
+        if time_valid:
+            dt = .1 if self.last_time is None else min(timestamp_s-self.last_time,.2)
+            self.last_time = timestamp_s
+            if np.any(road):
+                ranked = []
+                for value, candidate in self.candidates:
+                    support, fits, score = self._support(candidate,forward,lateral,road,lane)
+                    # Prefer any feasible full-width route, then broader support.
+                    score -= .01*abs(value)/c.max_curvature_coefficient
+                    score -= .01*abs(value-self.curvature)/c.max_curvature_coefficient
+                    ranked.append(((fits,score),value,candidate))
+                _, target, desired = max(ranked,key=lambda item:item[0])
+                movement = max(np.max(abs(desired[0]-geometry[0])),np.max(abs(desired[1]-geometry[1])))
+                fraction = min(1.,c.max_lateral_rate_m_s*dt/max(movement,1e-9))
+                # Regenerate paired geometry during smoothing; independent
+                # coefficient interpolation would no longer enforce the width.
+                for _ in range(12):
+                    value = self.curvature+(target-self.curvature)*fraction
+                    trial = self._geometry(value)
+                    if trial is not None and max(np.max(abs(trial[0]-geometry[0])),
+                            np.max(abs(trial[1]-geometry[1]))) <= c.max_lateral_rate_m_s*dt+1e-8:
+                        self.curvature, geometry = value, trial
+                        break
+                    fraction *= .5
+                coverage, feasible, _ = self._support(geometry,forward,lateral,road,lane)
+                state = 'tracking' if feasible else 'blocked'
+        else:
+            state = 'invalid_timestamp'
+            if np.isfinite(timestamp_s):
+                self.last_time = timestamp_s
+        left,right,lc,rc,error = geometry
+        side_state = 'planned' if feasible else 'held'
+        result = BoundaryEstimate(True,state,self.forward.copy(),left.copy(),right.copy(),
+                                  projection,side_state,side_state,tuple(lc),tuple(rc),
+                                  error,coverage,feasible)
         return result
 
 
@@ -459,7 +359,7 @@ def draw_boundaries(frame, estimate, mask_size=None):
         if mask_size is not None:
             points = transform(points, estimate.projection)
             points *= np.array([frame.shape[1]/mask_size[0], frame.shape[0]/mask_size[1]])
-        draw_polyline(frame, points, color, dashed=state != 'observed')
+        draw_polyline(frame, points, color, dashed=state not in ('observed','planned'))
 
 
 def render_boundary_bev(estimate):

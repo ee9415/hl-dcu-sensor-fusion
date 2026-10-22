@@ -2,87 +2,74 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: observed white lane boundaries (0.19.2, 2026-10-21)
+## Current: fixed-anchor BEV boundary pair (0.20.0, 2026-10-22)
 
-The active pipeline fits the actual left/right painted boundaries independently.
-There is no center path, fixed corridor width, goal or turn preview. A local
-white/gray paint contrast test refines the NN lane mask using aligned RGB. An
-independent multi-scale RGB ridge detector also works when the NN lane mask is
-empty. Gaussian smoothing suppresses asphalt grain, while requiring contrast on
-both sides of an RGB-only ridge rejects broad bright vehicle edges. Road support
-is still required; this is independent of the lane head, not the road head.
-Each side tries several seeds and selects a long, continuous longitudinal stripe.
-Fresh candidates within 0.6 development units of the camera axis are excluded to
-reduce confusion with central road symbols. This is not a computed center path.
-Robust quadratic fitting and per-side association/rate limits follow the paint.
-Observed ranges require road support; historical inferred ranges are retained even
-when segmentation changes. Horizontal wide markings are
-rejected. The broad red NN lane overlay is hidden to make alignment visible.
+The active algorithm jointly selects two quadratic boundaries in BEV. Both near
+anchors stay fixed at forward distance zero. The requested normal width is vehicle
+width plus left/right margins. The boundaries remain visible from startup through
+missing paint/road evidence; absence of evidence is not a free-space confirmation.
+No center path, goal, turn preview or steering command is produced.
 
-`lane_boundaries.json` settings load at app startup:
+The left quadratic has a forward tangent at its fixed near anchor. Its exact
+normal offset supplies samples for a separate right quadratic fit with fixed C0.
+Pairs with excessive normal-width error, crossings or coordinates outside the BEV
+are rejected. This is a constrained quadratic approximation, not an exact parallel
+curve guarantee. The right coefficients can differ from the left coefficients.
+
+Candidate pairs are scored using support across the WHOLE corridor, additional
+pavement beside it, weak RGB/NN paint support and temporal/gentle-curve preferences.
+A feasible full-width candidate wins over an infeasible candidate. If none fits,
+the best-supported direction is approached without reducing width; state stays
+blocked until the displayed pair itself fits. Smoothing regenerates paired geometry
+and checks width error, anchors and per-frame displacement at every step.
+
+### Startup settings: `lane_boundaries.json`
 
 | Setting | Default | Meaning |
 | --- | ---: | --- |
-| `vehicle_width_m` | 1.8 | Provisional overall vehicle width |
-| `left_margin_m` / `right_margin_m` | 0.3 / 0.3 | Provisional clearance |
-| `observation_gate_m` | 0.65 | Boundary association distance in development coordinates |
-| `max_lateral_rate_m_s` | 1.0 | Per-side change limit after acquisition |
-| `max_missing_s` | 0.5 | Reset threshold for a gap between input frame timestamps |
-| `max_forward_m` | 25.0 | Maximum development forward extent |
-| `max_lane_gap_s` | 2.0 | Delay for short-evidence reacquisition; long evidence can recover earlier |
+| `vehicle_width_m` | 1.8 | Requested vehicle width |
+| `left_margin_m` / `right_margin_m` | 0.3 / 0.3 | Requested left/right margins |
+| `max_lateral_rate_m_s` | 1.0 | Maximum displayed lateral movement per second |
+| `max_forward_m` | 25.0 | Fixed forward display/search range |
+| `max_curvature_coefficient` | 0.02 | Left quadratic C2 search bound |
+| `width_tolerance_m` | 0.08 | Maximum sampled normal-width approximation error |
+| `road_support_threshold` | 0.9 | Required road fraction at EVERY sampled cross-section |
 
-Vehicle width plus margins is a **minimum clearance check only**, never a
-boundary offset or fitted width constraint. Actual paint positions remain visible
-even when the development width estimate is below this threshold; state is then
-`insufficient_width`. The IPM is uncalibrated, so this does not establish physical
-clearance or an actual narrow-road condition. Real vehicle dimensions and IPM
-calibration remain necessary.
+Anchors: left C0 = -vehicle_width/2-left_margin, right C0 = vehicle_width/2+right_margin.
+All geometry is still in **uncalibrated development BEV units** (12 lateral × 40
+forward). Fields ending in `_m` express intended metric settings but do not establish
+actual physical meters without calibration. These defaults do not reproduce arbitrary
+screenshot start pixels; inverse projection determines their image locations.
+Settings require app restart. Removed settings: observation_gate_m, max_missing_s,
+max_lane_gap_s. Unknown settings fail explicitly rather than silently changing geometry.
 
-Each side has its own observation range, history, association reference and
-observation age. A single observed side is valid and rendered even at startup. An unseen
-opposite side is not invented. When one boundary disappears, continue only that
-side from its own previous shape and the visible side's bounded observed change. When both disappear, retain their previous shapes
-without an age limit while input frames remain continuous, including absent road
-segmentation. Road widening alone never changes their width or direction. Distant
-stripes of a suddenly wider road are rejected. A returning side is reacquired
-independently after three stable observations, including outside the old gate.
-A candidate with at least 16 samples and 8 more than a tracked fragment can
-replace that fragment. When both fresh sides are available, a crossing pair or
-median width over 1.25 times the previous width blocks that replacement.
-The width gate permits recovery from a short wrong pair when BOTH fresh sides
-have at least 20 samples and 8 more than their historical ranges. Road widening
-without actual paint still does not expand the retained pair.
-Startup accepts either side independently; no vehicle-width corridor is invented
-on a completely unmarked road. Timestamp discontinuities reset history. This is
-image/BEV history continuation, not vehicle-motion compensation or route prediction;
-alignment during real turns on unmarked roads still needs field validation.
-Yellow is left, light blue is right; solid
-means observation-supported and dashed means inferred/held.
+### Output meaning
 
-Returning paint always uses the displayed history and the configured lateral rate
-limit over the common range, even if road segmentation has moved. Road support is
-checked against the raw measurement so interpolation does not disappear before it
-reaches the paint. Newly visible ranges have no previous coordinates for comparison.
+- `tracking`: the displayed corridor meets the sampled road-support threshold.
+- `blocked`: fixed width cannot currently be confirmed inside the road mask;
+  both boundaries remain drawn as dashed lines.
+- `held`: no road evidence; retain the last pair (straight pair at initial startup).
+- `invalid_timestamp`: keep the pair visible without applying motion; a finite clock
+  reset re-baselines timing for the next frame.
+- `boundary_valid`/side validity/`boundary_pair_valid`: geometry/display validity,
+  NOT permission to drive. They remain true for the initialized virtual pair.
+- `corridor_feasible` and compatibility `clearance_sufficient`: true/false/null
+  for sampled fit, insufficient support, or unknown. This is not a safety classifier.
+- `left_boundary_coefficients` / `right_boundary_coefficients`: `[C0,C1,C2]`, with
+  forward distance x and lateral position y in `y=C0+C1*x+C2*x*x`.
+- `normal_width_error_dev`, `road_coverage`: approximation and mask-support diagnostics.
+- `boundary_width_min_dev/max_dev`: same-forward horizontal separation, which is
+  intentionally different from normal width on bends.
+- `corridor_width_m` now specifies the requested fixed normal width.
 
-Settings edits require restarting a development run, or rebuilding/redeploying
-an installed app. Invalid values fail explicitly. Existing centerline modules
-and tests remain as history; they are not imported by the active processing node.
-Earlier sections below describe historical versions.
+CSV serializes both coefficient arrays as JSON. Legacy centerline columns remain
+empty/disabled for compatibility; the historical `CenterlineBEV` transport identifier
+is retained without any centerline pixels. RGB, object/Depth and recording paths are
+unchanged. The obsolete centerline/turn implementations and their tests/diagnostics
+were deleted; Git history and dated verification documents retain the earlier work.
 
-RGB, object/depth outputs, recording, timing metadata and RTSP ports are retained.
-The historical `CenterlineBEV` transport identifier remains, but its image has
-only boundaries. CSV keeps disabled/empty legacy centerline columns and adds
-`minimum_clearance_width_m`, `boundary_width_min_dev`, `boundary_width_max_dev`,
-`clearance_sufficient`. Version 0.17.0 adds `left_boundary_valid`,
-`right_boundary_valid`, `boundary_pair_valid`. `boundary_valid` now means at least
-one valid edge; pair validity requires enough common forward samples. A missing
-side or a sample outside that side's range is JSON `null` in its coordinate array,
-with the shared forward-array index preserved. Unknown width/clearance is blank
-in CSV, not a zero width or a confirmed failure. The older `corridor_width_m` field is retained as an alias
-of the configured minimum, not the measured lane width. Boundary arrays remain
-JSON arrays sharing `boundary_forward_dev` indices. Invalid results use `[]`.
-
-Verification: [independent left/right boundaries](../../docs/verification/camera/independent_boundaries_20261021.md).
+Host validation: [fixed BEV boundaries](../../docs/verification/camera/fixed_bev_boundaries_20261022.md).
+Older sections below are historical and do not define current boundary behavior.
 
 This app is intended to run entirely on an OAK4-D Pro (RVC4). It keeps the
 validated `1920x1080 NV12 -> H.264` camera path at a configured 10 FPS and branches the same frames
