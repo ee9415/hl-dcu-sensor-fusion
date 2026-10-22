@@ -83,9 +83,7 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertEqual(payload['frame_seq'], 7)
             self.assertIsNone(payload['corridor_width_m'])
             self.assertIsNone(payload['normal_width_error_dev'])
-            self.assertEqual(payload['boundary_model'],'trapezoid_segments')
-            self.assertEqual(payload['boundary_region_count'],7)
-            self.assertFalse(payload['segment_distance_calibrated'])
+            self.assertEqual(payload['boundary_model'],'image_motion')
             self.assertGreater(len(payload['left_boundary_image']),12)
             self.assertGreater(len(payload['right_boundary_image']),12)
             result = processor.result.send.call_args.args[0]
@@ -119,7 +117,4 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertFalse(payload['centerline_valid'])
             result=partial.result.send.call_args.args[0]
             self.assertTrue(np.any(np.all(result.data==(0,220,255),axis=2)))
-            self.assertEqual(payload['right_boundary_state'],'inferred')
-            confidence=payload['right_boundary_confidence']
-            muted=tuple(int(c*(.35+.35*confidence)) for c in (255,180,0))
-            self.assertTrue(np.any(np.all(result.data==muted,axis=2)))
+            self.assertTrue(np.any(np.all(result.data==(255,180,0),axis=2)))

@@ -27,11 +27,7 @@ FRAME_FIELDS = ['session', 'frame_seq', 'nn_seq', 'depth_seq', 'capture_timestam
                 'boundary_reference_side','left_boundary_confidence','right_boundary_confidence',
                 'boundary_confidence_kind','stop_line_state','stop_line_confidence',
                 'stop_line_confidence_kind','stop_line_valid','stop_line_points', 'boundary_model',
-                'left_boundary_image','right_boundary_image','motion_confidence','motion_matrix',
-                'left_display_residual_px','right_display_residual_px',
-                'left_observation_age_s','right_observation_age_s','boundary_ms','stop_line_ms',
-                'boundary_region_count','boundary_region_vertices','boundary_node_states',
-                'boundary_node_confidence','segment_units','segment_distance_calibrated','segment_length_m']
+                'left_boundary_image','right_boundary_image','motion_confidence','motion_matrix']
 OBJECT_FIELDS = ['session', 'frame_seq', 'object_index', 'label', 'confidence',
                  'xmin', 'ymin', 'xmax', 'ymax', 'depth_valid', 'x_m', 'y_m', 'z_m']
 
@@ -129,8 +125,7 @@ class FrameCsvLogger:
                                         row['receive_delay_est_ms'] = ''
                                         row['transport_delay_est_ms'] = ''
                                     for key in ('boundary_forward_dev', 'left_boundary_dev', 'right_boundary_dev',
-                                                'left_boundary_coefficients', 'right_boundary_coefficients', 'stop_line_points', 'left_boundary_image', 'right_boundary_image', 'motion_matrix',
-                                                'boundary_region_vertices','boundary_node_states','boundary_node_confidence'):
+                                                'left_boundary_coefficients', 'right_boundary_coefficients', 'stop_line_points', 'left_boundary_image', 'right_boundary_image', 'motion_matrix'):
                                         row[key] = json.dumps(p[key], allow_nan=False) if key in p else ''
                                     for i, value in enumerate(p.get('coefficients') or ['', '', '', '']):
                                         row[f'c{i}'] = value

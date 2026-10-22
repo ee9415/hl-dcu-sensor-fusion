@@ -2,82 +2,39 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current code: connected trapezoid regions (0.27.0, 2026-10-22)
+## Current: image-first motion-compensated boundaries (0.25.0, 2026-10-22)
 
-`Yolopv2Postprocess` now uses `TrapezoidBoundaryTracker`. This implements the
-proposed default trapezoid split into seven connected regions: eight horizontal
-cross-sections share left/right vertices. Straight sections stay straight;
-curves translate successive cross-sections. White paint is searched locally
-around each outer edge, not treated as identical to the initial polygon.
+The active node uses `ImageBoundaryTracker`, not the fixed-anchor BEV candidate search.
+Each side follows RGB white-paint evidence near the segmented pavement, excluding
+object boxes. Brightness relative to pavement, connected support over 20 image rows,
+and robust quadratic residual gate observations. Image coordinates are 320x180.
+No fixed C0 or 2.1 width is imposed, and no centerline is produced.
 
-`trapezoid_boundaries.json` configures rows, base edges, local search range,
-correction limits, paint support and region crossbar display. Rows are image
-coordinates at 320x180, with closer spacing in the distance. They are NOT 2m
-intervals: metric spacing needs camera/ground-plane calibration, especially
-for handheld pitch and slopes. Telemetry explicitly reports image units,
-`segment_distance_calibrated=false`, `segment_length_m=null`.
+A 160x90 sparse patch matcher estimates robust affine road-image motion between
+consecutive frames. Motion velocity is low-pass filtered (0.25s time constant),
+with 0.6s damping when flow is unreliable. With no observed lines, movement itself
+decays over 1.5s, retaining the last shape instead of drifting indefinitely.
+The full quadratic is retained/replenished over the tracking rows, preventing
+successive warps from eroding visible support. If a warp loses almost all visible
+support the last curve is retained. Confidence still decays independently.
+A visible opposite side gradually guides the missing side using the learned image
+width profile. If only one side has ever been seen, a low-confidence perspective
+width prior initializes the opposite side; this is NOT a 2.1m or fixed-C0 constraint.
+Timestamp resets/gaps and scene cuts still clear stale history. Before any side has
+been seen, both boundaries remain unavailable. This is visual motion inertia, not
+vehicle acceleration/IMU measurement or proof of drivable free space.
 
-- Road segmentation can translate a cross-section by a small amount when the
-  corridor leaves pavement. It cannot expand its width. White paint is primary.
-- Shared vertices and a penalty on heading changes prevent independent regions
-  from separating. Shape-preserving interpolation joins the outer boundaries;
-  there is no extrapolation beyond the first/last visible cross-section.
-- Each node tracks its own observation/state/confidence. Missing nodes keep
-  motion-compensated history or infer from the opposite side and prior width.
-  Width changes are learned slowly only where both sides are observed.
-- Distant candidates require three consistent detections; reacquisition moves
-  at most 5 tracking pixels per update relative to the motion prediction before
-  geometry constraints. The configured base region is present from startup
-  at zero confidence, not falsely labelled as observed paint.
-- Far rendering stops where the contiguous road-supported corridor ends. If
-  segmentation vanishes entirely, the previous extent is retained. No centerline
-  is rendered or exported. A zero-confidence guide is not evidence of free space.
-- Optional crossbars show the connected regions; only supported observed edge
-  intervals are highlighted. Telemetry/CSV export all shared vertices and node
-  states/confidences for inspection.
+Reacquisition blends with the motion prediction (8 tracking pixels per-frame correction
+by interpolating complete quadratic curves). ALIGNING is distinguished from OBSERVED, and
+confidence decreases with disagreement. This is not a calibrated probability or a
+bound on camera-motion displacement or newly entering image regions. Handheld motion, parallax, shadows,
+worn markings and long occlusions remain validation limitations.
 
-52 existing and 11 new regression tests pass. Offline comparison and limitations:
-`docs/verification/camera/trapezoid_regions_20261022.md`.
-0.27.0 has NOT been deployed or measured at 10 FPS on the camera in this change.
-The device remains on 0.26.0. The old tracker remains available for offline A/B
-comparison; the active node no longer uses its global curve fit.
-
-## Historical: bounded image-motion tracking (0.26.0, 2026-10-22)
-
-The active `ImageBoundaryTracker` follows RGB white paint in 320x180 image
-coordinates. No fixed lower anchor, 2.1m width or centerline is imposed.
-BEV is an uncalibrated display projection only, not a tracking constraint.
-
-Measured affine road motion is applied directly. Smoothed velocity (0.25s)
-is used only when registration fails, then decays with a 0.6s time constant.
-Missing paint does not attenuate valid motion. Each side retains its own warped
-history. Opposite-side inference initializes absent history, or slowly repairs history
-older than 1s with confidence below 0.1. Such repair stays below 0.1 confidence;
-reliable own history is not overwritten. Learned width geometry is warped
-with the image. A reliable opposite line cannot be acquired as the same side.
-
-Paint candidates use local brightness, road/object masks and robust fitting.
-Short support uses a line; longer support allows bounded curvature. Reliable
-nearby evidence outranks remote candidates. A remote candidate needs three
-consistent detections in five frames. Outside measured support, only endpoint
-tangents are extended. Complete curves blend directly with an 8 tracking-pixel
-maximum measurement correction per frame, avoiding global polynomial refits
-and accumulated local-taper kinks. Latent x coordinates are bounded to -32..352
-so repeated affine expansion outside the image cannot diverge indefinitely.
-When both observations are absent and the extrapolated pair crosses or leaves
-the view, the last drawable pair is HELD with reduced confidence.
-
-OBSERVED requires displayed-to-candidate p90 residual <=4 pixels; otherwise
-ALIGNING is reported and confidence is reduced by residual. Missing evidence
-reduces confidence over time. Confidence is heuristic, not calibrated accuracy.
-The full estimate remains a muted solid line; current observed support is
-highlighted. Telemetry/CSV report residual, observation age and stage timings.
-A long-held estimate can be geometrically wrong despite remaining visible.
-
-Before either side has ever been observed, boundaries remain unavailable.
-Timestamp discontinuities and scene cuts clear history. Handheld pitch, parallax,
-worn paint, parking markings and long occlusion remain validation limitations.
-The existing stop-line detector still operates between image boundaries.
+BEV is only an **uncalibrated reference projection for display**. Its parameters in
+`lane_boundaries.json` do not constrain image tracking. Legacy width/C0/search settings
+are inactive in the new tracker. Telemetry sets corridor_width_m and metric error fields
+to null, exports left/right_boundary_image, motion_matrix and motion_confidence.
+The existing stop-line detector operates between the image boundaries.
 
 ## Historical: fixed-anchor BEV boundary pair (0.23.0)
 
@@ -394,7 +351,3 @@ Telemetry/CSV adds left/right_boundary_confidence, boundary_reference_side,
 stop_line_state/confidence/valid/points and confidence_kind fields. RGB and BEV
 show side confidence/source plus STOP state and score. Restart the host recorder
 to pick up newly added CSV columns.
-
-When neither side is observed, extrapolated crossing/offscreen pairs fall back
-to the last drawable pair as HELD with additional confidence reduction. This
-keeps a virtual guide but does not assert its location matches unseen paint.
