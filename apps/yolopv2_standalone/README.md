@@ -2,20 +2,27 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: image-first motion-compensated boundaries (0.24.0, 2026-10-22)
+## Current: image-first motion-compensated boundaries (0.25.0, 2026-10-22)
 
 The active node uses `ImageBoundaryTracker`, not the fixed-anchor BEV candidate search.
 Each side follows RGB white-paint evidence near the segmented pavement, excluding
-object boxes. Brightness relative to pavement, connected support over 32 image rows,
+object boxes. Brightness relative to pavement, connected support over 20 image rows,
 and robust quadratic residual gate observations. Image coordinates are 320x180.
 No fixed C0 or 2.1 width is imposed, and no centerline is produced.
 
 A 160x90 sparse patch matcher estimates robust affine road-image motion between
-consecutive frames. Missing observed boundaries are warped into the current frame;
-when motion is unreliable they are held with faster confidence decay. No timeout
-alone deletes a line, but out-of-view geometry, timestamp gaps/resets and scene cuts
-can invalidate it. A previously measured image-width profile can supply an unseen
-side. Without any observation/history, an arbitrary initial pair is not fabricated.
+consecutive frames. Motion velocity is low-pass filtered (0.25s time constant),
+with 0.6s damping when flow is unreliable. With no observed lines, movement itself
+decays over 1.5s, retaining the last shape instead of drifting indefinitely.
+The full quadratic is retained/replenished over the tracking rows, preventing
+successive warps from eroding visible support. If a warp loses almost all visible
+support the last curve is retained. Confidence still decays independently.
+A visible opposite side gradually guides the missing side using the learned image
+width profile. If only one side has ever been seen, a low-confidence perspective
+width prior initializes the opposite side; this is NOT a 2.1m or fixed-C0 constraint.
+Timestamp resets/gaps and scene cuts still clear stale history. Before any side has
+been seen, both boundaries remain unavailable. This is visual motion inertia, not
+vehicle acceleration/IMU measurement or proof of drivable free space.
 
 Reacquisition blends with the motion prediction (8 tracking pixels per-frame correction
 by interpolating complete quadratic curves). ALIGNING is distinguished from OBSERVED, and

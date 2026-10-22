@@ -33,7 +33,7 @@ class ImageBoundaryTests(unittest.TestCase):
         a=self.update(t,self.scene(),1)
         b=self.update(t,self.scene(right=False),2)
         self.assertTrue(b.pair_valid)
-        self.assertEqual(b.right_state,'held')
+        self.assertEqual(b.right_state,'inferred')
         self.assertLess(b.right_confidence,a.right_confidence)
         c=self.update(t,self.scene(5),3)
         self.assertIn(c.right_state,('observed','aligning'))
@@ -103,8 +103,33 @@ class ImageBoundaryTests(unittest.TestCase):
         b=self.update(t,image,1)
         self.assertEqual(b.left_state,'predicted')
         self.assertGreater(b.motion_confidence,.7)
-        expected=t._warp(a.image_left,np.array([[1,0,6],[0,1,4]]))
+        expected=t._warp(a.image_left,b.motion_matrix)
         common=np.isfinite(expected[:,0])&np.isfinite(b.image_left[:,0])
         self.assertLess(np.mean(abs(expected[common,0]-b.image_left[common,0])),.5)
+
+    def test_long_occlusion_preserves_pair_and_damps_drift(self):
+        from unittest.mock import patch
+        t=ImageBoundaryTracker();self.update(t,self.scene(),0)
+        blank=np.full((180,320,3),60,np.uint8)
+        flow=np.array([[1,0,1.5],[0,1,2.]])
+        with patch('image_boundaries.road_motion',return_value=(flow,.9)):
+            for i in range(1,301):
+                b=self.update(t,blank,i)
+                self.assertTrue(b.pair_valid)
+                self.assertTrue(np.isfinite(b.image_left).all())
+                self.assertTrue(np.isfinite(b.image_right).all())
+                if i==200:late=b.image_left.copy()
+        self.assertLess(np.max(abs(b.image_left-late)),.05)
+        self.assertLess(b.left_confidence,.01)
+        recovered=self.update(t,self.scene(),301)
+        self.assertTrue(recovered.pair_valid)
+        self.assertIn(recovered.left_state,('observed','aligning'))
+
+    def test_single_initial_side_supplies_low_confidence_pair(self):
+        t=ImageBoundaryTracker();b=self.update(t,self.scene(right=False),0)
+        self.assertTrue(b.pair_valid)
+        self.assertEqual(b.right_state,'inferred')
+        self.assertLess(b.right_confidence,b.left_confidence)
+        self.assertIsNone(b.telemetry()['corridor_width_m'])
 
 if __name__=='__main__':unittest.main()

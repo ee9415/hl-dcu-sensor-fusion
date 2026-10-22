@@ -99,7 +99,7 @@ class BoundaryPipelineTests(unittest.TestCase):
                 rgb_only._tensor=MagicMock()
                 rgb_only.process(Frame(),Frame(),Frame())
             self.assertTrue(server.return_value.publish.call_args.args[0]['boundary_pair_valid'])
-            # A fresh tracker must not fabricate the unseen side without history.
+            # One observed side initializes a low-confidence image perspective prior.
             partial_lane=lane.copy()
             partial_lane[:,160:]=0
             partial_source=source.copy()
@@ -112,9 +112,9 @@ class BoundaryPipelineTests(unittest.TestCase):
             payload=server.return_value.publish.call_args.args[0]
             self.assertTrue(payload['boundary_valid'])
             self.assertTrue(payload['left_boundary_valid'])
-            self.assertFalse(payload['right_boundary_valid'])
-            self.assertFalse(payload['boundary_pair_valid'])
+            self.assertTrue(payload['right_boundary_valid'])
+            self.assertTrue(payload['boundary_pair_valid'])
             self.assertFalse(payload['centerline_valid'])
             result=partial.result.send.call_args.args[0]
             self.assertTrue(np.any(np.all(result.data==(0,220,255),axis=2)))
-            self.assertFalse(np.any(np.all(result.data==(255,180,0),axis=2)))
+            self.assertTrue(np.any(np.all(result.data==(255,180,0),axis=2)))

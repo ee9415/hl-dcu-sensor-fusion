@@ -108,6 +108,17 @@ class ImageBoundaryTracker:
         self.last_time=None
         self.width=None
         self.last_candidate_count=0
+        self.motion_velocity=np.zeros((2,3))
+        self.missing_seconds=0.
+
+    def _complete(self, points):
+        """Keep a full curve model; visibility must not erode temporal memory."""
+        good=np.isfinite(points).all(axis=1)
+        if good.sum()<8:
+            return None
+        coeff=np.polynomial.polynomial.polyfit((points[good,1]-125)/50,points[good,0],2)
+        values=np.polynomial.polynomial.polyval((self.rows-125)/50,coeff)
+        return np.column_stack((values,self.rows))
 
     def _warp(self, points, matrix):
         if points is None:
@@ -117,8 +128,10 @@ class ImageBoundaryTracker:
         order=np.argsort(p[:,1]);p=p[order]
         if len(p)<8:
             return None
-        values=np.interp(self.rows,p[:,1],p[:,0],left=np.nan,right=np.nan)
-        return np.column_stack((values,self.rows))
+        result=self._complete(p)
+        if result is None or np.count_nonzero((result[:,0]>0)&(result[:,0]<319))<12:
+            return points.copy()
+        return result
 
     def _detect(self, paint, side, prior):
         # Start at any supported near/middle row, not at a fixed C0 anchor.
@@ -143,16 +156,16 @@ class ImageBoundaryTracker:
                 ys.append(y);xs.append(value);last=y
                 if len(ys)>=4:
                     slope=float(np.clip((xs[-1]-xs[-4])/(ys[-1]-ys[-4]),-2.,2.))
-            if len(ys)<14 or np.ptp(ys)<32:
+            if len(ys)<10 or np.ptp(ys)<20:
                 continue
             ys,xs=np.array(ys),np.array(xs)
             good=np.ones(len(xs),bool)
             for _ in range(3):
-                if good.sum()<12:break
+                if good.sum()<10:break
                 coeff=np.polynomial.polynomial.polyfit((ys[good]-125)/50,xs[good],2)
                 residual=abs(np.polynomial.polynomial.polyval((ys-125)/50,coeff)-xs)
                 good=residual<3.5
-            if good.sum()<12 or np.ptp(ys[good])<32:
+            if good.sum()<10 or np.ptp(ys[good])<20:
                 continue
             residual=float(np.mean(residual[good]))
             score=float(.45*min(1,np.ptp(ys[good])/75)+.3*good.mean()+.25*np.exp(-residual/2))
@@ -212,13 +225,27 @@ class ImageBoundaryTracker:
         reset=not np.isfinite(timestamp_s) or dt<=0 or dt>1.
         if reset:
             self.history=[None,None];self.previous=None;self.width=None;self.scores=[0.,0.]
+            self.motion_velocity[:]=0.;self.missing_seconds=0.
         motion,motion_score=road_motion(self.previous,gray,allowed[::2,::2])
         # A discontinuous source cut must not carry old boundaries into a new scene.
         if self.previous is not None and motion_score==0 and np.mean(abs(gray-self.previous))>45:
             self.history=[None,None];self.width=None;self.scores=[0.,0.]
+            self.motion_velocity[:]=0.;self.missing_seconds=0.
         self.previous=gray;self.last_time=timestamp_s if np.isfinite(timestamp_s) else None
+        identity=np.array([[1.,0.,0.],[0.,1.,0.]])
+        step=float(np.clip(dt if np.isfinite(dt) else .1,.01,.2))
+        if motion_score:
+            # Filter motion velocity, so noisy alternating flow cannot reverse
+            # the boundary instantly. This is visual inertia, not measured IMU.
+            alpha=1-np.exp(-step/.25)
+            self.motion_velocity=(1-alpha)*self.motion_velocity+alpha*(motion-identity)/step
+        else:
+            self.motion_velocity*=np.exp(-step/.6)
+        # Unobserved motion decays to a retained shape instead of drifting away.
+        motion=identity+self.motion_velocity*step*np.exp(-self.missing_seconds/1.5)
         predicted=[self._warp(p,motion) for p in self.history]
         observations=[self._detect(paint,s,predicted[s]) for s in (0,1)]
+        self.missing_seconds=0. if any(o is not None for o in observations) else self.missing_seconds+step
         output=[];states=[];scores=[]
         for s,observation in enumerate(observations):
             prior=predicted[s]
@@ -252,22 +279,39 @@ class ImageBoundaryTracker:
                 # junction. Refit the entire displayed curve, unconstrained C0.
                 coeff=np.polynomial.polynomial.polyfit((p[good,1]-125)/50,p[good,0],2)
                 p[good,0]=np.polynomial.polynomial.polyval((p[good,1]-125)/50,coeff)
-                p[(p[:,0]<0)|(p[:,0]>319),0]=np.nan
+                p=self._complete(p)
             output.append(p);states.append(state);scores.append(float(score))
         common=np.isfinite(output[0][:,0])&np.isfinite(output[1][:,0])
         if common.sum()>=8 and np.any(output[0][common,0]+6>=output[1][common,0]):
             loser=int(scores[1]<scores[0])
-            output[loser][:,0]=np.nan;states[loser]='unavailable';scores[loser]=0.
+            if predicted[loser] is not None:
+                output[loser]=predicted[loser].copy();states[loser]='held';scores[loser]*=.5
+            else:
+                output[loser][:,0]=np.nan;states[loser]='unavailable';scores[loser]=0.
         if all(o is not None for o in observations):
             widths=output[1][:,0]-output[0][:,0]
             valid=np.isfinite(widths)&(widths>12)
             if valid.sum()>=12:
-                self.width=widths.copy()
+                learned=np.interp(self.rows[::-1],self.rows[valid][::-1],widths[valid][::-1])[::-1]
+                self.width=learned if self.width is None else .9*self.width+.1*learned
         # Only a previously observed width profile may supply an unseen side.
         for s in (0,1):
-            if states[s]=='unavailable' and self.width is not None and observations[1-s] is not None:
-                output[s][:,0]=output[1-s][:,0]+self.width*(-1 if s==0 else 1)
-                scores[s]=scores[1-s]*.4;states[s]='inferred'
+            if observations[s] is None and observations[1-s] is not None:
+                # Bootstrap is a low-confidence image perspective prior, never
+                # a physical 2.1m constraint. Replace it with measured spacing.
+                width=self.width if self.width is not None else np.clip(1.6*(self.rows-65),24,240)
+                target=output[1-s][:,0]+width*(-1 if s==0 else 1)
+                if predicted[s] is not None:
+                    delta=target-predicted[s][:,0]
+                    fraction=min(.15,3./max(float(np.max(abs(delta))),1e-6))
+                    target=predicted[s][:,0]+fraction*delta
+                output[s]=np.column_stack((target,self.rows))
+                scores[s]=min(scores[1-s]*.4,max(scores[s],.05));states[s]='inferred'
+        common=np.isfinite(output[0][:,0])&np.isfinite(output[1][:,0])
+        if common.any() and np.any(output[0][common,0]+6>=output[1][common,0]):
+            # Keep the last coherent pair if an observation would cross sides.
+            if all(p is not None for p in self.history):
+                output=[p.copy() for p in self.history];states=['held','held']
         self.history=[p.copy() if np.isfinite(p[:,0]).sum()>=8 else None for p in output]
         self.scores=scores
         observed=[s for s,o in enumerate(observations) if o is not None]
