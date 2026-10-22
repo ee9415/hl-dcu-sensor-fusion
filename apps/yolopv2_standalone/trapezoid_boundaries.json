@@ -1,0 +1,11 @@
+{
+  "rows": [174, 154, 138, 125, 114, 105, 98, 92],
+  "base_left": [61.9, 79.9, 94.3, 106, 115.9, 124, 130.3, 135.7],
+  "base_right": [258.1, 240.1, 225.7, 214, 204.1, 196, 189.7, 184.3],
+  "search_radius": 22,
+  "max_search_radius": 40,
+  "correction_px": 5,
+  "road_shift_px": 2,
+  "min_paint_support": 0.55,
+  "show_regions": true
+}

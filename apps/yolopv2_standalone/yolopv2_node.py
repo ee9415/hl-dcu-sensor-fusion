@@ -5,7 +5,7 @@ import depthai as dai
 import numpy as np
 from telemetry_server import TelemetryServer
 from stop_line import StopLineTracker, draw_stop_line
-from image_boundaries import ImageBoundaryTracker
+from trapezoid_boundaries import TrapezoidBoundaryTracker
 from lane_boundaries import (BoundaryConfig, BoundaryEstimate,
                              draw_boundaries, render_boundary_bev)
 
@@ -247,7 +247,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._frames = 0
         self._started_at = time.monotonic()
         self._last_health_at = self._started_at
-        self._boundary_tracker = ImageBoundaryTracker(BoundaryConfig.load())
+        self._boundary_tracker = TrapezoidBoundaryTracker(BoundaryConfig.load())
         self._stop_line_tracker = StopLineTracker()
 
     def build(

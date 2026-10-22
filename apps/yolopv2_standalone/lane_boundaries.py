@@ -521,6 +521,14 @@ def boundary_points(estimate, side):
 def draw_boundaries(frame, estimate, mask_size=None):
     if not estimate.valid:
         return
+    if getattr(estimate, 'show_regions', False):
+        for k in range(estimate.region_count+1):
+            points = estimate.vertices[:, k, :].copy()
+            if mask_size is None:
+                points = transform(points, np.linalg.inv(estimate.projection))
+            else:
+                points *= np.array([frame.shape[1]/mask_size[0], frame.shape[0]/mask_size[1]])
+            draw_polyline(frame, points, (90, 85, 65), thickness=1)
     for side, color, state in (('left', (0, 220, 255), estimate.left_state),
                                ('right', (255, 180, 0), estimate.right_state)):
         if not getattr(estimate, side+'_valid'):
@@ -536,10 +544,10 @@ def draw_boundaries(frame, estimate, mask_size=None):
             muted=tuple(int(c*strength) for c in color)
             draw_polyline(frame,points,muted,thickness=1,dashed=False)
             support=getattr(estimate,side+'_support',None)
-            if support is not None and state in ('observed','aligning'):
+            if support is not None and (state in ('observed','aligning') or hasattr(estimate, 'node_states')):
                 measured_points=points.copy()
                 measured_points[~support]=np.nan
-                highlight=color if state=='observed' else tuple(int(c*.75) for c in color)
+                highlight=color if state=='observed' or hasattr(estimate, 'node_states') else tuple(int(c*.75) for c in color)
                 draw_polyline(frame,measured_points,highlight,thickness=2,dashed=False)
         else:
             draw_polyline(frame, points, color, thickness=3, dashed=False)

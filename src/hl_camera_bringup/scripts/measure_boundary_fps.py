@@ -62,7 +62,7 @@ def main():
                 max_lateral_rate=max(rates) if rates else None,
                 motion_valid_frames=sum(f.get('motion_confidence',0)>0 for f in frames),
                 boundary_models=dict(Counter(f.get('boundary_model','bev') for f in frames)))
-    if any(f.get('boundary_model')=='image_motion' for f in frames):
+    if any(f.get('boundary_model') in ('image_motion','trapezoid_segments') for f in frames):
         report['max_frame_lateral_step']=None
         report['max_lateral_rate']=None
     for field in ('boundary_ms','stop_line_ms','left_display_residual_px','right_display_residual_px'):

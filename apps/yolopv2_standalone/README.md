@@ -2,7 +2,47 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: bounded image-motion tracking (0.26.0, 2026-10-22)
+## Current code: connected trapezoid regions (0.27.0, 2026-10-22)
+
+`Yolopv2Postprocess` now uses `TrapezoidBoundaryTracker`. This implements the
+proposed default trapezoid split into seven connected regions: eight horizontal
+cross-sections share left/right vertices. Straight sections stay straight;
+curves translate successive cross-sections. White paint is searched locally
+around each outer edge, not treated as identical to the initial polygon.
+
+`trapezoid_boundaries.json` configures rows, base edges, local search range,
+correction limits, paint support and region crossbar display. Rows are image
+coordinates at 320x180, with closer spacing in the distance. They are NOT 2m
+intervals: metric spacing needs camera/ground-plane calibration, especially
+for handheld pitch and slopes. Telemetry explicitly reports image units,
+`segment_distance_calibrated=false`, `segment_length_m=null`.
+
+- Road segmentation can translate a cross-section by a small amount when the
+  corridor leaves pavement. It cannot expand its width. White paint is primary.
+- Shared vertices and a penalty on heading changes prevent independent regions
+  from separating. Shape-preserving interpolation joins the outer boundaries;
+  there is no extrapolation beyond the first/last visible cross-section.
+- Each node tracks its own observation/state/confidence. Missing nodes keep
+  motion-compensated history or infer from the opposite side and prior width.
+  Width changes are learned slowly only where both sides are observed.
+- Distant candidates require three consistent detections; reacquisition moves
+  at most 5 tracking pixels per update relative to the motion prediction before
+  geometry constraints. The configured base region is present from startup
+  at zero confidence, not falsely labelled as observed paint.
+- Far rendering stops where the contiguous road-supported corridor ends. If
+  segmentation vanishes entirely, the previous extent is retained. No centerline
+  is rendered or exported. A zero-confidence guide is not evidence of free space.
+- Optional crossbars show the connected regions; only supported observed edge
+  intervals are highlighted. Telemetry/CSV export all shared vertices and node
+  states/confidences for inspection.
+
+52 existing and 11 new regression tests pass. Offline comparison and limitations:
+`docs/verification/camera/trapezoid_regions_20261022.md`.
+0.27.0 has NOT been deployed or measured at 10 FPS on the camera in this change.
+The device remains on 0.26.0. The old tracker remains available for offline A/B
+comparison; the active node no longer uses its global curve fit.
+
+## Historical: bounded image-motion tracking (0.26.0, 2026-10-22)
 
 The active `ImageBoundaryTracker` follows RGB white paint in 320x180 image
 coordinates. No fixed lower anchor, 2.1m width or centerline is imposed.
