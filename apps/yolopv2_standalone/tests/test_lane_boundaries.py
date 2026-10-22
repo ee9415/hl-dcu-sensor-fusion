@@ -107,8 +107,9 @@ class BoundaryTests(unittest.TestCase):
 
     def test_all_search_candidates_meet_normal_width_tolerance(self):
         self.assertGreater(len(self.tracker.candidates),5)
-        for value,geometry in self.tracker.candidates:
+        for (value,heading),geometry in self.tracker.candidates:
             self.tracker.curvature=value
+            self.tracker.heading=heading
             result=self.update((np.zeros((81,241),bool),np.zeros((81,241),bool)),value+10)
             self.assert_geometry(result)
 
@@ -116,6 +117,31 @@ class BoundaryTests(unittest.TestCase):
         road,lane=self.masks(-2,2,True)
         lane[:,self.lateral>0]=False
         self.assert_geometry(self.update((road,lane)))
+
+    def test_heading_follows_paint_in_broad_road_without_moving_anchors(self):
+        target=self.tracker._geometry(-.002,.15)
+        road,lane=self.masks()
+        for edge in target[:2]:
+            lane[np.arange(81),np.argmin(abs(self.lateral[None,:]-edge[:,None]),axis=1)]=True
+        first=self.update((road,lane))
+        for n in range(1,45): result=self.update((road,lane),n*.1)
+        self.assert_geometry(result)
+        self.assertGreater(result.left_coefficients[1],.05)
+        self.assertLess(np.mean(abs(result.left-target[0])),np.mean(abs(first.left-target[0])))
+
+    def test_fixed_image_anchors_and_continuous_lines_when_blocked(self):
+        from lane_boundaries import boundary_points
+        result=self.update(self.masks(-.6,.6))
+        h,w=180,320
+        projection=projection_for((h,w))
+        for side,u in (('left',.12),('right',.88)):
+            points=boundary_points(result,side)
+            actual=transform(points[:1],projection)[0]
+            np.testing.assert_allclose(actual,[u*(w-1),.98*(h-1)],atol=1e-7)
+        image=render_boundary_bev(result)
+        for side,color in (('left',(0,220,255)),('right',(255,180,0))):
+            points=np.rint(boundary_points(result,side)).astype(int)
+            self.assertTrue(np.all(image[points[:,1],points[:,0]]==color))
 
     def test_unobserved_forward_range_is_not_reported_feasible(self):
         road,lane=self.masks()
@@ -126,8 +152,8 @@ class BoundaryTests(unittest.TestCase):
     def test_mask_projection_render_and_json(self):
         h, w = 180, 320
         projection = projection_for((h, w))
-        source = np.array([[.04*(w-1), .98*(h-1)], [.62*(w-1), .38*(h-1)]])
-        np.testing.assert_allclose(transform(source, np.linalg.inv(projection)), [[0,479],[639,0]], atol=1e-7)
+        source = np.array([[.12*(w-1), .98*(h-1)], [.54*(w-1), .60*(h-1)]])
+        np.testing.assert_allclose(transform(source, np.linalg.inv(projection)), [[.4*639,479],[.6*639,0]], atol=1e-7)
         road = np.full((h, w), 255, np.uint8)
         lane = np.zeros_like(road)
         for side in (-2.5,3.):

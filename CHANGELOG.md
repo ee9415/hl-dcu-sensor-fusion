@@ -271,3 +271,10 @@
 ### Compatibility (초기)
 
 - 기존 Namespace, Topic, TF, Driver 구현이 없어 호환성 변경 없음
+
+## 2026-10-22 — 0.21.0 하단 고정 실선 경계
+
+- 하단 투영 기준점 고정, C1/C2 동시 탐색, 근거리 연결 흰색선 추종 강화.
+- 중심선 없이 좌우 실선 유지, 멀티뷰 하단 잘림 수정.
+- 24 테스트 통과 및 192.168.201.2 배포/멀티뷰 확인.
+- 상세: docs/verification/camera/anchored_solid_boundaries_20261022.md.

@@ -431,3 +431,10 @@ Depth 결합, 3차식 중심선, 후처리 영상 표시, ROS2 구조화 데이�
 - 시스템 `/` 파티션 사용률은 약 87%로 새 앱 이미지 누적 관리가 필요하다.
 - 상세 표본과 해석은 `docs/verification/camera/oak4_runtime_resource_snapshot.md`에
   기록했다.
+
+## 2026-10-22 현재 카메라: 0.21.0
+
+192.168.201.2에 하단 고정 시작점·고정 폭·실선 경계 개선 배포 완료.
+중심선 없음, 실제 멀티뷰 표시 확인. 24개 테스트 통과.
+카메라 평균 약 4 FPS로 성능 개선 필요, 투영은 미보정 개발 좌표.
+검증: docs/verification/camera/anchored_solid_boundaries_20261022.md.

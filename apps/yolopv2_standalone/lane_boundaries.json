@@ -6,5 +6,12 @@
   "max_forward_m": 25.0,
   "max_curvature_coefficient": 0.02,
   "width_tolerance_m": 0.08,
-  "road_support_threshold": 0.9
+  "road_support_threshold": 0.9,
+  "max_heading_coefficient": 0.2,
+  "near_left_u": 0.12,
+  "near_right_u": 0.88,
+  "near_v": 0.98,
+  "far_left_u": 0.46,
+  "far_right_u": 0.54,
+  "far_v": 0.6
 }

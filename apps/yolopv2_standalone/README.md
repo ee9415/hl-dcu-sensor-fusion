@@ -2,7 +2,7 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: fixed-anchor BEV boundary pair (0.20.0, 2026-10-22)
+## Current: fixed-anchor BEV boundary pair (0.21.0, 2026-10-22)
 
 The active algorithm jointly selects two quadratic boundaries in BEV. Both near
 anchors stay fixed at forward distance zero. The requested normal width is vehicle
@@ -10,14 +10,14 @@ width plus left/right margins. The boundaries remain visible from startup throug
 missing paint/road evidence; absence of evidence is not a free-space confirmation.
 No center path, goal, turn preview or steering command is produced.
 
-The left quadratic has a forward tangent at its fixed near anchor. Its exact
+The left quadratic searches both heading C1 and curvature C2 at its fixed anchor. Its exact
 normal offset supplies samples for a separate right quadratic fit with fixed C0.
 Pairs with excessive normal-width error, crossings or coordinates outside the BEV
 are rejected. This is a constrained quadratic approximation, not an exact parallel
 curve guarantee. The right coefficients can differ from the left coefficients.
 
 Candidate pairs are scored using support across the WHOLE corridor, additional
-pavement beside it, weak RGB/NN paint support and temporal/gentle-curve preferences.
+pavement beside it, near-connected RGB/NN paint support and temporal/gentle-curve preferences.
 A feasible full-width candidate wins over an infeasible candidate. If none fits,
 the best-supported direction is approached without reducing width; state stays
 blocked until the displayed pair itself fits. Smoothing regenerates paired geometry
@@ -32,14 +32,19 @@ and checks width error, anchors and per-frame displacement at every step.
 | `max_lateral_rate_m_s` | 1.0 | Maximum displayed lateral movement per second |
 | `max_forward_m` | 25.0 | Fixed forward display/search range |
 | `max_curvature_coefficient` | 0.02 | Left quadratic C2 search bound |
+| `max_heading_coefficient` | 0.2 | Left quadratic C1 bound, also limited by width error |
+| `near_left_u` / `near_right_u` / `near_v` | 0.12 / 0.88 / 0.98 | Fixed normalized image start points |
+| `far_left_u` / `far_right_u` / `far_v` | 0.46 / 0.54 / 0.60 | Projection reference at forward 40 |
 | `width_tolerance_m` | 0.08 | Maximum sampled normal-width approximation error |
 | `road_support_threshold` | 0.9 | Required road fraction at EVERY sampled cross-section |
 
 Anchors: left C0 = -vehicle_width/2-left_margin, right C0 = vehicle_width/2+right_margin.
 All geometry is still in **uncalibrated development BEV units** (12 lateral × 40
 forward). Fields ending in `_m` express intended metric settings but do not establish
-actual physical meters without calibration. These defaults do not reproduce arbitrary
-screenshot start pixels; inverse projection determines their image locations.
+actual physical meters without calibration. Normalized near image anchors are explicitly
+configured at (0.12,0.98) and (0.88,0.98); far reference points are (0.46,0.60)
+and (0.54,0.60). Evidence and rendering use the same homography. These are
+installation defaults, not an automatic extraction of screenshot endpoints.
 Settings require app restart. Removed settings: observation_gate_m, max_missing_s,
 max_lane_gap_s. Unknown settings fail explicitly rather than silently changing geometry.
 
@@ -47,7 +52,7 @@ max_lane_gap_s. Unknown settings fail explicitly rather than silently changing g
 
 - `tracking`: the displayed corridor meets the sampled road-support threshold.
 - `blocked`: fixed width cannot currently be confirmed inside the road mask;
-  both boundaries remain drawn as dashed lines.
+  both boundaries remain drawn as continuous solid lines.
 - `held`: no road evidence; retain the last pair (straight pair at initial startup).
 - `invalid_timestamp`: keep the pair visible without applying motion; a finite clock
   reset re-baselines timing for the next frame.

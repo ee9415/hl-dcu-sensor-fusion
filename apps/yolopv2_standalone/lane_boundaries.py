@@ -21,6 +21,13 @@ class BoundaryConfig:
     max_curvature_coefficient: float = .02
     width_tolerance_m: float = .08
     road_support_threshold: float = .9
+    max_heading_coefficient: float = .2
+    near_left_u: float = .12
+    near_right_u: float = .88
+    near_v: float = .98
+    far_left_u: float = .46
+    far_right_u: float = .54
+    far_v: float = .60
 
     def __post_init__(self):
         for field in fields(self):
@@ -36,6 +43,11 @@ class BoundaryConfig:
             raise ValueError('Fixed anchor exceeds development BEV extent')
         if self.road_support_threshold > 1 or self.width_tolerance_m >= self.width_m*.25:
             raise ValueError('Invalid road support or normal-width tolerance')
+        if not (0 < self.near_left_u < self.far_left_u < self.far_right_u
+                < self.near_right_u < 1 and 0 < self.far_v < self.near_v <= 1):
+            raise ValueError('Invalid image projection anchors')
+        if self.max_heading_coefficient > .25:
+            raise ValueError('Heading exceeds fixed-anchor normal-width envelope')
 
     @property
     def width_m(self):
@@ -54,12 +66,20 @@ def transform(points, matrix):
     return homogeneous[:, :2] / homogeneous[:, 2:3]
 
 
-def projection_for(shape):
-    """Same development trapezoid as the previous BEV, independent of its logic."""
+def projection_for(shape, config=None):
+    """Map fixed corridor anchors, rather than the whole 12-unit BEV, to image.
+
+    Normalized points are installation settings, not metric camera calibration.
+    The same mapping is used for evidence sampling and boundary rendering.
+    """
     h, w = shape
-    source = np.array([[.04*(w-1), .98*(h-1)], [.96*(w-1), .98*(h-1)],
-                       [.62*(w-1), .38*(h-1)], [.38*(w-1), .38*(h-1)]])
-    destination = np.array([[0, 479], [639, 479], [639, 0], [0, 0]])
+    c = config or BoundaryConfig()
+    source = np.array([[c.near_left_u, c.near_v], [c.near_right_u, c.near_v],
+                       [c.far_right_u, c.far_v], [c.far_left_u, c.far_v]]) * [w-1,h-1]
+    left = (-c.vehicle_width_m/2-c.left_margin_m)/12+.5
+    right = (c.vehicle_width_m/2+c.right_margin_m)/12+.5
+    destination = np.array([[left*639,479], [right*639,479],
+                            [right*639,0], [left*639,0]])
     a, b = [], []
     for (x, y), (u, v) in zip(source, destination):
         a.extend([[x,y,1,0,0,0,-u*x,-u*y], [0,0,0,x,y,1,-v*x,-v*y]])
@@ -158,12 +178,13 @@ class BoundaryTracker:
 
     The left quadratic supplies a normal-offset construction for the right one.
     Both C0 anchors are exact. Only pairs within the normal-width tolerance are
-    searched. Paint is a weak tie-breaker; traversable area determines feasibility.
+    searched. Connected paint steers shape; traversable area determines feasibility.
     """
     def __init__(self, config=None):
         self.config = config or BoundaryConfig()
         self.forward = np.linspace(0., self.config.max_forward_m, 81)
         self.curvature = 0.
+        self.heading = 0.
         self.last_time = None
         self.candidates = []
         for value in np.linspace(-self.config.max_curvature_coefficient,
@@ -172,23 +193,36 @@ class BoundaryTracker:
             if geometry is not None:
                 self.candidates.append((float(value), geometry))
 
-    def _geometry(self, curvature):
+        # Nonzero heading frees the tangent without moving either anchor.
+        for heading in np.linspace(-self.config.max_heading_coefficient,
+                                   self.config.max_heading_coefficient, 9):
+            if abs(heading) < 1e-10:
+                continue
+            for curvature in np.linspace(-self.config.max_curvature_coefficient,
+                                         self.config.max_curvature_coefficient, 41):
+                geometry = self._geometry(float(curvature), float(heading))
+                if geometry is not None:
+                    self.candidates.append(((float(curvature),float(heading)),geometry))
+        self.candidates = [(v if isinstance(v,tuple) else (v,0.),g)
+                           for v,g in self.candidates]
+
+    def _geometry(self, curvature, heading=0.):
         c, x = self.config, self.forward
         left_anchor = -c.vehicle_width_m/2-c.left_margin_m
         right_anchor = c.vehicle_width_m/2+c.right_margin_m
-        # Tangent at the near anchor is forward, so the fixed horizontal anchor
-        # separation is also the normal width. Fit the offset with C0 fixed.
-        sample = np.linspace(0., c.max_forward_m+c.width_m, 161)
-        slope = 2*curvature*sample
+        # Exact constant normal offsets are generally not quadratics. Fit with
+        # both C0 anchors fixed and reject pairs exceeding the width tolerance.
+        sample = np.linspace(-c.width_m, c.max_forward_m+c.width_m, 181)
+        slope = heading+2*curvature*sample
         norm = np.sqrt(1+slope*slope)
         offset_x = sample-c.width_m*slope/norm
-        offset_y = left_anchor+curvature*sample**2+c.width_m/norm
+        offset_y = left_anchor+heading*sample+curvature*sample**2+c.width_m/norm
         if np.any(np.diff(offset_x) <= 0):
             return None
         use = (offset_x >= 0) & (offset_x <= c.max_forward_m)
         basis = np.column_stack((offset_x[use], offset_x[use]**2))
         b1, b2 = np.linalg.lstsq(basis, offset_y[use]-right_anchor, rcond=None)[0]
-        lc = np.array([left_anchor, 0., curvature])
+        lc = np.array([left_anchor, heading, curvature])
         rc = np.array([right_anchor, b1, b2])
         left = np.polynomial.polynomial.polyval(x, lc)
         right = np.polynomial.polynomial.polyval(x, rc)
@@ -196,7 +230,7 @@ class BoundaryTracker:
             return None
         # Intersect each left normal with the right quadratic, measuring the
         # actual fitted pair, not merely the exact offset used as fitting input.
-        slope = 2*curvature*x
+        slope = heading+2*curvature*x
         norm = np.sqrt(1+slope*slope)
         low, high = np.full_like(x,c.width_m*.5), np.full_like(x,c.width_m*1.5)
         for _ in range(30):
@@ -220,7 +254,7 @@ class BoundaryTracker:
         if rgb is not None:
             lane = white_lane_evidence(rgb, lane)
         return self.update_bev(*self._sample(road, lane), timestamp_s,
-                               projection=projection_for(road.shape))
+                               projection=projection_for(road.shape,self.config))
 
     def _sample(self, road, lane):
         # The segmentation heads may exclude painted lane pixels from the road.
@@ -239,7 +273,7 @@ class BoundaryTracker:
         forward = np.linspace(0., self.config.max_forward_m, 81)
         xx, yy = np.meshgrid((lateral/12+.5)*639, (1-forward/40)*479)
         pixels = np.rint(transform(np.column_stack((xx.ravel(), yy.ravel())),
-                                    projection_for(road.shape))).astype(int)
+                                    projection_for(road.shape,self.config))).astype(int)
         x, y = pixels.T
         inside = (x >= 0) & (x < road.shape[1]) & (y >= 0) & (y < road.shape[0])
         outputs = []
@@ -249,7 +283,7 @@ class BoundaryTracker:
             outputs.append(sampled.reshape(xx.shape))
         return forward, lateral, *outputs
 
-    def _support(self, geometry, forward, lateral, road, lane):
+    def _support(self, geometry, forward, lateral, road, lane, paint_distance=None):
         def nearest(axis, values):
             upper = np.clip(np.searchsorted(axis,values),1,len(axis)-1)
             return upper-(abs(values-axis[upper-1]) <= abs(values-axis[upper]))
@@ -267,12 +301,21 @@ class BoundaryTracker:
         clearance = np.mean(road[rows[:,None],spare_cols] & spare_inside)
         paint = 0.
         for edge in (left,right):
-            near = abs(lateral[None,:]-edge[:,None]) <= .2
-            paint += np.mean(np.any(lane[rows] & near,axis=1) & longitudinal)*.5
+            if paint_distance is None:
+                distance = np.where(lane[rows],abs(lateral[None,:]-edge[:,None]),np.inf).min(axis=1)
+            else:
+                distance = paint_distance[rows,nearest(lateral,edge)]
+            # Broad continuous proximity gives a gradient towards paint instead
+            # of leaving a misplaced boundary trapped outside a narrow gate.
+            proximity = np.exp(-.5*(distance/.35)**2)*longitudinal
+            # Require paint to connect to the near corridor. Remote parking
+            # stripes on a suddenly widened road must not pull the pair aside.
+            if np.mean(proximity[:16]) >= .15:
+                paint += np.mean(proximity)*.5
         coverage = float(np.mean(coverage_rows))
         feasible = bool(np.all(coverage_rows >= self.config.road_support_threshold))
         # Free-space support dominates paint and preference for a gentle curve.
-        score = coverage+clearance*.03+paint*.015
+        score = coverage+clearance*.08+paint*.35
         return coverage, feasible, score
 
     def update_bev(self, forward, lateral, road, lane, timestamp_s, projection=None):
@@ -285,34 +328,45 @@ class BoundaryTracker:
                 or not np.all(np.isfinite(forward)) or not np.all(np.isfinite(lateral))
                 or np.any(np.diff(forward)<=0) or np.any(np.diff(lateral)<=0)):
             raise ValueError('BEV masks require increasing finite coordinate axes')
-        geometry = self._geometry(self.curvature)
+        geometry = self._geometry(self.curvature,self.heading)
         state, feasible, coverage = 'held', None, 0.
         time_valid = np.isfinite(timestamp_s) and (self.last_time is None or timestamp_s>self.last_time)
         if time_valid:
             dt = .1 if self.last_time is None else min(timestamp_s-self.last_time,.2)
             self.last_time = timestamp_s
             if np.any(road):
+                # Compute the paint distance field once per frame, not once per
+                # candidate. Supports nonuniform lateral axes without SciPy.
+                paint_x = np.where(lane,lateral[None,:],-np.inf)
+                previous = np.maximum.accumulate(paint_x,axis=1)
+                paint_x = np.where(lane,lateral[None,:],np.inf)
+                following = np.minimum.accumulate(paint_x[:,::-1],axis=1)[:,::-1]
+                paint_distance = np.minimum(lateral[None,:]-previous,following-lateral[None,:])
                 ranked = []
-                for value, candidate in self.candidates:
-                    support, fits, score = self._support(candidate,forward,lateral,road,lane)
+                for (value,heading), candidate in self.candidates:
+                    support, fits, score = self._support(candidate,forward,lateral,road,lane,paint_distance)
                     # Prefer any feasible full-width route, then broader support.
                     score -= .01*abs(value)/c.max_curvature_coefficient
                     score -= .01*abs(value-self.curvature)/c.max_curvature_coefficient
-                    ranked.append(((fits,score),value,candidate))
-                _, target, desired = max(ranked,key=lambda item:item[0])
+                    score -= .005*abs(heading-self.heading)/c.max_heading_coefficient
+                    score -= .005*abs(heading)/c.max_heading_coefficient
+                    ranked.append(((fits,score),(value,heading),candidate))
+                _, (target,target_heading), desired = max(ranked,key=lambda item:item[0])
                 movement = max(np.max(abs(desired[0]-geometry[0])),np.max(abs(desired[1]-geometry[1])))
                 fraction = min(1.,c.max_lateral_rate_m_s*dt/max(movement,1e-9))
                 # Regenerate paired geometry during smoothing; independent
                 # coefficient interpolation would no longer enforce the width.
                 for _ in range(12):
                     value = self.curvature+(target-self.curvature)*fraction
-                    trial = self._geometry(value)
+                    heading = self.heading+(target_heading-self.heading)*fraction
+                    trial = self._geometry(value,heading)
                     if trial is not None and max(np.max(abs(trial[0]-geometry[0])),
                             np.max(abs(trial[1]-geometry[1]))) <= c.max_lateral_rate_m_s*dt+1e-8:
                         self.curvature, geometry = value, trial
+                        self.heading = heading
                         break
                     fraction *= .5
-                coverage, feasible, _ = self._support(geometry,forward,lateral,road,lane)
+                coverage, feasible, _ = self._support(geometry,forward,lateral,road,lane,paint_distance)
                 state = 'tracking' if feasible else 'blocked'
         else:
             state = 'invalid_timestamp'
@@ -359,7 +413,7 @@ def draw_boundaries(frame, estimate, mask_size=None):
         if mask_size is not None:
             points = transform(points, estimate.projection)
             points *= np.array([frame.shape[1]/mask_size[0], frame.shape[0]/mask_size[1]])
-        draw_polyline(frame, points, color, dashed=state not in ('observed','planned'))
+        draw_polyline(frame, points, color, thickness=3, dashed=False)
 
 
 def render_boundary_bev(estimate):

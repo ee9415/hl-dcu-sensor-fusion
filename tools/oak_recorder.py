@@ -490,7 +490,7 @@ class RecorderApp:
                   wraplength=1100).grid(row=2, column=0, columnspan=5, sticky='ew')
 
         ttk.Label(controls,
-                  text="경계선: 왼쪽 노랑 / 오른쪽 하늘색 · 시작점·폭 고정 · 점선: 공간 부족 또는 인식 없음",
+                  text="경계선: 왼쪽 노랑 / 오른쪽 하늘색 · 시작점·폭 고정 · 실선 유지 · 공간 상태는 영상 상단 표시",
                   style="App.TLabel").grid(row=2, column=0, sticky="w", pady=(6, 0))
 
     def _build_preview_panel(
@@ -743,7 +743,11 @@ class RecorderApp:
             if frame is not None:
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 image = Image.fromarray(rgb)
-                image.thumbnail(PREVIEW_SIZE, RESAMPLE_LANCZOS)
+                # Fit the actual panel: fixed thumbnail dimensions clipped the
+                # near boundary anchors in smaller multiview windows.
+                available = (max(1,min(PREVIEW_SIZE[0],preview.winfo_width())),
+                             max(1,min(PREVIEW_SIZE[1],preview.winfo_height())))
+                image.thumbnail(available, RESAMPLE_LANCZOS)
                 photo = ImageTk.PhotoImage(image)
                 preview.configure(image=photo, text="")
                 preview.image = photo
