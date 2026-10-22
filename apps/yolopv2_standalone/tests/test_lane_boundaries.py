@@ -118,6 +118,23 @@ class BoundaryTests(unittest.TestCase):
         lane[:,self.lateral>0]=False
         self.assert_geometry(self.update((road,lane)))
 
+    def test_confidence_current_history_then_opposite_priority(self):
+        self.tracker=BoundaryTracker(BoundaryConfig.load())
+        road,lane=self.masks(-1.05,1.05,True)
+        left_only=lane.copy();left_only[:,self.lateral>0]=False
+        result=self.update((road,left_only),0)
+        self.assertEqual((result.left_state,result.right_state),('observed','inferred'))
+        self.assertGreaterEqual(result.left_confidence,.65)
+        result=self.update((road,lane),.1)
+        self.assertEqual((result.left_state,result.right_state),('observed','observed'))
+        result=self.update((road,left_only),.2)
+        self.assertEqual((result.left_state,result.right_state),('observed','held'))
+        previous=result
+        result=self.update((road,np.zeros_like(lane)),10)
+        self.assertEqual((result.left_state,result.right_state),('held','held'))
+        np.testing.assert_array_equal(result.left,previous.left)
+        np.testing.assert_array_equal(result.right,previous.right)
+
     def test_either_single_side_drives_pair_and_missing_both_holds(self):
         for side in (0,1):
             self.tracker=BoundaryTracker(BoundaryConfig.load())

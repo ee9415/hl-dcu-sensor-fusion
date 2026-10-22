@@ -141,6 +141,8 @@ class BoundaryEstimate:
     road_coverage: float = 0.
     corridor_feasible: object = None
     reference_side: str = 'none'
+    left_confidence: float = 0.
+    right_confidence: float = 0.
 
     @property
     def left_valid(self):
@@ -162,6 +164,9 @@ class BoundaryEstimate:
             return [float(v) if np.isfinite(v) else None for v in array] if self.valid else []
         return dict(boundary_valid=self.valid, boundary_pair_valid=self.pair_valid,
                     boundary_reference_side=self.reference_side,
+                    left_boundary_confidence=self.left_confidence,
+                    right_boundary_confidence=self.right_confidence,
+                    boundary_confidence_kind='heuristic_not_probability',
                     left_boundary_valid=self.left_valid, right_boundary_valid=self.right_valid,
                     boundary_state=self.state,
                     left_boundary_state=self.left_state, right_boundary_state=self.right_state,
@@ -196,6 +201,7 @@ class BoundaryTracker:
         self.search_frames = 0
         self.last_feasible = False
         self.last_candidate_count = 0
+        self.side_history = [None,None]
         self.candidates = []
         for value in np.linspace(-self.config.max_curvature_coefficient,
                                  self.config.max_curvature_coefficient, 21):
@@ -377,6 +383,27 @@ class BoundaryTracker:
             raise ValueError('BEV masks require increasing finite coordinate axes')
         geometry = self._geometry(self.curvature,self.heading)
         observations=self._observations(forward,lateral,lane,geometry)
+        confidence=[0.,0.]
+        accepted=[]
+        for side,rows,values in observations:
+            xs=forward[rows]
+            fit=np.polynomial.polynomial.polyfit(xs,values,2)
+            residual=float(np.mean(abs(np.polynomial.polynomial.polyval(xs,fit)-values)))
+            continuity=len(rows)/max(1,rows[-1]-rows[0]+1)
+            span=min(1.,(xs[-1]-xs[0])/10.)
+            temporal=1.
+            if self.side_history[side] is not None:
+                old=np.interp(xs,self.forward,self.side_history[side])
+                temporal=float(np.exp(-np.mean(abs(old-values))/1.5))
+            confidence[side]=float(np.clip(.35*continuity+.3*span+
+                                          .25*np.exp(-residual/.15)+.1*temporal,0,1))
+            if confidence[side]>=.65:
+                accepted.append((side,rows,values))
+        observations=accepted
+        observed_sides={o[0] for o in observations}
+        side_states=[('observed' if s in observed_sides else
+                      'held' if self.side_history[s] is not None else
+                      'inferred' if observations else 'initial') for s in (0,1)]
         reference=('both' if len(observations)==2 else
                    ('left' if observations[0][0]==0 else 'right') if observations else 'none')
         self.last_candidate_count = 0
@@ -414,13 +441,19 @@ class BoundaryTracker:
                     score -= .005*abs(heading-self.heading)/c.max_heading_coefficient
                     score -= .005*abs(heading)/c.max_heading_coefficient
                     errors=[]
+                    weights=[]
                     for side,rows,values in observations:
                         predicted=np.polynomial.polynomial.polyval(forward[rows],candidate[2+side])
                         errors.append(float(np.mean(np.minimum(abs(predicted-values),1.5))))
+                        weights.append(confidence[side])
+                    for side in (0,1):
+                        if side not in observed_sides and self.side_history[side] is not None:
+                            errors.append(float(np.mean(abs(candidate[side]-self.side_history[side]))))
+                            weights.append(.65)
                     # The visible side is the primary geometry reference. Its
                     # paired offset supplies the missing side; road is a weak
                     # tie-breaker and still determines displayed space status.
-                    rank=-np.mean(errors)+.02*score
+                    rank=-np.average(errors,weights=weights)+.02*score
                     ranked.append(((rank,fits),(value,heading),candidate))
                 _, (target,target_heading), desired = max(ranked,key=lambda item:item[0])
                 movement = max(np.max(abs(desired[0]-geometry[0])),np.max(abs(desired[1]-geometry[1])))
@@ -439,6 +472,8 @@ class BoundaryTracker:
                     fraction *= .5
                 coverage, feasible, _ = self._support(geometry,forward,lateral,road,lane,paint_distance)
                 state = 'tracking' if feasible else 'blocked'
+                for side in observed_sides:
+                    self.side_history[side]=geometry[side].copy()
             self.last_feasible = bool(feasible)
             if not observations and np.any(road):
                 coverage,feasible,_=self._support(geometry,forward,lateral,road,lane)
@@ -447,10 +482,9 @@ class BoundaryTracker:
             if np.isfinite(timestamp_s):
                 self.last_time = timestamp_s
         left,right,lc,rc,error = geometry
-        side_state = 'planned' if feasible else 'held'
         result = BoundaryEstimate(True,state,self.forward.copy(),left.copy(),right.copy(),
-                                  projection,side_state,side_state,tuple(lc),tuple(rc),
-                                  error,coverage,feasible,reference)
+                                  projection,*side_states,tuple(lc),tuple(rc),
+                                  error,coverage,feasible,reference,*confidence)
         return result
 
 

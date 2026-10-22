@@ -4,6 +4,7 @@ import time
 import depthai as dai
 import numpy as np
 from telemetry_server import TelemetryServer
+from stop_line import StopLineTracker, draw_stop_line
 from lane_boundaries import (BoundaryConfig, BoundaryTracker, BoundaryEstimate,
                              draw_boundaries, render_boundary_bev)
 
@@ -246,6 +247,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._started_at = time.monotonic()
         self._last_health_at = self._started_at
         self._boundary_tracker = BoundaryTracker(BoundaryConfig.load())
+        self._stop_line_tracker = StopLineTracker()
 
     def build(
         self,
@@ -395,6 +397,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         detections: list[dai.ImgDetection],
         measurements: list[SpatialMeasurement],
         boundaries: BoundaryEstimate,
+        stop_line,
     ) -> dai.ImgFrame:
         source = preview.getCvFrame()
         result_width, result_height = self._result_size
@@ -413,9 +416,13 @@ class Yolopv2Postprocess(dai.node.HostNode):
 
         self._blend_mask(rendered, drivable_up, (0, 180, 0), 0.20)
         draw_boundaries(rendered, boundaries, (drivable.shape[1], drivable.shape[0]))
+        draw_stop_line(rendered,stop_line)
         self._draw_text(rendered, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' ')
                         +' REF '+boundaries.reference_side.upper(),
                         10, 12, (0, 220, 255))
+        self._draw_text(rendered,f'L {boundaries.left_confidence:.2f} {boundaries.left_state.upper()} '
+                        f'R {boundaries.right_confidence:.2f} {boundaries.right_state.upper()}',10,32,(0,220,255))
+        self._draw_text(rendered,f'STOP {stop_line.state.upper()} {stop_line.confidence:.2f}',10,52,(255,0,255))
         invalid_labels = 0
         for detection, measurement in zip(detections, measurements, strict=True):
             self._draw_box(rendered, detection)
@@ -518,11 +525,18 @@ class Yolopv2Postprocess(dai.node.HostNode):
         boundaries = self._boundary_tracker.update(
             drivable, lane, nn_data.getTimestamp().total_seconds(), rgb=preview.getCvFrame())
         boundary_finished = time.monotonic()
+        stop_line=self._stop_line_tracker.update(preview.getCvFrame(),boundaries,
+                         nn_data.getTimestamp().total_seconds(),detection_messages)
+        stop_finished=time.monotonic()
         bev = render_boundary_bev(boundaries)
+        draw_stop_line(bev,stop_line,boundaries)
         bev_finished = time.monotonic()
         self._draw_text(bev, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' ')
                         +' REF '+boundaries.reference_side.upper(),
                         10, 10, (0, 220, 255))
+        self._draw_text(bev,f'L {boundaries.left_confidence:.2f} {boundaries.left_state.upper()} '
+                        f'R {boundaries.right_confidence:.2f} {boundaries.right_state.upper()}',10,32,(0,220,255))
+        self._draw_text(bev,f'STOP {stop_line.state.upper()} {stop_line.confidence:.2f}',10,52,(255,0,255))
         capture_s = preview.getTimestamp().total_seconds()
         capture_wall = time.time() - (dai.Clock.now().total_seconds() - capture_s)
         capture_mono = time.monotonic() - (dai.Clock.now().total_seconds() - capture_s)
@@ -541,6 +555,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
             'coefficients': None,
             'turn_mode': 'disabled',
             **boundaries.telemetry(self._boundary_tracker.config),
+            **stop_line.telemetry(),
             'objects': [dict(label=d.label, confidence=d.confidence,
                              xmin=d.xmin, ymin=d.ymin, xmax=d.xmax, ymax=d.ymax,
                              depth_valid=bool(m.valid),
@@ -559,6 +574,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 detection_messages,
                 measurements,
                 boundaries,
+                stop_line,
             )
         )
 
@@ -568,11 +584,13 @@ class Yolopv2Postprocess(dai.node.HostNode):
             elapsed = max(now - self._started_at, 1e-6)
             payload = {
                 **boundaries.telemetry(self._boundary_tracker.config),
+                **stop_line.telemetry(),
                 "status": "running",
                 "frames": self._frames,
                 "average_fps": round(self._frames / elapsed, 2),
                 "postprocess_ms": round((now - started_at) * 1000.0, 2),
                 "boundary_ms": round((boundary_finished-boundary_started)*1000,2),
+                "stop_line_ms": round((stop_finished-boundary_finished)*1000,2),
                 "bev_draw_ms": round((bev_finished-boundary_finished)*1000,2),
                 "boundary_candidates": self._boundary_tracker.last_candidate_count,
                 "detections": len(detection_messages),

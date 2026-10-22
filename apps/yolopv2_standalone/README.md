@@ -2,7 +2,7 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: fixed-anchor BEV boundary pair (0.22.0, 2026-10-22)
+## Current: fixed-anchor BEV boundary pair (0.23.0, 2026-10-22)
 
 The active algorithm jointly selects two quadratic boundaries in BEV. Both near
 anchors stay fixed at forward distance zero. The requested normal width is vehicle
@@ -287,3 +287,30 @@ metadata do not preprocess the message payload. The app therefore converts
 each 320x320 `BGR888i` frame to an FP16 NHWC `NNData` tensor named `images`,
 reverses BGR to RGB, and divides by 255 before inference. The original HubAI
 download under `artifacts/` is not modified.
+
+
+### Confidence and stop bars (0.23.0)
+
+Lane confidence is a heuristic score combining observed span, continuity, quadratic
+fit residual and temporal consistency. At >=0.65 a side is observed. Otherwise
+its last accepted boundary is used as a fitting prior (HELD); if no such history
+exists, the observed opposite side supplies the constrained-width pair (INFERRED).
+Neither side available/history-free uses the initial straight pair. Both absent
+holds the complete previous pair. With one current observation and one history,
+the pair is jointly fitted: history is a weighted prior, not a rigid independent
+curve, because fixed normal width and unrelated exact curves may conflict.
+
+Stop bars use RGB neutral-white transverse ridges within the projected corridor,
+excluding detected object boxes. A single broad band needs 3 consecutive frames;
+multiple bands are treated as ambiguous crosswalk-like evidence. Confirmed bars
+are magenta. Missing bars may remain ESTIMATED (dashed) for at most 0.4s, then
+UNAVAILABLE. Candidate bars are reported but not drawn as confirmed. No stop line
+is invented from road width or lane history. This conservative detector may miss
+slanted/worn bars or a stop bar next to a crosswalk; it is not a semantic road-marking
+classifier. Confidence values are heuristic scores, not calibrated probabilities.
+No metric stop distance or braking command is produced.
+
+Telemetry/CSV adds left/right_boundary_confidence, boundary_reference_side,
+stop_line_state/confidence/valid/points and confidence_kind fields. RGB and BEV
+show side confidence/source plus STOP state and score. Restart the host recorder
+to pick up newly added CSV columns.
