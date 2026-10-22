@@ -1,17 +1,18 @@
 {
   "vehicle_width_m": 1.8,
-  "left_margin_m": 0.3,
-  "right_margin_m": 0.3,
+  "left_margin_m": 0.15,
+  "right_margin_m": 0.15,
   "max_lateral_rate_m_s": 1.0,
   "max_forward_m": 25.0,
   "max_curvature_coefficient": 0.02,
   "width_tolerance_m": 0.08,
   "road_support_threshold": 0.9,
   "max_heading_coefficient": 0.2,
-  "near_left_u": 0.12,
-  "near_right_u": 0.88,
+  "near_left_u": 0.2,
+  "near_right_u": 0.8,
   "near_v": 0.98,
   "far_left_u": 0.46,
   "far_right_u": 0.54,
-  "far_v": 0.6
+  "far_v": 0.6,
+  "projection_reference_width_m": 2.4
 }

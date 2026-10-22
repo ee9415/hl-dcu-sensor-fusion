@@ -33,6 +33,15 @@ def main():
     if len(frames)<2 or len({f['session'] for f in frames})!=1:
         raise RuntimeError('Need at least two frames from a single running app session')
     elapsed=frames[-1]['sent_monotonic_s']-frames[0]['sent_monotonic_s']
+    moves=[]
+    rates=[]
+    for a,b in zip(frames,frames[1:]):
+        move=max(abs(y-x) for side in ('left_boundary_dev','right_boundary_dev')
+                 for x,y in zip(a[side],b[side]))
+        dt=b['nn_timestamp_s']-a['nn_timestamp_s']
+        moves.append(move)
+        if dt>0:
+            rates.append(move/dt)
     report=dict(frames=len(frames),device_elapsed_s=elapsed,
                 processed_output_fps=(len(frames)-1)/elapsed,
                 received_fps=(len(frames)-1)/(received[-1]-received[0]),
@@ -44,7 +53,9 @@ def main():
                 width_settings=sorted({f['corridor_width_m'] for f in frames}),
                 left_anchors=sorted({f['left_boundary_coefficients'][0] for f in frames}),
                 right_anchors=sorted({f['right_boundary_coefficients'][0] for f in frames}),
-                max_normal_width_error=max(f['normal_width_error_dev'] for f in frames))
+                max_normal_width_error=max(f['normal_width_error_dev'] for f in frames),
+                max_frame_lateral_step=max(moves),
+                max_lateral_rate=max(rates) if rates else None)
     (args.output/'report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report),flush=True)
 

@@ -2,7 +2,7 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: fixed-anchor BEV boundary pair (0.21.1, 2026-10-22)
+## Current: fixed-anchor BEV boundary pair (0.21.2, 2026-10-22)
 
 The active algorithm jointly selects two quadratic boundaries in BEV. Both near
 anchors stay fixed at forward distance zero. The requested normal width is vehicle
@@ -36,22 +36,24 @@ boundary_candidates separately from total postprocess_ms.
 | Setting | Default | Meaning |
 | --- | ---: | --- |
 | `vehicle_width_m` | 1.8 | Requested vehicle width |
-| `left_margin_m` / `right_margin_m` | 0.3 / 0.3 | Requested left/right margins |
+| `left_margin_m` / `right_margin_m` | 0.15 / 0.15 | Active deployment left/right margins |
 | `max_lateral_rate_m_s` | 1.0 | Maximum displayed lateral movement per second |
 | `max_forward_m` | 25.0 | Fixed forward display/search range |
 | `max_curvature_coefficient` | 0.02 | Left quadratic C2 search bound |
 | `max_heading_coefficient` | 0.2 | Left quadratic C1 bound, also limited by width error |
-| `near_left_u` / `near_right_u` / `near_v` | 0.12 / 0.88 / 0.98 | Fixed normalized image start points |
+| `near_left_u` / `near_right_u` / `near_v` | 0.20 / 0.80 / 0.98 | Image reference points for projection width |
 | `far_left_u` / `far_right_u` / `far_v` | 0.46 / 0.54 / 0.60 | Projection reference at forward 40 |
+| `projection_reference_width_m` | 2.4 | Fixed projection scale, independent of requested corridor width |
 | `width_tolerance_m` | 0.08 | Maximum sampled normal-width approximation error |
 | `road_support_threshold` | 0.9 | Required road fraction at EVERY sampled cross-section |
 
 Anchors: left C0 = -vehicle_width/2-left_margin, right C0 = vehicle_width/2+right_margin.
 All geometry is still in **uncalibrated development BEV units** (12 lateral × 40
 forward). Fields ending in `_m` express intended metric settings but do not establish
-actual physical meters without calibration. Normalized near image anchors are explicitly
-configured at (0.12,0.98) and (0.88,0.98); far reference points are (0.46,0.60)
-and (0.54,0.60). Evidence and rendering use the same homography. These are
+actual physical meters without calibration. Projection reference points are configured at (0.20,0.98)/(0.80,0.98)
+for a fixed reference width 2.4. Active requested width is 2.1 (1.8+0.15+0.15),
+so actual fixed image start points are approximately (0.2375,0.98)/(0.7625,0.98).
+Far reference points are (0.46,0.60)/(0.54,0.60). Evidence and rendering use the same homography. These are
 installation defaults, not an automatic extraction of screenshot endpoints.
 Settings require app restart. Removed settings: observation_gate_m, max_missing_s,
 max_lane_gap_s. Unknown settings fail explicitly rather than silently changing geometry.

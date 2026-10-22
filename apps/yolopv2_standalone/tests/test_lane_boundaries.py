@@ -118,6 +118,36 @@ class BoundaryTests(unittest.TestCase):
         lane[:,self.lateral>0]=False
         self.assert_geometry(self.update((road,lane)))
 
+    def test_width_reduction_changes_image_width_without_rescaling_camera(self):
+        from lane_boundaries import boundary_points
+        wide=BoundaryConfig()
+        narrow=BoundaryConfig(left_margin_m=.15,right_margin_m=.15)
+        np.testing.assert_allclose(projection_for((180,320),wide),projection_for((180,320),narrow))
+        widths=[]
+        empty=np.zeros((81,241),bool)
+        for c in (wide,narrow):
+            r=BoundaryTracker(c).update_bev(self.forward,self.lateral,empty,empty,0)
+            pixels=[transform(boundary_points(r,side)[:1],projection_for((180,320),c))[0,0]
+                    for side in ('left','right')]
+            widths.append(pixels[1]-pixels[0])
+        self.assertAlmostEqual(widths[1]/widths[0],2.1/2.4)
+
+    def test_paint_disappears_and_returns_without_jump_at_narrow_width(self):
+        self.tracker=BoundaryTracker(BoundaryConfig.load())
+        target=self.tracker._geometry(.004,-.1)
+        road,lane=self.masks()
+        for edge in target[:2]:
+            lane[np.arange(81),np.argmin(abs(self.lateral[None,:]-edge[:,None]),axis=1)]=True
+        previous=None
+        for n in range(100):
+            visible=n<30 or n>=60
+            result=self.update((road,lane if visible else np.zeros_like(lane)),n*.1)
+            self.assert_geometry(result)
+            if previous is not None:
+                self.assertLessEqual(max(np.max(abs(result.left-previous.left)),
+                                         np.max(abs(result.right-previous.right))),.100001)
+            previous=result
+
     def test_coarse_search_local_tracking_and_periodic_reacquisition(self):
         self.assertLess(len(self.tracker.candidates),60)
         self.update(self.masks(),0)

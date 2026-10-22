@@ -83,8 +83,9 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertEqual(payload['turn_mode'], 'disabled')
             self.assertEqual(payload['frame_seq'], 7)
             self.assertLessEqual(payload['normal_width_error_dev'],.08)
-            self.assertEqual(payload['left_boundary_dev'][0],-1.2)
-            self.assertEqual(payload['right_boundary_dev'][0],1.2)
+            config=processor._boundary_tracker.config
+            self.assertAlmostEqual(payload['left_boundary_dev'][0],-config.vehicle_width_m/2-config.left_margin_m)
+            self.assertAlmostEqual(payload['right_boundary_dev'][0],config.vehicle_width_m/2+config.right_margin_m)
             self.assertEqual(len(payload['left_boundary_coefficients']),3)
             self.assertTrue(payload['corridor_feasible'])
             self.assertTrue(payload['clearance_sufficient'])

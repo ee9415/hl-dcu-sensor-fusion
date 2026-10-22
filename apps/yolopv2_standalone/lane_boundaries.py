@@ -28,6 +28,7 @@ class BoundaryConfig:
     far_left_u: float = .46
     far_right_u: float = .54
     far_v: float = .60
+    projection_reference_width_m: float = 2.4
 
     def __post_init__(self):
         for field in fields(self):
@@ -48,6 +49,8 @@ class BoundaryConfig:
             raise ValueError('Invalid image projection anchors')
         if self.max_heading_coefficient > .25:
             raise ValueError('Heading exceeds fixed-anchor normal-width envelope')
+        if self.projection_reference_width_m >= 12:
+            raise ValueError('Projection reference exceeds BEV extent')
 
     @property
     def width_m(self):
@@ -76,8 +79,10 @@ def projection_for(shape, config=None):
     c = config or BoundaryConfig()
     source = np.array([[c.near_left_u, c.near_v], [c.near_right_u, c.near_v],
                        [c.far_right_u, c.far_v], [c.far_left_u, c.far_v]]) * [w-1,h-1]
-    left = (-c.vehicle_width_m/2-c.left_margin_m)/12+.5
-    right = (c.vehicle_width_m/2+c.right_margin_m)/12+.5
+    # Camera mapping must not rescale with the requested corridor width:
+    # otherwise reducing margins leaves the displayed width unchanged.
+    left = -c.projection_reference_width_m/24+.5
+    right = c.projection_reference_width_m/24+.5
     destination = np.array([[left*639,479], [right*639,479],
                             [right*639,0], [left*639,0]])
     a, b = [], []
