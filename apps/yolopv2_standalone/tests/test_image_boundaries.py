@@ -341,6 +341,26 @@ class ImageBoundaryTests(unittest.TestCase):
         c=np.polynomial.polynomial.polyfit(warped[good,1],warped[good,0],2)
         np.testing.assert_allclose(np.polynomial.polynomial.polyval(warped[good,1],c),warped[good,0],atol=1e-7)
 
+    def test_regions_connect_top_bottom_without_middle(self):
+        t=ImageBoundaryTracker();mask=np.zeros((180,320),bool)
+        for lo,hi in ((84,102),(156,176)):
+            for y in range(lo,hi):
+                x=int(160+(y-65)*.7);mask[y,x:x+2]=True
+        found=t._detect_regions(mask,1,None)
+        self.assertIsNotNone(found)
+        curve,score,support=found
+        self.assertTrue(support[t.rows<104].any())
+        self.assertTrue(support[t.rows>154].any())
+        self.assertFalse(support[(t.rows>110)&(t.rows<150)].any())
+        self.assertTrue(np.isfinite(curve[(t.rows>110)&(t.rows<150),0]).all())
+        self.assertLess(np.max(abs(curve[np.isfinite(curve[:,0]),0]-(160+(curve[np.isfinite(curve[:,0]),1]-65)*.7))),2)
+
+    def test_regions_reject_wrong_direction_upper_fragment(self):
+        t=ImageBoundaryTracker();mask=np.zeros((180,320),bool)
+        for y in range(156,176):mask[y,int(160+(y-65)*.7)]=True
+        for y in range(84,102):mask[y,int(270-(y-84)*.7)]=True
+        self.assertIsNone(t._detect_regions(mask,1,None))
+
     def test_single_initial_side_supplies_low_confidence_pair(self):
         t=ImageBoundaryTracker();b=self.update(t,self.scene(right=False),0)
         self.assertTrue(b.pair_valid)

@@ -187,6 +187,88 @@ class ImageBoundaryTracker:
                     and all(np.count_nonzero(np.isfinite(p[:,0])&(p[:,0]>=0)&(p[:,0]<=319))>=8 for p in pair))
 
     def _detect(self, paint, side, prior):
+        regional=self._detect_regions(paint,side,prior)
+        regional_stats=dict(self.detection_diagnostics[side])
+        legacy=self._detect_legacy(paint,side,prior)
+        if regional is not None and (legacy is None or regional[1]>legacy[1]):
+            self.detection_diagnostics[side]=regional_stats
+            return regional
+        return legacy
+
+    def _detect_regions(self, paint, side, prior):
+        """Independent overlapping bands in the bottom 60%, then joint fit."""
+        from itertools import product, combinations
+        bands=((72,124),(100,160),(136,178))
+        candidates=[]
+        for lo,hi in bands:
+            segments=[];seeds=[]
+            for y in range(hi-2,lo+5,-4):
+                xs=np.flatnonzero(paint[y])
+                xs=xs[(xs>8)&(xs<312)&((xs<185) if side==0 else (xs>135))]
+                groups=np.split(xs,np.flatnonzero(np.diff(xs)>2)+1) if len(xs) else []
+                for g in groups:
+                    if len(g)<=12:seeds.append((y,float(np.mean(g))))
+            for start,x in seeds[:24]:
+                pts=[];last=start;slope=0.
+                for y in range(start,lo-1,-2):
+                    if last-y>6:break
+                    options=np.flatnonzero(paint[y]);prediction=x+slope*(y-last)
+                    options=options[abs(options-prediction)<4]
+                    if not len(options):continue
+                    x=float(options[np.argmin(abs(options-prediction))]);pts.append((x,y));last=y
+                    if len(pts)>=2:
+                        back=min(4,len(pts));slope=(pts[-1][0]-pts[-back][0])/(pts[-1][1]-pts[-back][1])
+                        slope=float(np.clip(slope,-2,2))
+                if len(pts)<3:continue
+                q=np.array(pts);span=np.ptp(q[:,1])
+                if span<4:continue
+                c=np.polynomial.polynomial.polyfit((q[:,1]-125)/50,q[:,0],1)
+                error=np.max(abs(np.polynomial.polynomial.polyval((q[:,1]-125)/50,c)-q[:,0]))
+                if error>2:continue
+                if any(abs(np.median(q[:,0])-np.median(v[:,0]))<3 and abs(np.median(q[:,1])-np.median(v[:,1]))<8 for v in segments):continue
+                segments.append(q)
+            segments.sort(key=lambda q:np.ptp(q[:,1]),reverse=True)
+            candidates.append(segments[:4])
+        best=None
+        for count in (3,2):
+            for band_ids in combinations(range(3),count):
+                for group in product(*(candidates[k] for k in band_ids)):
+                    # Repeated support in overlap is not a second segment.
+                    ordered=sorted(group,key=lambda q:q[:,1].mean())
+                    compatible=True
+                    for far,near in zip(ordered,ordered[1:]):
+                        if near[:,1].min()<=far[:,1].max()+2:
+                            compatible=False;break
+                        sf=np.polyfit(far[:,1],far[:,0],1)[0];sn=np.polyfit(near[:,1],near[:,0],1)[0]
+                        a=far[np.argmax(far[:,1])];b=near[np.argmin(near[:,1])]
+                        join=(b[0]-a[0])/(b[1]-a[1])
+                        if not min(sf,sn)-.25<=join<=max(sf,sn)+.25:
+                            compatible=False;break
+                    if not compatible:continue
+                    q=np.vstack(group);u=(q[:,1]-125)/50
+                    if len(q)<10 or np.ptp(q[:,1])<20:continue
+                    c=np.polynomial.polynomial.polyfit(u,q[:,0],2)
+                    errors=abs(np.polynomial.polynomial.polyval(u,c)-q[:,0])
+                    if errors.max()>2:continue
+                    values=np.polynomial.polynomial.polyval((self.rows-125)/50,c)
+                    domain=(self.rows>=q[:,1].min())&(self.rows<=q[:,1].max())
+                    values[~domain]=np.nan
+                    curve=np.column_stack((values,self.rows))
+                    if not self._smooth_shape(curve):continue
+                    if np.any((values[domain]<0)|(values[domain]>319)):continue
+                    support=domain&(np.min(abs(self.rows[:,None]-q[None,:,1]),axis=1)<=1)
+                    score=float(min(.85,.55+.2*min(1,len(q)/30))*np.exp(-errors.mean()/3))
+                    rank=len(q)-errors.mean()*5
+                    if prior is not None:
+                        common=support&np.isfinite(prior[:,0])
+                        if common.any():rank+=2*np.exp(-np.median(abs(values[common]-prior[common,0]))/20)
+                    if best is None or rank>best[0]:best=(rank,curve,score,support)
+        if best is None:return None
+        self.detection_diagnostics[side]={'regional':True,'bands':[len(v) for v in candidates],
+                                        'observed_rows':int(best[3].sum())}
+        return best[1:]
+
+    def _detect_legacy(self, paint, side, prior):
         full=self._detect_full(paint,side,prior)
         if full is not None:return full
         # The fallback only supplies supported linear fragments. Leave the
@@ -428,8 +510,8 @@ class ImageBoundaryTracker:
             score=self.scores[side]*np.exp(-step*(.25 if motion_score else .8))
             state='predicted' if motion_score else 'held'
             if observation is not None:
-                measured,quality=observation
-                support=np.isfinite(measured[:,0])
+                measured,quality=observation[:2]
+                support=observation[2].copy() if len(observation)>2 else np.isfinite(measured[:,0])
                 existing=support&np.isfinite(p[:,0])
                 fresh=support&~np.isfinite(p[:,0])
                 # Blend polynomial coefficients, with ONE scale for all rows.
@@ -443,7 +525,7 @@ class ImageBoundaryTracker:
                     degree=2 if quality>=.65 else (1 if np.ptp(self.rows[existing])>=16 else 0)
                     dc=np.polynomial.polynomial.polyfit(u[existing],diff,degree)
                     delta=np.polynomial.polynomial.polyval(u,dc)
-                    domain=finite|support
+                    domain=finite|np.isfinite(measured[:,0])
                     fraction=min(alpha,80*step/max(float(np.max(abs(delta[domain]))),1e-9))
                     values=np.polynomial.polynomial.polyval(u,old)+fraction*delta
                     p[domain,0]=values[domain]
@@ -451,7 +533,8 @@ class ImageBoundaryTracker:
                     # Disjoint fragment cannot safely change the retained model.
                     support[:]=False
                 else:
-                    p[support,0]=measured[support,0]
+                    domain=np.isfinite(measured[:,0])
+                    p[domain,0]=measured[domain,0]
                     p=self._quadratic(p)
                 residuals[side]=float(np.percentile(abs(p[support,0]-measured[support,0]),90)) if support.any() else 100.
                 score=float(quality*np.exp(-residuals[side]/6.))

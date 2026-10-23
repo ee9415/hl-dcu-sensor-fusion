@@ -2,7 +2,19 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: one quadratic per boundary (0.31.0, 2026-10-23)
+## Current: independent regional candidates (0.32.0, 2026-10-23)
+
+White-paint candidates are now searched independently in overlapping tracking-row
+bands [72,124], [100,160], [136,178] of the 320x180 image (bottom 60%, with a small
+bottom border margin). Each band tries at most 24 seeds and retains four segments.
+Pairs/triples across bands are checked for endpoint direction continuity and a
+single quadratic residual <=2px. The strongest joint fit competes with the legacy
+detector; a blank middle band does not prevent top/bottom association.
+Regional geometry spans accepted segments, including virtual gaps, while current
+support flags include actual segment rows only. Existing quadratic fusion, shape
+and pair checks remain active. `boundary_detection_diagnostics.regional` identifies
+frames using the regional result. Search bands do not change the retained 48-row
+display grid (78..172); both sides still use one quadratic each.
 
 Both displayed image boundaries and retained history are each one polynomial
 `x(y)=C0+C1*y+C2*y*y`, including straight lines (C2=0). No S-curve/piecewise model
