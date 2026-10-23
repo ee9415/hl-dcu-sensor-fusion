@@ -151,13 +151,15 @@ class ImageBoundaryTests(unittest.TestCase):
         for actual,expected in zip(t.history,previous):
             np.testing.assert_allclose(actual,expected,equal_nan=True)
 
-    def test_partial_observation_only_blends_nearby_retained_rows(self):
+    def test_partial_observation_preserves_one_quadratic(self):
         t=ImageBoundaryTracker();a=self.update(t,self.scene(),0)
         prior=[a.image_left.copy(),a.image_right.copy()]
         measured=prior[0].copy();measured[:,0]+=5
         measured[:20,0]=np.nan
         b=t._fuse([(measured,.9),None],prior,np.array([[1,0,0],[0,1,0]]),0,.1)
-        np.testing.assert_allclose(b.image_left[:10],prior[0][:10],equal_nan=True)
+        good=np.isfinite(b.image_left[:,0])
+        c=np.polynomial.polynomial.polyfit(b.image_left[good,1],b.image_left[good,0],2)
+        np.testing.assert_allclose(np.polynomial.polynomial.polyval(b.image_left[good,1],c),b.image_left[good,0],atol=1e-8)
         self.assertLess(np.nanmax(abs(b.image_left[:,0]-prior[0][:,0])),8.01)
         np.testing.assert_allclose(b.image_right,prior[1],equal_nan=True)
         self.assertEqual(b.reference_side,'left')
@@ -320,6 +322,24 @@ class ImageBoundaryTests(unittest.TestCase):
             for p,x in ((b.image_left,100),(b.image_right,220)):
                 good=np.isfinite(p[:,0])
                 self.assertLess(np.max(abs(p[good,0]-x)),3)
+
+    def test_quadratic_invariant_through_loss_recovery_and_motion(self):
+        t=ImageBoundaryTracker()
+        for i in range(45):
+            frame=(self.scene(curve=8) if i<10 else self.scene(right=False)
+                   if i<25 else self.scene(shift=12,curve=-4))
+            b=self.update(t,frame,i)
+            self.assertTrue(b.pair_valid)
+            payload=b.telemetry()
+            for side in ('left','right'):
+                p=getattr(b,'image_'+side);good=np.isfinite(p[:,0])
+                c=payload[side+'_image_coefficients']
+                self.assertEqual(len(c),3)
+                np.testing.assert_allclose(np.polynomial.polynomial.polyval(p[good,1],c),p[good,0],atol=1e-7)
+        warped=t._warp(b.image_left,np.array([[1,.02,1.],[-.01,1.,2.]]))
+        good=np.isfinite(warped[:,0])
+        c=np.polynomial.polynomial.polyfit(warped[good,1],warped[good,0],2)
+        np.testing.assert_allclose(np.polynomial.polynomial.polyval(warped[good,1],c),warped[good,0],atol=1e-7)
 
     def test_single_initial_side_supplies_low_confidence_pair(self):
         t=ImageBoundaryTracker();b=self.update(t,self.scene(right=False),0)

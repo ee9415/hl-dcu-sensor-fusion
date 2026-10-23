@@ -44,7 +44,13 @@ class ImageBoundaryEstimate:
     def telemetry(self, config=None):
         def points(p):
             return [[float(x),float(y)] for x,y in p if np.isfinite([x,y]).all()]
-        return dict(boundary_valid=self.valid,boundary_pair_valid=self.pair_valid,
+        def coefficients(p):
+            good=np.isfinite(p[:,0])
+            return np.polynomial.polynomial.polyfit(p[good,1],p[good,0],2).tolist() if good.sum()>=3 else None
+        return dict(image_curve_degree=2,
+                    left_image_coefficients=coefficients(self.image_left),
+                    right_image_coefficients=coefficients(self.image_right),
+                    boundary_valid=self.valid,boundary_pair_valid=self.pair_valid,
                     left_boundary_valid=self.left_valid,right_boundary_valid=self.right_valid,
                     boundary_state=self.state,boundary_reference_side=self.reference_side,
                     left_boundary_state=self.left_state,right_boundary_state=self.right_state,
@@ -136,6 +142,15 @@ class ImageBoundaryTracker:
         values[(self.rows<p[0,1])|(self.rows>p[-1,1])]=np.nan
         return np.column_stack((values,self.rows))
 
+    def _quadratic(self, points):
+        if points is None:return None
+        p=points.copy();good=np.isfinite(p[:,0])
+        if good.sum()<3:return p
+        u=(p[:,1]-125.)/50.
+        c=np.polynomial.polynomial.polyfit(u[good],p[good,0],2)
+        p[good,0]=np.polynomial.polynomial.polyval(u[good],c)
+        return p
+
     def _warp(self, points, matrix):
         if points is None:
             return None
@@ -151,7 +166,7 @@ class ImageBoundaryTracker:
         result=np.column_stack((values,self.rows))
         if result is None or np.count_nonzero((result[:,0]>0)&(result[:,0]<319))<12:
             return points.copy()
-        return result
+        return self._quadratic(result)
 
     @staticmethod
     def _smooth_shape(points):
@@ -400,6 +415,7 @@ class ImageBoundaryTracker:
 
     def _fuse(self, observations, predicted, motion, motion_score, step):
         """Fuse only supported rows; commit history only after pair validation."""
+        predicted=[self._quadratic(p) for p in predicted]
         output=[];states=[];scores=[];supports=[];residuals=[None,None]
         for side,o in enumerate(observations):
             self.side_missing[side]=self.side_missing[side]+step if o is None else 0.
@@ -416,40 +432,28 @@ class ImageBoundaryTracker:
                 support=np.isfinite(measured[:,0])
                 existing=support&np.isfinite(p[:,0])
                 fresh=support&~np.isfinite(p[:,0])
-                # Current evidence controls its own rows. Old unobserved rows
-                # remain predicted; no full-curve polynomial refit is allowed.
+                # Blend polynomial coefficients, with ONE scale for all rows.
+                # Per-row clipping would turn a quadratic into a piecewise line.
                 alpha=1-(1-(.2+.45*quality))**(step/.1)
-                correction=np.zeros(48)
-                correction[existing]=np.clip(alpha*(measured[existing,0]-p[existing,0]),-80*step,80*step)
-                # Join a partial update through nearby retained rows, never by
-                # extrapolating the absolute polynomial into unobserved space.
-                indices=np.flatnonzero(existing)
-                retained=np.isfinite(p[:,0])&~support
-                if len(indices) and retained.any():
-                    for j in np.flatnonzero(retained):
-                        k=indices[np.argmin(abs(indices-j))]
-                        distance=abs(k-j)
-                        if distance<=8:correction[j]=correction[k]*(1-distance/9.)
-                    for _ in range(2):
-                        correction=np.convolve(np.pad(correction,1,mode='edge'),[.25,.5,.25],mode='valid')
+                u=(self.rows-125.)/50.
                 finite=np.isfinite(p[:,0])
-                if quality<.65 and existing.any():
-                    # A tiny fragment cannot justify changing whole-curve
-                    # curvature. Translate the retained shape coherently instead
-                    # of accumulating a seam at its observation boundary.
-                    rows=self.rows[existing];diff=measured[existing,0]-p[existing,0]
-                    shift=np.full(finite.sum(),np.median(diff))
-                    if np.ptp(rows)>=16:
-                        # Linked dashes span enough rows to measure direction:
-                        # rotate the retained shape about the fragment instead
-                        # of carrying a stale slope into occluded rows.
-                        center=rows.mean()
-                        tilt=float(np.clip(np.polynomial.polynomial.polyfit(rows-center,diff,1)[1],-.6,.6))
-                        shift=np.median(diff-tilt*(rows-center))+tilt*(self.rows[finite]-center)
-                    correction[finite]=np.clip(alpha*shift,-80*step,80*step)
-                p[finite,0]+=correction[finite]
-                p[fresh,0]=measured[fresh,0]
-                residuals[side]=float(np.percentile(abs(p[support,0]-measured[support,0]),90))
+                if existing.sum()>=3:
+                    old=np.polynomial.polynomial.polyfit(u[finite],p[finite,0],2)
+                    diff=measured[existing,0]-p[existing,0]
+                    degree=2 if quality>=.65 else (1 if np.ptp(self.rows[existing])>=16 else 0)
+                    dc=np.polynomial.polynomial.polyfit(u[existing],diff,degree)
+                    delta=np.polynomial.polynomial.polyval(u,dc)
+                    domain=finite|support
+                    fraction=min(alpha,80*step/max(float(np.max(abs(delta[domain]))),1e-9))
+                    values=np.polynomial.polynomial.polyval(u,old)+fraction*delta
+                    p[domain,0]=values[domain]
+                elif finite.sum()>=3:
+                    # Disjoint fragment cannot safely change the retained model.
+                    support[:]=False
+                else:
+                    p[support,0]=measured[support,0]
+                    p=self._quadratic(p)
+                residuals[side]=float(np.percentile(abs(p[support,0]-measured[support,0]),90)) if support.any() else 100.
                 score=float(quality*np.exp(-residuals[side]/6.))
                 state=('partial' if quality<.65 else 'observed') if residuals[side]<=4 else 'aligning'
             if np.isfinite(p[:,0]).sum()<8:
@@ -465,7 +469,7 @@ class ImageBoundaryTracker:
                 width=self.width if self.width is not None else np.clip(1.6*(self.rows-65),24,240)
                 target=output[1-side].copy()
                 target[:,0]+=width*(-1 if side==0 else 1)
-                output[side]=target;states[side]='inferred';scores[side]=min(.15,scores[1-side]*.3)
+                output[side]=self._quadratic(target);states[side]='inferred';scores[side]=min(.15,scores[1-side]*.3)
 
         # Only long-lost sides may follow a stable opposite. Use spacing from
         # repeated TWO-sided observations, never a guessed metric/default width.
@@ -482,6 +486,11 @@ class ImageBoundaryTracker:
                     for _ in range(2):
                         delta=np.convolve(np.pad(delta,1,mode='edge'),[.25,.5,.25],mode='valid')
                     finite=np.isfinite(candidate[:,0]);candidate[finite,0]+=delta[finite]
+                    candidate=self._quadratic(candidate)
+                    common=np.isfinite(candidate[:,0])&np.isfinite(output[side][:,0])
+                    change=candidate[common,0]-output[side][common,0]
+                    scale=min(1.,20*step/max(float(np.max(abs(change))),1e-9))
+                    candidate[common,0]=output[side][common,0]+scale*change
                     pair=list(output);pair[side]=candidate
                     if self._valid_pair(pair):
                         output[side]=candidate;states[side]='inferred';scores[side]=min(scores[side],.15)
@@ -490,7 +499,7 @@ class ImageBoundaryTracker:
         if not self._valid_pair(output):
             # Try accepting either side independently against the last VALID
             # opposite, before holding both. Never reuse arbitrary history.
-            fallback=predicted if self._valid_pair(predicted) else self.last_valid_pair
+            fallback=predicted if self._valid_pair(predicted) else ([self._quadratic(p) for p in self.last_valid_pair] if self.last_valid_pair is not None else None)
             choices=[]
             if fallback is not None and self._valid_pair(fallback):
                 for side in (0,1):
@@ -514,6 +523,7 @@ class ImageBoundaryTracker:
                     width=np.clip(1.6*(self.rows-65),24,240)
                     output[other]=output[side].copy()
                     output[other][:,0]+=width*(-1 if other==0 else 1)
+                    output[other]=self._quadratic(output[other])
                     states[other]='inferred';scores[other]=min(.15,scores[side]*.3)
                     supports[other][:]=False;residuals[other]=None
                 if not self._valid_pair(output):

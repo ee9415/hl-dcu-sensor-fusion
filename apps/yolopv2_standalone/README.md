@@ -2,7 +2,21 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: dashed fragments with bounded pole rejection (0.30.3, 2026-10-23)
+## Current: one quadratic per boundary (0.31.0, 2026-10-23)
+
+Both displayed image boundaries and retained history are each one polynomial
+`x(y)=C0+C1*y+C2*y*y`, including straight lines (C2=0). No S-curve/piecewise model
+is used. The coefficient fit uses normalized y internally; telemetry
+`left_image_coefficients`/`right_image_coefficients` are in 320x180 pixel coordinates.
+Motion-warped geometry is projected back to a quadratic over retained support.
+Observation corrections use degree 0 for tiny fragments, 1 for linked partial
+support, and 2 for full observations. A single correction scale bounds movement
+over the entire retained/observed extent (8px at 10 FPS); pointwise clipping is
+not used for observed updates. Unseen rows may move coherently with the model.
+Finite support is preserved: this is not full-height horizon extrapolation.
+Opposite-side inference is also projected to a quadratic and pair-validated.
+The sections below describe inherited detection behavior; coefficient updates
+above supersede earlier local-taper/pointwise fusion descriptions.
 
 Includes the bright-pavement margin, direction-consistent second dash support,
 and limited partial slope correction from commit 4381513. Pole rejection is now
