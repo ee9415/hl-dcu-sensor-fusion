@@ -35,6 +35,8 @@ def update(tracker, *args, **kwargs):
     record = {'history_before': frozen(tracker.history,prefix+'_history'),
               'scores_before': list(tracker.scores),
               'width_before': frozen(tracker.width,prefix+'_width'), 'boxes': [[b.xmin,b.ymin,b.xmax,b.ymax] for b in kwargs.get('detections',())], 'calls': []}
+    record['width_samples_before']=frozen(tracker.width_samples,prefix+'_width_samples')
+    record['last_valid_pair_before']=frozen(tracker.last_valid_pair,prefix+'_last_pair')
     def profile(frame, event, result):
         if event != 'return' or frame.f_code.co_filename != tracker.update.__code__.co_filename:
             return
@@ -47,7 +49,7 @@ def update(tracker, *args, **kwargs):
                    'motion','motion_score','predicted','observations','output','states','scores',
                    'common','widths','learned','loser','fraction','final_error','delta','target',
                    'points','coeff','values','prior','best','seeds','support','domain',
-                   'measured','quality','existing','fresh','finite','observations')
+                   'measured','quality','existing','fresh','finite','observations','step')
         for k in allowed:
             if k in frame.f_locals:
                 call[k] = frozen(frame.f_locals[k],key+'_'+k)
