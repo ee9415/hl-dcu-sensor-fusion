@@ -633,20 +633,29 @@ class ImageBoundaryTracker:
 
     def _detect_full(self, paint, side, prior):
         # Start at any supported near/middle row, not at a fixed C0 anchor.
+        # Use whole stripe centers BEFORE applying the search gate. Selecting
+        # the nearest individual pixel follows alternating edges of thick paint
+        # and creates curvature even on a straight stripe. Cache per frame/call.
+        # Vectorized run endpoints avoid a Python loop/mean for every paint
+        # component, especially on busy road texture.
+        transitions=np.diff(np.pad(paint[78:169:2].astype(np.int8),((0,0),(1,1))),axis=1)
+        rr,starts=np.nonzero(transitions==1)
+        _,ends=np.nonzero(transitions==-1)
+        narrow=(ends-starts)<=12
+        rr=rr[narrow];mid=(starts[narrow]+ends[narrow]-1)*.5
+        centers={row:mid[rr==i] for i,row in enumerate(range(78,169,2))}
         seeds=[]
         for row in (168,156,144,132):
-            xs=np.flatnonzero(paint[row])
+            xs=centers[row]
             xs=xs[(xs>8)&(xs<312)&((xs<175) if side==0 else (xs>145))]
-            if len(xs):
-                groups=np.split(xs,np.flatnonzero(np.diff(xs)>2)+1)
-                seeds.extend((row,float(np.mean(g))) for g in groups if len(g)<=12)
+            seeds.extend((row,float(x)) for x in xs)
         stats=dict(seeds=len(seeds),short=0,fit=0,quality=0,side=0,accepted=0)
         self.detection_diagnostics[side]=stats
         best=None
         for start,seed in seeds[:28]:
             ys,xs=[],[];value=seed;slope=0.;last=start
             for y in range(start,76,-2):
-                options=np.flatnonzero(paint[y])
+                options=centers[y]
                 predicted=value+slope*(y-last)
                 gap=last-y
                 if gap>24:break
@@ -676,6 +685,16 @@ class ImageBoundaryTracker:
             if good.sum()<10 or np.ptp(ys[good])<20:
                 stats["fit"]+=1
                 continue
+            # Prefer a line only when it explains the same robust inliers at
+            # subpixel precision and bending adds negligible improvement.
+            # Strong real curves retain their quadratic; fusion still smooths
+            # changes over time instead of snapping the displayed boundary.
+            line=np.polynomial.polynomial.polyfit((ys[good]-125)/50,xs[good],1)
+            line_error=abs(np.polynomial.polynomial.polyval((ys-125)/50,line)-xs)
+            if (line_error[good].mean()<=.8 and line_error[good].max()<=2.
+                    and line_error[good].mean()-residual[good].mean()<=.25):
+                coeff=np.array([line[0],line[1],0.])
+                residual=line_error
             residual=float(np.mean(residual[good]))
             score=float(.45*min(1,np.ptp(ys[good])/75)+.3*good.mean()+.25*np.exp(-residual/2))
             values=np.polynomial.polynomial.polyval((self.rows-125)/50,coeff)
@@ -711,7 +730,9 @@ class ImageBoundaryTracker:
                 evidence.append(float(hits.mean()))
             rank+=.12*min(evidence,default=0.)
             rank+=self.config.image_nn_rank_weight*self._nn_support(np.column_stack((xs[good],ys[good])))
-            if best is None or rank>best[0]:
+            # Translation-equivalent stripes can differ only by fit roundoff.
+            # Keep deterministic seed order for numerical ties.
+            if best is None or rank>best[0]+1e-9:
                 best=(rank,np.column_stack((values,self.rows)),score)
         return None if best is None else best[1:]
 
