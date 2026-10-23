@@ -267,6 +267,37 @@ class ImageBoundaryTracker:
         self.detection_diagnostics[side]['short_pair_selected']=True
         return observations,predicted
 
+    def _display_continuation(self, output, states, supports):
+        """Bounded virtual tail; never feeds tracking, support or width learning."""
+        result=[p.copy() for p in output]
+        for side in (0,1):
+            other=1-side
+            if (states[side]!='partial' or states[other]!='observed'
+                    or self.short_pair_hits[side]<3):continue
+            p=output[side];good=np.isfinite(p[:,0]);observed=good&supports[side]
+            if observed.sum()<8 or np.ptp(self.rows[observed])<14:continue
+            # A short fit's curvature is poorly constrained. Reject nonlinear
+            # extrapolation unless its departure from the observed tangent is small.
+            u=(self.rows-125)/50
+            c=np.polynomial.polynomial.polyfit(u[good],p[good,0],2)
+            edge=float(self.rows[good].min());ue=(edge-125)/50
+            slope=(c[1]+2*c[2]*ue)/50
+            if abs(slope)>1.5:continue
+            edge_x=float(np.polynomial.polynomial.polyval(ue,c))
+            values=np.polynomial.polynomial.polyval(u,c)
+            tail=(self.rows<edge)&(self.rows>=edge-24)&np.isfinite(output[other][:,0])
+            added=0
+            for index in np.flatnonzero(tail):
+                tangent=edge_x+slope*(self.rows[index]-edge)
+                if abs(values[index]-tangent)>4 or not 0<values[index]<319:break
+                candidate=[v.copy() for v in result]
+                candidate[side][index,0]=values[index]
+                if not self._plausible_pair(candidate):break
+                result=candidate;added+=1
+            self.detection_diagnostics[side]['virtual_extension_rows']=added
+            self.detection_diagnostics[side]['virtual_extension_limit_px']=24
+        return result
+
     def _reacquire_observation(self, paint, side, prior, selected):
         if prior is None or (self.scores[side]>=.25 and self.side_missing[side]<.5):
             self.reacquire[side]=None;self.reacquire_hits[side]=0
@@ -798,6 +829,7 @@ class ImageBoundaryTracker:
         observed=[s for s in (0,1) if supports[s].any() and states[s] in ('observed','aligning','partial')]
         reference='both' if len(observed)==2 else 'left' if observed==[0] else 'right' if observed==[1] else 'none'
         state='tracking' if observed else 'held' if restored else 'predicted' if self.last_valid_pair is not None else 'unavailable'
+        output=self._display_continuation(output,states,supports)
         return ImageBoundaryEstimate(*output,projection_for((180,320),self.config),*states,*scores,
                                      motion_score,motion,state,reference,*supports,*residuals,restored,
                                      [dict(v) for v in self.detection_diagnostics])

@@ -46,7 +46,8 @@ def update(tracker, *args, **kwargs):
         allowed = ('side','timestamp_s','image','road','lane','paint','allowed','threshold',
                    'motion','motion_score','predicted','observations','output','states','scores',
                    'common','widths','learned','loser','fraction','final_error','delta','target',
-                   'points','coeff','values','prior','best','seeds')
+                   'points','coeff','values','prior','best','seeds','support','domain',
+                   'measured','quality','existing','fresh','finite','observations')
         for k in allowed:
             if k in frame.f_locals:
                 call[k] = frozen(frame.f_locals[k],key+'_'+k)
@@ -59,6 +60,8 @@ def update(tracker, *args, **kwargs):
     finally:
         sys.setprofile(previous)
     record['telemetry'] = estimate.telemetry()
+    record['region_segments'] = frozen(tracker.region_segments,prefix+'_segments')
+    record['detection_diagnostics'] = tracker.detection_diagnostics
     records.append(record)
     if len(records) == COUNT:
         arrays['records_json'] = np.array(json.dumps(records))
