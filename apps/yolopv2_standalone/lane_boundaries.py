@@ -13,6 +13,7 @@ import numpy as np
 
 @dataclass(frozen=True)
 class BoundaryConfig:
+    image_nn_rank_weight: float = .06
     image_min_width_ratio: float = .25
     image_retained_width_ratio: float = .55
     vehicle_width_m: float = 1.8
@@ -37,8 +38,10 @@ class BoundaryConfig:
             value = getattr(self, field.name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not np.isfinite(value):
                 raise ValueError(f'{field.name} must be a finite number')
-            if value < 0 or (value == 0 and field.name not in ('left_margin_m', 'right_margin_m')):
+            if value < 0 or (value == 0 and field.name not in ('left_margin_m', 'right_margin_m', 'image_nn_rank_weight')):
                 raise ValueError(f'{field.name} is out of range')
+        if self.image_nn_rank_weight > .1:
+            raise ValueError('NN ranking weight must not exceed 0.1')
         if max(self.image_min_width_ratio,self.image_retained_width_ratio)>1:
             raise ValueError('Image width ratios must not exceed one')
         if self.width_m >= 12 or self.max_forward_m > 40:

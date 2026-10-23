@@ -138,6 +138,21 @@ class ImageBoundaryTracker:
         self.reacquire_hits=[0,0]
         self.short_pair_hits=[0,0]
         self.short_pair_previous=[None,None]
+        self.nn_rank_mask=None
+
+    def _nn_support(self, points):
+        """Tie-break only on observed paint; never change acceptance/confidence."""
+        if self.nn_rank_mask is None or not len(points):return 0.
+        q=np.asarray(points)
+        q=q[np.isfinite(q).all(axis=1)]
+        if len(q)<6 or np.ptp(q[:,1])<10:return 0.
+        xy=np.rint(q).astype(int)
+        good=(xy[:,0]>=0)&(xy[:,0]<320)&(xy[:,1]>=0)&(xy[:,1]<180)
+        if not good.all():return 0.
+        # Equal weight per image row; thick masks cannot inflate support.
+        rows=np.unique(xy[:,1])
+        support=np.array([self.nn_rank_mask[xy[xy[:,1]==y,1],xy[xy[:,1]==y,0]].any() for y in rows])
+        return float(support.mean()) if support.mean()>=.5 else 0.
 
     def _complete(self, points):
         """Interpolate observed support only; never extrapolate a quadratic."""
@@ -388,6 +403,7 @@ class ImageBoundaryTracker:
                     support=domain&(np.min(abs(self.rows[:,None]-q[None,:,1]),axis=1)<=1)
                     score=float(min(.85,.55+.2*min(1,len(q)/30))*np.exp(-errors.mean()/3))
                     rank=len(q)-errors.mean()*5
+                    rank+=30*self.config.image_nn_rank_weight*self._nn_support(q)
                     if prior is not None:
                         common=support&np.isfinite(prior[:,0])
                         if common.any():rank+=2*np.exp(-np.median(abs(values[common]-prior[common,0]))/20)
@@ -538,6 +554,7 @@ class ImageBoundaryTracker:
                     temporal=float(np.exp(-np.median(abs(values[common]-prior[common,0]))/20))
             # Long continuous paint dominates; past position is only a tie-breaker.
             rank=score+.10*temporal+.08*min(1,len(xs)/40)
+            rank+=self.config.image_nn_rank_weight*self._nn_support(np.column_stack((xs[good],ys[good])))
             if best is None or rank>best[0]:
                 best=(rank,np.column_stack((values,self.rows)),score)
         return None if best is None else best[1:]
@@ -552,6 +569,8 @@ class ImageBoundaryTracker:
             lane=lane[np.linspace(0,lane.shape[0]-1,180).astype(int)[:,None],
                       np.linspace(0,lane.shape[1]-1,320).astype(int)[None,:]]
         paint=white_lane_evidence(image,lane)>0
+        # Replace on every frame (including empty masks); no stale NN support.
+        self.nn_rank_mask=lane>0
         road=road[np.linspace(0,road.shape[0]-1,180).astype(int)[:,None],
                   np.linspace(0,road.shape[1]-1,320).astype(int)[None,:]]>0
         # Segmentation often excludes paint itself. A narrow dilation admits
