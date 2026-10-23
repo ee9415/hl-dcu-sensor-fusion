@@ -131,6 +131,9 @@ class ImageBoundaryTracker:
         self.observed_streak=np.zeros(2,dtype=int)
         self.width_samples=np.zeros(48,dtype=int)
         self.detection_diagnostics=[{},{}]
+        self.fragment_hits=np.zeros((2,48),dtype=int)
+        self.fragment_offsets=np.full((2,48),np.nan)
+        self.region_segments=[[],[]]
 
     def _complete(self, points):
         """Interpolate observed support only; never extrapolate a quadratic."""
@@ -198,8 +201,40 @@ class ImageBoundaryTracker:
                      and common.sum()>=3 and np.max(abs(regional[0][common,0]-legacy[0][common,0]))<=3)
         if regional is not None and (legacy is None or regional[1]>legacy[1] or extends):
             self.detection_diagnostics[side]=regional_stats
-            return regional
-        return legacy
+            return self._temporal_fragments(regional,side,prior)
+        return self._temporal_fragments(legacy,side,prior)
+
+    def _temporal_fragments(self, observation, side, prior):
+        # Accumulate repeatability relative to the motion-compensated prior.
+        current=np.full(48,np.nan)
+        if prior is not None:
+            for q in self.region_segments[side]:
+                order=np.argsort(q[:,1]);q=q[order]
+                rows=(self.rows>=q[0,1])&(self.rows<=q[-1,1])&np.isfinite(prior[:,0])
+                if rows.sum()<3:continue
+                slope=np.polyfit(q[:,1],q[:,0],1)[0]
+                previous=np.polyfit(self.rows[rows],prior[rows,0],1)[0]
+                if abs(slope-previous)>.6:continue
+                x=np.interp(self.rows[rows],q[:,1],q[:,0])
+                indices=np.flatnonzero(rows);offset=x-prior[rows,0]
+                for k,d in zip(indices,offset):
+                    if abs(d)<=6 and (not np.isfinite(current[k]) or abs(d)<abs(current[k])):current[k]=d
+        visible=np.isfinite(current)
+        repeat=visible&np.isfinite(self.fragment_offsets[side])&(abs(current-self.fragment_offsets[side])<=2)
+        self.fragment_hits[side]=np.where(repeat,np.minimum(self.fragment_hits[side]+1,5),visible.astype(int))
+        self.fragment_offsets[side]=current
+        stable=visible&(self.fragment_hits[side]>=3)
+        stats=self.detection_diagnostics[side]
+        stats.update(temporal_visible=int(visible.sum()),temporal_stable=int(stable.sum()),temporal_used=False)
+        if observation is None or prior is None or observation[1]>=.65:return observation
+        measured,quality=observation[:2]
+        support=observation[2].copy() if len(observation)>2 else np.isfinite(measured[:,0])
+        added=stable&~support
+        if added.sum()<3:return observation
+        measured=measured.copy();measured[added,0]=prior[added,0]+current[added]
+        support|=added
+        stats['temporal_used']=True
+        return measured,min(quality,.55),support,True
 
     def _detect_regions(self, paint, side, prior):
         """Independent overlapping bands in the bottom 60%, then joint fit."""
@@ -235,6 +270,7 @@ class ImageBoundaryTracker:
                 segments.append(q)
             segments.sort(key=lambda q:np.ptp(q[:,1]),reverse=True)
             candidates.append(segments[:4])
+        self.region_segments[side]=[q for band in candidates for q in band]
         best=None
         for count in (3,2):
             for band_ids in combinations(range(3),count):
@@ -533,11 +569,21 @@ class ImageBoundaryTracker:
                 if existing.sum()>=3:
                     old=np.polynomial.polynomial.polyfit(u[finite],p[finite,0],2)
                     diff=measured[existing,0]-p[existing,0]
-                    degree=2 if quality>=.65 else (1 if np.ptp(self.rows[existing])>=16 else 0)
-                    dc=np.polynomial.polynomial.polyfit(u[existing],diff,degree)
+                    temporal=len(observation)>3 and observation[3]
+                    degree=2 if quality>=.65 or temporal else (1 if np.ptp(self.rows[existing])>=16 else 0)
+                    if temporal:
+                        # Anchor unobserved rows; keep one quadratic without
+                        # letting a weak local fragment move the entire boundary.
+                        targets=np.zeros(finite.sum());targets[existing[finite]]=diff
+                        weights=np.where(existing[finite],1.,4.)
+                        dc=np.polynomial.polynomial.polyfit(u[finite],targets,2,w=weights)
+                    else:
+                        dc=np.polynomial.polynomial.polyfit(u[existing],diff,degree)
                     delta=np.polynomial.polynomial.polyval(u,dc)
                     domain=finite|np.isfinite(measured[:,0])
                     fraction=min(alpha,80*step/max(float(np.max(abs(delta[domain]))),1e-9))
+                    if temporal:
+                        fraction=min(fraction,5*step/max(float(np.max(abs(delta[domain]))),1e-9))
                     values=np.polynomial.polynomial.polyval(u,old)+fraction*delta
                     p[domain,0]=values[domain]
                 elif finite.sum()>=3:
@@ -598,6 +644,9 @@ class ImageBoundaryTracker:
             if fallback is not None and self._valid_pair(fallback):
                 for side in (0,1):
                     if observations[side] is None:continue
+                    # Weak temporal evidence must not win a pair conflict and
+                    # force the independently detected opposite side into HELD.
+                    if len(observations[side])>3 and observations[side][3]:continue
                     pair=[p.copy() for p in fallback];pair[side]=output[side].copy()
                     if self._valid_pair(pair):choices.append((scores[side],side,pair))
                 if choices:

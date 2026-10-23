@@ -377,6 +377,40 @@ class ImageBoundaryTests(unittest.TestCase):
         self.assertFalse(support[(t.rows>156)&(t.rows<164)].any())
         self.assertLess(self.truth_error(curve,f['right_truth']).max(),3.)
 
+    def test_temporal_fragments_require_repeat_and_reset_on_loss(self):
+        t=ImageBoundaryTracker();prior=np.column_stack((200+(t.rows-164),t.rows))
+        measured=prior.copy();measured[t.rows<164,0]=np.nan
+        q=np.array([(200+y-164+2,y) for y in range(148,155,2)])
+        t.region_segments[1]=[q]
+        observation=(measured,.5)
+        for _ in range(2):self.assertEqual(len(t._temporal_fragments(observation,1,prior)),2)
+        result=t._temporal_fragments(observation,1,prior)
+        self.assertTrue(result[3]);self.assertLessEqual(result[1],.55)
+        self.assertTrue(result[2][t.rows<156].any())
+        t.region_segments[1]=[]
+        self.assertEqual(len(t._temporal_fragments(observation,1,prior)),2)
+        self.assertEqual(t.fragment_hits[1].sum(),0)
+
+    def test_temporal_fragments_reject_distant_repeat(self):
+        t=ImageBoundaryTracker();prior=np.column_stack((200+(t.rows-164),t.rows))
+        measured=prior.copy();measured[t.rows<164,0]=np.nan
+        t.region_segments[1]=[np.array([(200+y-164+12,y) for y in range(148,155,2)])]
+        for _ in range(5):self.assertEqual(len(t._temporal_fragments((measured,.5),1,prior)),2)
+        self.assertEqual(t.fragment_hits[1].sum(),0)
+
+    def test_temporal_correction_is_bounded_and_does_not_move_other_side(self):
+        t=ImageBoundaryTracker()
+        left=np.column_stack((np.full(48,80.),t.rows))
+        right=np.column_stack((200+(t.rows-164)*.5,t.rows))
+        measured=right.copy();support=(t.rows>=148)&(t.rows<=154)
+        measured[~support,0]=np.nan;measured[support,0]+=3
+        b=t._fuse([None,(measured,.5,support,True)],[left,right],np.eye(2,3),0,.1)
+        self.assertTrue(b.pair_valid)
+        np.testing.assert_allclose(b.image_left,left,atol=1e-8)
+        self.assertLessEqual(np.max(abs(b.image_right[:,0]-right[:,0])),.500001)
+        self.assertEqual(b.right_state,'partial')
+        self.assertEqual(t.width_samples.sum(),0)
+
     def test_single_initial_side_supplies_low_confidence_pair(self):
         t=ImageBoundaryTracker();b=self.update(t,self.scene(right=False),0)
         self.assertTrue(b.pair_valid)
