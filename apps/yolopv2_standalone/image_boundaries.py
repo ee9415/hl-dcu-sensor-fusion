@@ -190,7 +190,13 @@ class ImageBoundaryTracker:
         regional=self._detect_regions(paint,side,prior)
         regional_stats=dict(self.detection_diagnostics[side])
         legacy=self._detect_legacy(paint,side,prior)
-        if regional is not None and (legacy is None or regional[1]>legacy[1]):
+        extends=False
+        if regional is not None and legacy is not None:
+            common=np.isfinite(regional[0][:,0])&np.isfinite(legacy[0][:,0])
+            legacy_support=legacy[2] if len(legacy)>2 else np.isfinite(legacy[0][:,0])
+            extends=(regional[1]>=.45 and np.count_nonzero(regional[2])>np.count_nonzero(legacy_support)
+                     and common.sum()>=3 and np.max(abs(regional[0][common,0]-legacy[0][common,0]))<=3)
+        if regional is not None and (legacy is None or regional[1]>legacy[1] or extends):
             self.detection_diagnostics[side]=regional_stats
             return regional
         return legacy
@@ -233,23 +239,28 @@ class ImageBoundaryTracker:
         for count in (3,2):
             for band_ids in combinations(range(3),count):
                 for group in product(*(candidates[k] for k in band_ids)):
-                    # Repeated support in overlap is not a second segment.
-                    ordered=sorted(group,key=lambda q:q[:,1].mean())
-                    compatible=True
-                    for far,near in zip(ordered,ordered[1:]):
-                        if near[:,1].min()<=far[:,1].max()+2:
-                            compatible=False;break
-                        sf=np.polyfit(far[:,1],far[:,0],1)[0];sn=np.polyfit(near[:,1],near[:,0],1)[0]
-                        a=far[np.argmax(far[:,1])];b=near[np.argmin(near[:,1])]
-                        join=(b[0]-a[0])/(b[1]-a[1])
-                        if not min(sf,sn)-.25<=join<=max(sf,sn)+.25:
-                            compatible=False;break
-                    if not compatible:continue
-                    q=np.vstack(group);u=(q[:,1]-125)/50
+                    # Merge overlapping evidence once; reject conflicting locations.
+                    raw=np.vstack(group)
+                    ys=np.unique(raw[:,1])
+                    if any(np.ptp(raw[raw[:,1]==y,0])>3 for y in ys):continue
+                    q=np.array([(np.median(raw[raw[:,1]==y,0]),y) for y in ys])
                     if len(q)<10 or np.ptp(q[:,1])<20:continue
+                    u=(q[:,1]-125)/50
                     c=np.polynomial.polynomial.polyfit(u,q[:,0],2)
                     errors=abs(np.polynomial.polynomial.polyval(u,c)-q[:,0])
                     if errors.max()>2:continue
+                    # Short fragments have uncertain tangent estimates. Check the
+                    # fitted tangent against each fragment, with length-scaled tolerance.
+                    compatible=True
+                    for segment in group:
+                        span=np.ptp(segment[:,1])
+                        local=np.polyfit(segment[:,1],segment[:,0],1)
+                        slope=local[0]
+                        noise=np.max(abs(np.polyval(local,segment[:,1])-segment[:,0]))
+                        tangent=(c[1]+2*c[2]*(segment[:,1].mean()-125)/50)/50
+                        if abs(tangent-slope)>.2+min(1.,noise*2)*4/max(span,4):
+                            compatible=False;break
+                    if not compatible:continue
                     values=np.polynomial.polynomial.polyval((self.rows-125)/50,c)
                     domain=(self.rows>=q[:,1].min())&(self.rows<=q[:,1].max())
                     values[~domain]=np.nan

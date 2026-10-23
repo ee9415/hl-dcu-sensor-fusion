@@ -361,6 +361,22 @@ class ImageBoundaryTests(unittest.TestCase):
         for y in range(84,102):mask[y,int(270-(y-84)*.7)]=True
         self.assertIsNone(t._detect_regions(mask,1,None))
 
+    def test_regions_join_real_short_dashes(self):
+        f,(road,lane),boxes=self.parked_scene();t=ImageBoundaryTracker()
+        original=t._detect_regions;results=[]
+        def capture(paint,side,prior):
+            result=original(paint,side,prior)
+            if side==1:results.append(result)
+            return result
+        t._detect_regions=capture
+        t.update(road,lane,0,rgb=f['rgb'],detections=boxes)
+        self.assertIsNotNone(results[0])
+        curve,score,support=results[0]
+        self.assertTrue(support[t.rows<156].any())
+        self.assertTrue(support[t.rows>164].any())
+        self.assertFalse(support[(t.rows>156)&(t.rows<164)].any())
+        self.assertLess(self.truth_error(curve,f['right_truth']).max(),3.)
+
     def test_single_initial_side_supplies_low_confidence_pair(self):
         t=ImageBoundaryTracker();b=self.update(t,self.scene(right=False),0)
         self.assertTrue(b.pair_valid)
