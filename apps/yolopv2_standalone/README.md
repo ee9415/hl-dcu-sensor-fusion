@@ -2,7 +2,14 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: short-fragment observations (0.30.2, 2026-10-23)
+## Current: dashed fragments with bounded pole rejection (0.30.3, 2026-10-23)
+
+Includes the bright-pavement margin, direction-consistent second dash support,
+and limited partial slope correction from commit 4381513. Pole rejection is now
+limited to the first 12 admitted rows after a road-mask transition. It must not
+erase an entire lane merely because its upper part lies outside the road mask.
+The parked-scene pole/dash tests and a truncated-road vertical-lane regression
+pass together. This is a bounded heuristic, not a semantic pole classifier.
 
 The established full-curve detector runs first, unchanged. When it fails, a bounded
 fallback adds near-row seeds, estimates direction from two points, and bridges at

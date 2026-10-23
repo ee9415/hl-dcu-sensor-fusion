@@ -351,7 +351,12 @@ class ImageBoundaryTracker:
         run_start=np.maximum.accumulate(np.where(wide,-1,index),axis=0)
         outside=np.vstack((np.zeros((1,320),int),np.cumsum(wide&~allowed,axis=0)))
         above=outside[index+1,np.arange(320)]-outside[run_start+1,np.arange(320)]
-        paint &= ~(wide&(index-run_start>=10)&(above>=4))
+        # Only suppress the transition at the road edge. An imperfect road
+        # mask must not make a post label persist down an entire valid lane.
+        last_outside=np.maximum.accumulate(np.where(~allowed,index,-1),axis=0)
+        inside_depth=index-last_outside
+        pole_transition=wide&(index-run_start>=10)&(above>=4)&(inside_depth<=12)
+        paint &= ~pole_transition
         paint &= brightness>=threshold
         for box in detections:
             a,b=np.clip([int(box.xmin*320),int(np.ceil(box.xmax*320))],0,320)

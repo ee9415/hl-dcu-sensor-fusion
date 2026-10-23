@@ -308,6 +308,19 @@ class ImageBoundaryTests(unittest.TestCase):
         b=self.update(ImageBoundaryTracker(),image,0)
         self.assertTrue(b.pair_valid)
         self.assertEqual((b.left_state,b.right_state),('observed','observed'))
+    def test_vertical_lane_survives_truncated_road_mask(self):
+        image=np.full((180,320,3),60,np.uint8)
+        image[110:176,99:102]=230;image[110:176,219:222]=230
+        road=np.zeros((180,320),np.uint8);road[130:]=1
+        t=ImageBoundaryTracker()
+        for i in range(3):
+            b=t.update(road,np.zeros_like(road),i*.1,rgb=image)
+            self.assertTrue(b.pair_valid)
+            self.assertEqual((b.left_state,b.right_state),('observed','observed'))
+            for p,x in ((b.image_left,100),(b.image_right,220)):
+                good=np.isfinite(p[:,0])
+                self.assertLess(np.max(abs(p[good,0]-x)),3)
+
     def test_single_initial_side_supplies_low_confidence_pair(self):
         t=ImageBoundaryTracker();b=self.update(t,self.scene(right=False),0)
         self.assertTrue(b.pair_valid)
