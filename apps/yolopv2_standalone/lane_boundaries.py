@@ -13,6 +13,8 @@ import numpy as np
 
 @dataclass(frozen=True)
 class BoundaryConfig:
+    image_min_width_ratio: float = .25
+    image_retained_width_ratio: float = .55
     vehicle_width_m: float = 1.8
     left_margin_m: float = .3
     right_margin_m: float = .3
@@ -37,6 +39,8 @@ class BoundaryConfig:
                 raise ValueError(f'{field.name} must be a finite number')
             if value < 0 or (value == 0 and field.name not in ('left_margin_m', 'right_margin_m')):
                 raise ValueError(f'{field.name} is out of range')
+        if max(self.image_min_width_ratio,self.image_retained_width_ratio)>1:
+            raise ValueError('Image width ratios must not exceed one')
         if self.width_m >= 12 or self.max_forward_m > 40:
             raise ValueError('Requested corridor exceeds development BEV extent')
         if max(self.vehicle_width_m/2+self.left_margin_m,

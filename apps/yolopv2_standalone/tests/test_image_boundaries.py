@@ -411,6 +411,51 @@ class ImageBoundaryTests(unittest.TestCase):
         self.assertEqual(b.right_state,'partial')
         self.assertEqual(t.width_samples.sum(),0)
 
+    def test_real_left_short_fragment_replaces_duplicate_right_paint(self):
+        from pathlib import Path
+        f=np.load(Path(__file__).with_name('fixtures')/'left_short_duplicate_20261023.npz')
+        t=ImageBoundaryTracker();t.history=[f['left'].copy(),f['right'].copy()]
+        self.assertFalse(t._plausible_pair(t.history))
+        for _ in range(12):
+            predicted=[p.copy() for p in t.history]
+            obs=[t._detect(f['paint'],side,predicted[side]) for side in (0,1)]
+            obs,predicted=t._resolve_duplicate_observations(obs,predicted)
+            b=t._fuse(obs,predicted,np.eye(2,3),0,.1)
+        near=np.isfinite(b.image_left[:,0])&(t.rows>=150)&(t.rows<=164)
+        self.assertGreaterEqual(near.sum(),8)
+        self.assertLess(np.max(b.image_left[near,0]),125)
+        self.assertTrue(t._plausible_pair([b.image_left,b.image_right]))
+        self.assertIsNone(t.last_valid_pair)
+        self.assertEqual(t.width_samples.sum(),0)
+
+    def test_wide_but_wrong_low_confidence_prior_can_reacquire(self):
+        from pathlib import Path
+        f=np.load(Path(__file__).with_name('fixtures')/'left_short_duplicate_20261023.npz')
+        t=ImageBoundaryTracker()
+        prior=[np.column_stack((np.full(48,50.),t.rows)),f['right'].copy()]
+        self.assertTrue(t._plausible_pair(prior))
+        for _ in range(3):
+            obs=[t._detect(f['paint'],side,prior[side]) for side in (0,1)]
+            obs,resolved=t._resolve_duplicate_observations(obs,prior)
+        self.assertIsNone(resolved[0])
+        self.assertLess(obs[0][1],.65)
+        self.assertTrue(t._plausible_pair([obs[0][0],obs[1][0]]))
+
+    def test_missing_candidate_clears_short_pair_confirmation(self):
+        t=ImageBoundaryTracker();t.short_pair_hits=[4,3]
+        t.short_pair_previous=[np.zeros((48,2)),np.zeros((48,2))]
+        t._resolve_duplicate_observations([None,None],[None,None])
+        self.assertEqual(t.short_pair_hits,[0,0])
+        self.assertEqual(t.short_pair_previous,[None,None])
+
+    def test_scene_reset_clears_temporal_and_reacquisition_state(self):
+        t=ImageBoundaryTracker();t.fragment_hits[:]=5;t.fragment_offsets[:]=2
+        t.reacquire_hits=[5,5];t.short_pair_hits=[5,5];t.last_time=10.
+        self.update(t,np.full((180,320,3),60,np.uint8),0)
+        self.assertEqual(t.fragment_hits.sum(),0)
+        self.assertEqual(t.reacquire_hits,[0,0])
+        self.assertEqual(t.short_pair_hits,[0,0])
+
     def test_single_initial_side_supplies_low_confidence_pair(self):
         t=ImageBoundaryTracker();b=self.update(t,self.scene(right=False),0)
         self.assertTrue(b.pair_valid)

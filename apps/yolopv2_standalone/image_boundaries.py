@@ -134,6 +134,10 @@ class ImageBoundaryTracker:
         self.fragment_hits=np.zeros((2,48),dtype=int)
         self.fragment_offsets=np.full((2,48),np.nan)
         self.region_segments=[[],[]]
+        self.reacquire=[None,None]
+        self.reacquire_hits=[0,0]
+        self.short_pair_hits=[0,0]
+        self.short_pair_previous=[None,None]
 
     def _complete(self, points):
         """Interpolate observed support only; never extrapolate a quadratic."""
@@ -189,6 +193,84 @@ class ImageBoundaryTracker:
         return bool(common.sum()>=8 and all(ImageBoundaryTracker._smooth_shape(p) for p in pair) and np.all(pair[1][common,0]-pair[0][common,0]>6)
                     and all(np.count_nonzero(np.isfinite(p[:,0])&(p[:,0]>=0)&(p[:,0]<=319))>=8 for p in pair))
 
+    def _plausible_pair(self, pair):
+        if not self._valid_pair(pair):return False
+        common=np.isfinite(pair[0][:,0])&np.isfinite(pair[1][:,0])
+        gap=pair[1][:,0]-pair[0][:,0]
+        baseline=np.clip(1.6*(self.rows-65),24,240)
+        minimum=np.where(self.rows>=150,self.config.image_min_width_ratio*baseline,6.)
+        if self.width is not None:
+            trusted=self.width_samples>=5
+            minimum[trusted]=np.maximum(minimum[trusted],self.config.image_retained_width_ratio*self.width[trusted])
+        return bool(np.all(gap[common]>=minimum[common]))
+
+    def _resolve_duplicate_observations(self, observations, predicted):
+        if any(o is None for o in observations):
+            self.short_pair_hits=[0,0];self.short_pair_previous=[None,None]
+            return observations,predicted
+        pair=[o[0] for o in observations]
+        if self._plausible_pair(pair):
+            self.short_pair_hits=[0,0];self.short_pair_previous=[None,None]
+            return observations,predicted
+        # Only reassign the weaker side; never use the same paint twice.
+        side=int(observations[1][1]<observations[0][1]);other=1-side
+        best=None
+        for q in self.region_segments[side]:
+            if len(q)<6 or np.ptp(q[:,1])<10:continue
+            c=np.polynomial.polynomial.polyfit((q[:,1]-125)/50,q[:,0],1)
+            error=np.max(abs(np.polynomial.polynomial.polyval((q[:,1]-125)/50,c)-q[:,0]))
+            if error>1.5:continue
+            domain=(self.rows>=q[:,1].min())&(self.rows<=q[:,1].max())
+            if domain.sum()<8:continue
+            values=np.polynomial.polynomial.polyval((self.rows-125)/50,c);values[~domain]=np.nan
+            curve=np.column_stack((values,self.rows));candidate=list(pair);candidate[side]=curve
+            if not self._plausible_pair(candidate):continue
+            if best is None or domain.sum()>best[0]:best=(domain.sum(),curve,domain)
+        if best is None:
+            self.short_pair_hits[side]=0;self.short_pair_previous[side]=None
+            return observations,predicted
+        _,curve,support=best;previous=self.short_pair_previous[side]
+        common=support&(np.isfinite(previous[:,0]) if previous is not None else False)
+        repeat=common.sum()>=8 and np.max(abs(curve[common,0]-previous[common,0]))<=3
+        self.short_pair_hits[side]=self.short_pair_hits[side]+1 if repeat else 1
+        self.short_pair_previous[side]=curve.copy()
+        self.detection_diagnostics[side]['duplicate_rejected']=True
+        self.detection_diagnostics[side]['short_pair_hits']=self.short_pair_hits[side]
+        if self.short_pair_hits[side]<3:return observations,predicted
+        observations=list(observations);observations[side]=(curve,.5,support,True)
+        # A collapsed prior is not a trustworthy anchor. Recover only the
+        # actually observed extent; normal pairs keep rate-limited fusion.
+        overlap=support&(np.isfinite(predicted[side][:,0]) if predicted[side] is not None else False)
+        stale=False
+        if overlap.sum()>=3 and self.scores[side]<.25:
+            offset=np.max(abs(predicted[side][overlap,0]-curve[overlap,0]))
+            slope_old=np.polyfit(self.rows[overlap],predicted[side][overlap,0],1)[0]
+            slope_new=np.polyfit(self.rows[overlap],curve[overlap,0],1)[0]
+            stale=offset>6 or abs(slope_old-slope_new)>.6
+        if not self._plausible_pair(predicted) or stale:
+            predicted=list(predicted);predicted[side]=None
+        self.detection_diagnostics[side]['short_pair_selected']=True
+        return observations,predicted
+
+    def _reacquire_observation(self, paint, side, prior, selected):
+        if prior is None or (self.scores[side]>=.25 and self.side_missing[side]<.5):
+            self.reacquire[side]=None;self.reacquire_hits[side]=0
+            return selected
+        stats=dict(self.detection_diagnostics[side])
+        candidate=self._detect_full(paint,side,None)
+        self.detection_diagnostics[side]=stats
+        if candidate is None or candidate[1]<.75:
+            self.reacquire[side]=None;self.reacquire_hits[side]=0
+            return selected
+        curve=candidate[0];previous=self.reacquire[side]
+        common=np.isfinite(curve[:,0])&(np.isfinite(previous[:,0]) if previous is not None else False)
+        repeat=common.sum()>=8 and np.max(abs(curve[common,0]-previous[common,0]))<=4
+        self.reacquire_hits[side]=self.reacquire_hits[side]+1 if repeat else 1
+        self.reacquire[side]=curve.copy()
+        stats['reacquire_hits']=self.reacquire_hits[side]
+        stats['reacquired']=self.reacquire_hits[side]>=3
+        return candidate if self.reacquire_hits[side]>=3 else selected
+
     def _detect(self, paint, side, prior):
         regional=self._detect_regions(paint,side,prior)
         regional_stats=dict(self.detection_diagnostics[side])
@@ -201,8 +283,8 @@ class ImageBoundaryTracker:
                      and common.sum()>=3 and np.max(abs(regional[0][common,0]-legacy[0][common,0]))<=3)
         if regional is not None and (legacy is None or regional[1]>legacy[1] or extends):
             self.detection_diagnostics[side]=regional_stats
-            return self._temporal_fragments(regional,side,prior)
-        return self._temporal_fragments(legacy,side,prior)
+            return self._temporal_fragments(self._reacquire_observation(paint,side,prior,regional),side,prior)
+        return self._temporal_fragments(self._reacquire_observation(paint,side,prior,legacy),side,prior)
 
     def _temporal_fragments(self, observation, side, prior):
         # Accumulate repeatability relative to the motion-compensated prior.
@@ -518,6 +600,9 @@ class ImageBoundaryTracker:
             self.last_valid_pair=None
             self.side_missing[:]=0;self.observed_streak[:]=0;self.width_samples[:]=0
             self.motion_velocity[:]=0.;self.missing_seconds=0.
+            self.fragment_hits[:]=0;self.fragment_offsets[:]=np.nan
+            self.region_segments=[[],[]];self.reacquire=[None,None];self.reacquire_hits=[0,0]
+            self.short_pair_hits=[0,0];self.short_pair_previous=[None,None]
         motion,motion_score=road_motion(self.previous,gray,allowed[::2,::2])
         # A discontinuous source cut must not carry old boundaries into a new scene.
         if self.previous is not None and motion_score==0 and np.mean(abs(gray-self.previous))>45:
@@ -525,6 +610,9 @@ class ImageBoundaryTracker:
             self.last_valid_pair=None
             self.side_missing[:]=0;self.observed_streak[:]=0;self.width_samples[:]=0
             self.motion_velocity[:]=0.;self.missing_seconds=0.
+            self.fragment_hits[:]=0;self.fragment_offsets[:]=np.nan
+            self.region_segments=[[],[]];self.reacquire=[None,None];self.reacquire_hits=[0,0]
+            self.short_pair_hits=[0,0];self.short_pair_previous=[None,None]
         self.previous=gray;self.last_time=timestamp_s if np.isfinite(timestamp_s) else None
         identity=np.array([[1.,0.,0.],[0.,1.,0.]])
         step=float(np.clip(dt if np.isfinite(dt) else .1,.01,.2))
@@ -539,6 +627,7 @@ class ImageBoundaryTracker:
         motion=identity+self.motion_velocity*step*np.exp(-self.missing_seconds/1.5)
         predicted=[self._warp(p,motion) for p in self.history]
         observations=[self._detect(paint,s,predicted[s]) for s in (0,1)]
+        observations,predicted=self._resolve_duplicate_observations(observations,predicted)
         self.missing_seconds=0. if any(o is not None for o in observations) else self.missing_seconds+step
         return self._fuse(observations,predicted,motion,motion_score,step)
 
@@ -632,23 +721,23 @@ class ImageBoundaryTracker:
                     scale=min(1.,20*step/max(float(np.max(abs(change))),1e-9))
                     candidate[common,0]=output[side][common,0]+scale*change
                     pair=list(output);pair[side]=candidate
-                    if self._valid_pair(pair):
+                    if self._plausible_pair(pair):
                         output[side]=candidate;states[side]='inferred';scores[side]=min(scores[side],.15)
 
         restored=False
-        if not self._valid_pair(output):
+        if not self._plausible_pair(output):
             # Try accepting either side independently against the last VALID
             # opposite, before holding both. Never reuse arbitrary history.
-            fallback=predicted if self._valid_pair(predicted) else ([self._quadratic(p) for p in self.last_valid_pair] if self.last_valid_pair is not None else None)
+            fallback=predicted if self._plausible_pair(predicted) else ([self._quadratic(p) for p in self.last_valid_pair] if self.last_valid_pair is not None else None)
             choices=[]
-            if fallback is not None and self._valid_pair(fallback):
+            if fallback is not None and self._plausible_pair(fallback):
                 for side in (0,1):
                     if observations[side] is None:continue
                     # Weak temporal evidence must not win a pair conflict and
                     # force the independently detected opposite side into HELD.
                     if len(observations[side])>3 and observations[side][3]:continue
                     pair=[p.copy() for p in fallback];pair[side]=output[side].copy()
-                    if self._valid_pair(pair):choices.append((scores[side],side,pair))
+                    if self._plausible_pair(pair):choices.append((scores[side],side,pair))
                 if choices:
                     _,side,output=max(choices,key=lambda v:v[0])
                     states[1-side]='held';scores[1-side]=min(.15,self.scores[1-side]*np.exp(-step*.8))
@@ -669,13 +758,14 @@ class ImageBoundaryTracker:
                     output[other]=self._quadratic(output[other])
                     states[other]='inferred';scores[other]=min(.15,scores[side]*.3)
                     supports[other][:]=False;residuals[other]=None
-                if not self._valid_pair(output):
+                if not self._plausible_pair(output):
                     output=[np.column_stack((np.full(48,np.nan),self.rows)) for _ in (0,1)]
                     states=['unavailable','unavailable'];scores=[0.,0.]
                     supports=[np.zeros(48,bool),np.zeros(48,bool)];residuals=[None,None]
 
-        if self._valid_pair(output):
-            self.last_valid_pair=[p.copy() for p in output]
+        if self._plausible_pair(output):
+            if not restored and states==['observed','observed'] and min(scores)>=.5:
+                self.last_valid_pair=[p.copy() for p in output]
             self.history=[p.copy() for p in output]
             # Learn spacing only from concurrently observed pixels, never from
             # virtual extensions or a pair that was rejected/restored.
