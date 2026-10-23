@@ -1,7 +1,7 @@
 import subprocess,base64,sys,json
 from pathlib import Path
 root=Path(__file__).resolve().parents[3]
-out=root/'artifacts/left_debug_0322';out.mkdir(exist_ok=True)
+out=root/(sys.argv[2] if len(sys.argv)>2 else 'artifacts/left_debug_0322');out.mkdir(parents=True,exist_ok=True)
 cmd=['C:/Program Files/oakctl/bin/oakctl.exe','app','exec','-d','192.168.201.2','00000000-0000-0000-0000-000000000000','--']
 def run(code):
     encoded=base64.b64encode(code.encode()).decode()
@@ -14,6 +14,7 @@ if mode=='install':
     probe=probe.replace("'0'))))", "'10'))))").replace("'60')))","'30')))")
     probe=probe.replace("'_fuse')", "'_fuse','_detect_full','_detect_legacy','_detect_regions')")
     code="from pathlib import Path; import base64\n"
+    code+="Path('/app/boundary_debug.npz').unlink(missing_ok=True)\n"
     code+="p=Path('/app/yolopv2_node.py'); b=Path('/app/yolopv2_node.debug_backup'); assert not b.exists(); b.write_bytes(p.read_bytes())\n"
     code+="Path('/app/boundary_debug_capture.py').write_bytes(base64.b64decode('"+base64.b64encode(probe.encode()).decode()+"'))\n"
     code+="s=p.read_text(); s=s.replace('boundaries = self._boundary_tracker.update(', 'boundaries = __import__(\"boundary_debug_capture\").update(self._boundary_tracker,'); p.write_text(s)\n"
