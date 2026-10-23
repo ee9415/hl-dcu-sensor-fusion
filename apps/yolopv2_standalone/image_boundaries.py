@@ -141,6 +141,8 @@ class ImageBoundaryTracker:
         self.nn_rank_mask=None
         self.curve_reference_hits=np.zeros(2,dtype=int)
         self.curve_guidance=np.zeros(2)
+        self.current_pair_hits=0
+        self.current_pair_previous=None
 
     def _nn_support(self, points):
         """Tie-break only on observed paint; never change acceptance/confidence."""
@@ -210,16 +212,51 @@ class ImageBoundaryTracker:
         return bool(common.sum()>=8 and all(ImageBoundaryTracker._smooth_shape(p) for p in pair) and np.all(pair[1][common,0]-pair[0][common,0]>6)
                     and all(np.count_nonzero(np.isfinite(p[:,0])&(p[:,0]>=0)&(p[:,0]<=319))>=8 for p in pair))
 
-    def _plausible_pair(self, pair):
+    def _plausible_pair(self, pair, learned=True):
         if not self._valid_pair(pair):return False
         common=np.isfinite(pair[0][:,0])&np.isfinite(pair[1][:,0])
         gap=pair[1][:,0]-pair[0][:,0]
         baseline=np.clip(1.6*(self.rows-65),24,240)
         minimum=np.where(self.rows>=150,self.config.image_min_width_ratio*baseline,6.)
-        if self.width is not None:
+        if learned and self.width is not None:
             trusted=self.width_samples>=5
             minimum[trusted]=np.maximum(minimum[trusted],self.config.image_retained_width_ratio*self.width[trusted])
         return bool(np.all(gap[common]>=minimum[common]))
+
+    def _confirm_current_pair(self, observations, predicted):
+        """Repeated independent observations may supersede a stale width prior."""
+        if any(o is None or o[1]<.65 or (len(o)>3 and o[3]) for o in observations):
+            self.current_pair_hits=0;self.current_pair_previous=None
+            return predicted
+        pair=[]
+        for o in observations:
+            p=o[0].copy()
+            if len(o)>2:p[~o[2],0]=np.nan
+            pair.append(p)
+        if not self._plausible_pair(pair,learned=False):
+            self.current_pair_hits=0;self.current_pair_previous=None
+            return predicted
+        repeat=self.current_pair_previous is not None
+        if repeat:
+            for p,old in zip(pair,self.current_pair_previous):
+                common=np.isfinite(p[:,0])&np.isfinite(old[:,0])
+                repeat=repeat and common.sum()>=8 and np.max(abs(p[common,0]-old[common,0]))<=3
+        self.current_pair_hits=self.current_pair_hits+1 if repeat else 1
+        self.current_pair_previous=[p.copy() for p in pair]
+        if self.current_pair_hits<3:return predicted
+        common=np.isfinite(pair[0][:,0])&np.isfinite(pair[1][:,0])
+        if self.width is not None and not self._plausible_pair(pair):
+            self.width[common]=pair[1][common,0]-pair[0][common,0]
+            self.width_samples[common]=3
+            for stats in self.detection_diagnostics:stats['width_prior_reacquired']=True
+        result=list(predicted)
+        for side in (0,1):
+            if predicted[side] is None:continue
+            overlap=np.isfinite(pair[side][:,0])&np.isfinite(predicted[side][:,0])
+            if overlap.sum()<3:
+                result[side]=None
+                self.detection_diagnostics[side]['disjoint_reacquired']=True
+        return result
 
     def _resolve_duplicate_observations(self, observations, predicted):
         if any(o is None for o in observations):
@@ -681,6 +718,7 @@ class ImageBoundaryTracker:
             self.region_segments=[[],[]];self.reacquire=[None,None];self.reacquire_hits=[0,0]
             self.short_pair_hits=[0,0];self.short_pair_previous=[None,None]
             self.curve_reference_hits[:]=0;self.curve_guidance[:]=0.
+            self.current_pair_hits=0;self.current_pair_previous=None
         motion,motion_score=road_motion(self.previous,gray,allowed[::2,::2])
         # A discontinuous source cut must not carry old boundaries into a new scene.
         if self.previous is not None and motion_score==0 and np.mean(abs(gray-self.previous))>45:
@@ -692,6 +730,7 @@ class ImageBoundaryTracker:
             self.region_segments=[[],[]];self.reacquire=[None,None];self.reacquire_hits=[0,0]
             self.short_pair_hits=[0,0];self.short_pair_previous=[None,None]
             self.curve_reference_hits[:]=0;self.curve_guidance[:]=0.
+            self.current_pair_hits=0;self.current_pair_previous=None
         self.previous=gray;self.last_time=timestamp_s if np.isfinite(timestamp_s) else None
         identity=np.array([[1.,0.,0.],[0.,1.,0.]])
         step=float(np.clip(dt if np.isfinite(dt) else .1,.01,.2))
@@ -712,6 +751,7 @@ class ImageBoundaryTracker:
 
     def _fuse(self, observations, predicted, motion, motion_score, step):
         """Fuse only supported rows; commit history only after pair validation."""
+        predicted=self._confirm_current_pair(observations,predicted)
         predicted=[self._quadratic(p) for p in predicted]
         output=[];states=[];scores=[];supports=[];residuals=[None,None]
         for side,o in enumerate(observations):
@@ -852,7 +892,10 @@ class ImageBoundaryTracker:
             if not restored and states==['observed','observed'] and common.sum()>=8:
                 widths=output[1][:,0]-output[0][:,0]
                 if self.width is None:self.width=np.clip(1.6*(self.rows-65),24,240)
-                self.width[common]=.9*self.width[common]+.1*widths[common]
+                first=common&(self.width_samples==0)
+                seen=common&~first
+                self.width[first]=widths[first]
+                self.width[seen]=.9*self.width[seen]+.1*widths[seen]
                 self.width_samples[common]+=1
         self.scores=scores
         observed=[s for s in (0,1) if supports[s].any() and states[s] in ('observed','aligning','partial')]

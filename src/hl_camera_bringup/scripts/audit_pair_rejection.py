@@ -18,8 +18,8 @@ for learned in ([None,'disable_learned_guard'] if 'width_samples_before' in r el
     if learned=='disable_learned_guard':t.width_samples[:]=0
     if exact:t.last_valid_pair=unpack(r['last_valid_pair_before'])
     original=t._plausible_pair;checks=[]
-    def check(pair):
-        valid=original(pair)
+    def check(pair,learned=True):
+        valid=original(pair,learned=learned)
         if not valid and all(p is not None for p in pair):
             common=np.isfinite(pair[0][:,0])&np.isfinite(pair[1][:,0])
             gap=pair[1][common,0]-pair[0][common,0]
@@ -30,5 +30,8 @@ for learned in ([None,'disable_learned_guard'] if 'width_samples_before' in r el
         return valid
     t._plausible_pair=check
     e=t._fuse(unpack(f['observations']),unpack(f['predicted']),unpack(f.get('motion',np.array([[1.,0.,0.],[0.,1.,0.]]))),f.get('motion_score',0.),f.get('step',.1))
-    reports.append(dict(learned_width_assumption=learned,width_present=t.width is not None,states=[e.left_state,e.right_state],restored=e.restored_pair,rejections=checks))
+    first_states=[e.left_state,e.right_state];first_restored=e.restored_pair
+    for _ in range(19):
+        e=t._fuse(unpack(f['observations']),t.history,np.array([[1.,0.,0.],[0.,1.,0.]]),0.,.1)
+    reports.append(dict(learned_width_assumption=learned,width_present=t.width is not None,first_states=first_states,first_restored=first_restored,states_after_20=[e.left_state,e.right_state],restored_after_20=e.restored_pair,rejections=checks))
 (folder/'pair_rejection.json').write_text(json.dumps(reports,indent=2));print(json.dumps(reports))
