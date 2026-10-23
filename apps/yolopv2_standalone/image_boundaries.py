@@ -385,6 +385,11 @@ class ImageBoundaryTracker:
         regional=self._detect_regions(paint,side,prior)
         regional_stats=dict(self.detection_diagnostics[side])
         legacy=self._detect_legacy(paint,side,prior)
+        corrected=self._regional_upper_refit(paint,regional,legacy)
+        if corrected is not None:
+            self.detection_diagnostics[side]=regional_stats
+            self.detection_diagnostics[side]['regional_upper_refit']=True
+            return corrected
         extends=False
         if regional is not None and legacy is not None:
             common=np.isfinite(regional[0][:,0])&np.isfinite(legacy[0][:,0])
@@ -395,6 +400,42 @@ class ImageBoundaryTracker:
             self.detection_diagnostics[side]=regional_stats
             return self._temporal_fragments(self._reacquire_observation(paint,side,prior,regional),side,prior)
         return self._temporal_fragments(self._reacquire_observation(paint,side,prior,legacy),side,prior)
+
+    def _regional_upper_refit(self, paint, regional, full):
+        """Use independently supported upper paint to challenge a long fit."""
+        if regional is None or full is None or regional[1]<.5:return None
+        r,f=regional[0],full[0]
+        support=regional[2]&np.isfinite(r[:,0])
+        upper=support&(self.rows<124)&np.isfinite(f[:,0])
+        if upper.sum()<4:return None
+        def on_paint(p):
+            hit=np.zeros(48,bool);good=np.isfinite(p[:,0])
+            idx=np.flatnonzero(good);xx=np.rint(p[good,0]).astype(int);yy=self.rows[good].astype(int)
+            for dx in (-2,-1,0,1,2):
+                inside=(xx+dx>=0)&(xx+dx<320)
+                hit[idx[inside]]|=paint[yy[inside],(xx+dx)[inside]]
+            return hit
+        rh,fh=on_paint(r),on_paint(f)
+        if rh[upper].mean()<.75 or fh[upper].mean()>.25:return None
+        if np.median(abs(r[upper,0]-f[upper,0]))<6:return None
+        near=support&(self.rows>=136)&np.isfinite(f[:,0])
+        if near.sum()<6 or np.median(abs(r[near,0]-f[near,0]))>3:return None
+        # Keep the independently joined regional observations plus real lower
+        # support beyond them. Never treat the full fit's unsupported top as data.
+        chosen=support&rh
+        lower=(self.rows>self.rows[support].max())&fh
+        x=r[:,0].copy();x[lower]=f[lower,0];chosen|=lower
+        if chosen.sum()<12:return None
+        u=(self.rows-125)/50
+        c=np.polynomial.polynomial.polyfit(u[chosen],x[chosen],2)
+        values=np.polynomial.polynomial.polyval(u,c)
+        if np.max(abs(values[chosen]-x[chosen]))>3:return None
+        domain=(self.rows>=self.rows[chosen].min())&(self.rows<=self.rows[chosen].max())
+        values[~domain]=np.nan
+        curve=np.column_stack((values,self.rows))
+        if not self._smooth_shape(curve):return None
+        if np.any((values[domain]<0)|(values[domain]>319)):return None
+        return curve,min(.7,full[1]),chosen
 
     def _temporal_fragments(self, observation, side, prior):
         # Accumulate repeatability relative to the motion-compensated prior.
@@ -607,8 +648,15 @@ class ImageBoundaryTracker:
             for y in range(start,76,-2):
                 options=np.flatnonzero(paint[y])
                 predicted=value+slope*(y-last)
-                gate=min(16.,5.+.25*(last-y))
+                gap=last-y
+                if gap>24:break
+                gate=min(11.,5.+.25*gap)
                 options=options[abs(options-predicted)<gate]
+                if gap>4:
+                    if len(ys)<4:continue
+                    # A distant dot must agree with the incoming tangent.
+                    # Otherwise it can turn the search away from real upper paint.
+                    options=options[abs((options-value)/(y-last)-slope)<=.5]
                 if not len(options):
                     continue
                 value=float(options[np.argmin(abs(options-predicted))])
@@ -649,6 +697,19 @@ class ImageBoundaryTracker:
                     temporal=float(np.exp(-np.median(abs(values[common]-prior[common,0]))/20))
             # Long continuous paint dominates; past position is only a tie-breaker.
             rank=score+.10*temporal+.08*min(1,len(xs)/40)
+            # Equal band weighting prevents plentiful near pixels from hiding
+            # a poorly supported upper curve. Use the fitted observed span only.
+            evidence=[]
+            for lo,hi in ((72,124),(124,148),(148,180)):
+                rows=np.arange(max(lo,int(ys[good].min())),min(hi,int(ys[good].max())+1),2)
+                if len(rows)<3:continue
+                xx=np.rint(np.polynomial.polynomial.polyval((rows-125)/50,coeff)).astype(int)
+                hits=np.zeros(len(rows),bool)
+                for dx in (-2,-1,0,1,2):
+                    x=xx+dx;inside=(x>=0)&(x<320)
+                    hits[inside]|=paint[rows[inside],x[inside]]
+                evidence.append(float(hits.mean()))
+            rank+=.12*min(evidence,default=0.)
             rank+=self.config.image_nn_rank_weight*self._nn_support(np.column_stack((xs[good],ys[good])))
             if best is None or rank>best[0]:
                 best=(rank,np.column_stack((values,self.rows)),score)
