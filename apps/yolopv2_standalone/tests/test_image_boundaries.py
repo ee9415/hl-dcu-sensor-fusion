@@ -204,6 +204,48 @@ class ImageBoundaryTests(unittest.TestCase):
         p[20,0]+=30
         self.assertFalse(t._smooth_shape(p))
 
+    def test_short_fragment_only_corrects_owned_support(self):
+        t=ImageBoundaryTracker();mask=np.zeros((180,320),bool)
+        for y in range(164,175):mask[y,200+(y-164)]=True
+        self.assertIsNone(t._detect(mask,1,None))
+        prior=np.column_stack((200+(t.rows-164),t.rows))
+        found=t._detect(mask,1,prior)
+        self.assertIsNotNone(found)
+        p,score=found
+        self.assertLess(score,.65)
+        self.assertTrue(np.isnan(p[t.rows<164,0]).all())
+        self.assertGreaterEqual(np.isfinite(p[:,0]).sum(),5)
+
+    def test_long_gap_and_off_direction_reflection_are_not_bridged(self):
+        t=ImageBoundaryTracker();mask=np.zeros((180,320),bool)
+        for y in range(164,175):mask[y,200+(y-164)]=True
+        for y in range(130,145):mask[y,240]=True
+        prior=np.column_stack((200+(t.rows-164),t.rows))
+        p,score=t._detect(mask,1,prior)
+        self.assertTrue(np.isnan(p[t.rows<164,0]).all())
+
+    def test_short_gap_uses_early_direction_without_claiming_gap_pixels(self):
+        t=ImageBoundaryTracker();mask=np.zeros((180,320),bool)
+        for y in list(range(164,175))+list(range(154,159)):
+            mask[y,200+(y-164)]=True
+        prior=np.column_stack((200+(t.rows-164),t.rows))
+        p,score=t._detect(mask,1,prior)
+        self.assertTrue(np.isfinite(p[t.rows==164,0]).all())
+        self.assertTrue(np.isnan(p[t.rows==154,0]).all())
+        self.assertTrue(np.isnan(p[t.rows==160,0]).all())
+
+    def test_partial_recovery_preserves_shape_without_creating_a_seam(self):
+        t=ImageBoundaryTracker();self.update(t,self.scene(),0)
+        original=t.history[1].copy();p=original.copy();p[:,0]+=20
+        p[t.rows<160,0]=np.nan
+        for _ in range(30):
+            b=t._fuse([None,(p,.55)],[v.copy() for v in t.history],np.eye(2,3),0,.1)
+        good=np.isfinite(original[:,0])
+        delta=b.image_right[good,0]-original[good,0]
+        self.assertLess(np.ptp(delta),1e-8)
+        self.assertEqual(b.right_state,'partial')
+        self.assertLess(b.right_confidence,.65)
+
     def test_single_initial_side_supplies_low_confidence_pair(self):
         t=ImageBoundaryTracker();b=self.update(t,self.scene(right=False),0)
         self.assertTrue(b.pair_valid)

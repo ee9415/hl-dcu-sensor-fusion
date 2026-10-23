@@ -172,6 +172,72 @@ class ImageBoundaryTracker:
                     and all(np.count_nonzero(np.isfinite(p[:,0])&(p[:,0]>=0)&(p[:,0]<=319))>=8 for p in pair))
 
     def _detect(self, paint, side, prior):
+        full=self._detect_full(paint,side,prior)
+        if full is not None:return full
+        # The fallback only supplies supported linear fragments. Leave the
+        # established long-curve detector unchanged.
+        # Start at any supported near/middle row, not at a fixed C0 anchor.
+        seeds=[]
+        for row in (174,168,156,144,132):
+            xs=np.flatnonzero(paint[row])
+            xs=xs[(xs>8)&(xs<312)&((xs<175) if side==0 else (xs>145))]
+            if len(xs):
+                groups=np.split(xs,np.flatnonzero(np.diff(xs)>2)+1)
+                seeds.extend((row,float(np.mean(g))) for g in groups if len(g)<=12)
+        stats=dict(seeds=len(seeds),short=0,fit=0,quality=0,side=0,accepted=0)
+        self.detection_diagnostics[side]=stats
+        best=None;partial=None
+        for start,seed in seeds[:28]:
+            ys,xs=[],[];value=seed;slope=0.;last=start
+            for y in range(start,76,-2):
+                options=np.flatnonzero(paint[y])
+                predicted=value+slope*(y-last)
+                gap=last-y
+                if gap>14:break
+                gate=5. if gap<=4 else 6.
+                if gap>4 and len(ys)<3:continue
+                options=options[abs(options-predicted)<gate]
+                if not len(options):
+                    continue
+                if len(ys)>=3 and gap>4:
+                    trial=(options-value)/(y-last)
+                    options=options[abs(trial-slope)<=.7]
+                    if not len(options):continue
+                value=float(options[np.argmin(abs(options-predicted))])
+                ys.append(y);xs.append(value);last=y
+                if len(ys)>=2:
+                    back=min(4,len(ys))
+                    slope=float(np.clip((xs[-1]-xs[-back])/(ys[-1]-ys[-back]),-2.,2.))
+            if len(ys):
+                stats["short"]+=1
+                # A short fragment may correct existing geometry only. It is
+                # never used to initialize a whole boundary or learn its width.
+                if prior is not None and start>=160 and len(ys)>=5 and np.ptp(ys)>=8:
+                    # Prefer the near contiguous fragment for correction;
+                    # a distant linked fragment must not rotate its short fit.
+                    near=np.array(ys)>=start-10
+                    ys=np.array(ys)[near];xs=np.array(xs)[near]
+                    if len(ys)<5:continue
+                    coef=np.polynomial.polynomial.polyfit(ys,xs,1)
+                    err=float(np.mean(abs(np.polynomial.polynomial.polyval(ys,coef)-xs)))
+                    values=np.polynomial.polynomial.polyval(self.rows,coef)
+                    valid=(self.rows>=min(ys))&(self.rows<=max(ys))
+                    # Do not label an unobserved gap as current paint support.
+                    valid &= np.min(abs(self.rows[:,None]-np.array(ys)[None,:]),axis=1)<=1
+                    common=valid&np.isfinite(prior[:,0])
+                    if (err<=1.5 and common.sum()>=4 and
+                            np.median(abs(values[common]-prior[common,0]))<=100):
+                        values[~valid]=np.nan
+                        score=.55*np.exp(-err/3)
+                        candidate=(score,np.column_stack((values,self.rows)),score)
+                        if partial is None or score>partial[0]:partial=candidate
+                continue
+        if best is None and partial is not None:
+            stats['partial']=1
+            return partial[1:]
+        return None if best is None else best[1:]
+
+    def _detect_full(self, paint, side, prior):
         # Start at any supported near/middle row, not at a fixed C0 anchor.
         seeds=[]
         for row in (168,156,144,132):
@@ -332,11 +398,16 @@ class ImageBoundaryTracker:
                     for _ in range(2):
                         correction=np.convolve(np.pad(correction,1,mode='edge'),[.25,.5,.25],mode='valid')
                 finite=np.isfinite(p[:,0])
+                if quality<.65 and existing.any():
+                    # A tiny fragment cannot justify changing whole-curve
+                    # curvature. Translate the retained shape coherently instead
+                    # of accumulating a seam at its observation boundary.
+                    correction[finite]=np.clip(alpha*np.median(measured[existing,0]-p[existing,0]),-80*step,80*step)
                 p[finite,0]+=correction[finite]
                 p[fresh,0]=measured[fresh,0]
                 residuals[side]=float(np.percentile(abs(p[support,0]-measured[support,0]),90))
                 score=float(quality*np.exp(-residuals[side]/6.))
-                state='observed' if residuals[side]<=4 else 'aligning'
+                state=('partial' if quality<.65 else 'observed') if residuals[side]<=4 else 'aligning'
             if np.isfinite(p[:,0]).sum()<8:
                 state='unavailable';score=0.
             output.append(p);states.append(state);scores.append(float(score));supports.append(support)
@@ -418,7 +489,7 @@ class ImageBoundaryTracker:
                 self.width[common]=.9*self.width[common]+.1*widths[common]
                 self.width_samples[common]+=1
         self.scores=scores
-        observed=[s for s in (0,1) if supports[s].any() and states[s] in ('observed','aligning')]
+        observed=[s for s in (0,1) if supports[s].any() and states[s] in ('observed','aligning','partial')]
         reference='both' if len(observed)==2 else 'left' if observed==[0] else 'right' if observed==[1] else 'none'
         state='tracking' if observed else 'held' if restored else 'predicted' if self.last_valid_pair is not None else 'unavailable'
         return ImageBoundaryEstimate(*output,projection_for((180,320),self.config),*states,*scores,

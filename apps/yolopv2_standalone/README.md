@@ -2,7 +2,18 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: guarded partial fusion (0.30.1, 2026-10-23)
+## Current: short-fragment observations (0.30.2, 2026-10-23)
+
+The established full-curve detector runs first, unchanged. When it fails, a bounded
+fallback adds near-row seeds, estimates direction from two points, and bridges at
+most 14 image rows with direction consistency. At most 28 seeds are tried.
+Only a near contiguous fragment of at least five points/8px extent and a tight
+linear residual may correct an existing boundary. It cannot initialize a boundary.
+Short evidence translates the retained shape coherently (no curvature change),
+preventing a seam between newly observed and old sections. No unobserved gap is
+marked as current support. PARTIAL is distinct from OBSERVED; its score is below
+0.65 and does not teach width or trigger opposite-side recovery. This supports
+near paint reacquisition, not whole-curve accuracy from a tiny fragment.
 
 Partial corrections taper through up to ten neighboring retained rows, avoiding a
 hard seam without refitting an unobserved polynomial. Shape validation rejects

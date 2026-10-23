@@ -535,7 +535,7 @@ def draw_boundaries(frame, estimate, mask_size=None):
             draw_polyline(frame, points, color, thickness=3, dashed=False)
         else:
             draw_polyline(frame,points,tuple(int(c*.45) for c in color),thickness=2,dashed=False)
-            if state in ('observed','aligning'):
+            if state in ('observed','aligning','partial'):
                 measured=points.copy();measured[~support]=np.nan
                 draw_polyline(frame,measured,color,thickness=3,dashed=False)
 
