@@ -22,6 +22,7 @@ class ImageBoundaryEstimate:
     left_residual_px: object = None
     right_residual_px: object = None
     restored_pair: bool = False
+    detection_diagnostics: object = None
 
     @property
     def left_valid(self):
@@ -53,6 +54,7 @@ class ImageBoundaryEstimate:
                     left_display_residual_px=self.left_residual_px,
                     right_display_residual_px=self.right_residual_px,
                     boundary_restored_pair=self.restored_pair,
+                    boundary_detection_diagnostics=self.detection_diagnostics,
                     right_boundary_image=points(self.image_right),motion_confidence=self.motion_confidence,
                     motion_matrix=self.motion_matrix.tolist(),corridor_width_m=None,
                     normal_width_error_dev=None,left_boundary_coefficients=[],right_boundary_coefficients=[],
@@ -119,6 +121,10 @@ class ImageBoundaryTracker:
         self.motion_velocity=np.zeros((2,3))
         self.missing_seconds=0.
         self.last_valid_pair=None
+        self.side_missing=np.zeros(2)
+        self.observed_streak=np.zeros(2,dtype=int)
+        self.width_samples=np.zeros(48,dtype=int)
+        self.detection_diagnostics=[{},{}]
 
     def _complete(self, points):
         """Interpolate observed support only; never extrapolate a quadratic."""
@@ -148,11 +154,21 @@ class ImageBoundaryTracker:
         return result
 
     @staticmethod
+    def _smooth_shape(points):
+        good=np.isfinite(points[:,0])
+        p=points[good]
+        if len(p)<8:return False
+        slope=np.diff(p[:,0])/np.diff(p[:,1])
+        # Broad image-space limits: reject folds/seams, retain normal curves.
+        return bool(np.max(abs(slope))<=4 and
+                    (len(slope)<2 or np.max(abs(np.diff(slope)))<=1.8))
+
+    @staticmethod
     def _valid_pair(pair):
         if any(p is None for p in pair):
             return False
         common=np.isfinite(pair[0][:,0])&np.isfinite(pair[1][:,0])
-        return bool(common.sum()>=8 and np.all(pair[1][common,0]-pair[0][common,0]>6)
+        return bool(common.sum()>=8 and all(ImageBoundaryTracker._smooth_shape(p) for p in pair) and np.all(pair[1][common,0]-pair[0][common,0]>6)
                     and all(np.count_nonzero(np.isfinite(p[:,0])&(p[:,0]>=0)&(p[:,0]<=319))>=8 for p in pair))
 
     def _detect(self, paint, side, prior):
@@ -164,6 +180,8 @@ class ImageBoundaryTracker:
             if len(xs):
                 groups=np.split(xs,np.flatnonzero(np.diff(xs)>2)+1)
                 seeds.extend((row,float(np.mean(g))) for g in groups if len(g)<=12)
+        stats=dict(seeds=len(seeds),short=0,fit=0,quality=0,side=0,accepted=0)
+        self.detection_diagnostics[side]=stats
         best=None
         for start,seed in seeds[:28]:
             ys,xs=[],[];value=seed;slope=0.;last=start
@@ -179,6 +197,7 @@ class ImageBoundaryTracker:
                 if len(ys)>=4:
                     slope=float(np.clip((xs[-1]-xs[-4])/(ys[-1]-ys[-4]),-2.,2.))
             if len(ys)<10 or np.ptp(ys)<20:
+                stats["short"]+=1
                 continue
             ys,xs=np.array(ys),np.array(xs)
             good=np.ones(len(xs),bool)
@@ -188,6 +207,7 @@ class ImageBoundaryTracker:
                 residual=abs(np.polynomial.polynomial.polyval((ys-125)/50,coeff)-xs)
                 good=residual<3.5
             if good.sum()<10 or np.ptp(ys[good])<20:
+                stats["fit"]+=1
                 continue
             residual=float(np.mean(residual[good]))
             score=float(.45*min(1,np.ptp(ys[good])/75)+.3*good.mean()+.25*np.exp(-residual/2))
@@ -196,10 +216,13 @@ class ImageBoundaryTracker:
             valid=(self.rows>=ys[good].min()-6)&(self.rows<=ys[good].max()+8)&(values>0)&(values<319)
             values[~valid]=np.nan
             if valid.sum()<12 or score<.65:
+                stats["quality"]+=1
                 continue
             near=values[np.flatnonzero(valid)[0]]
             if (side==0 and near>185) or (side==1 and near<135):
+                stats["side"]+=1
                 continue
+            stats["accepted"]+=1
             temporal=0.
             if prior is not None:
                 common=valid&np.isfinite(prior[:,0])
@@ -248,12 +271,14 @@ class ImageBoundaryTracker:
         if reset:
             self.history=[None,None];self.previous=None;self.width=None;self.scores=[0.,0.]
             self.last_valid_pair=None
+            self.side_missing[:]=0;self.observed_streak[:]=0;self.width_samples[:]=0
             self.motion_velocity[:]=0.;self.missing_seconds=0.
         motion,motion_score=road_motion(self.previous,gray,allowed[::2,::2])
         # A discontinuous source cut must not carry old boundaries into a new scene.
         if self.previous is not None and motion_score==0 and np.mean(abs(gray-self.previous))>45:
             self.history=[None,None];self.width=None;self.scores=[0.,0.]
             self.last_valid_pair=None
+            self.side_missing[:]=0;self.observed_streak[:]=0;self.width_samples[:]=0
             self.motion_velocity[:]=0.;self.missing_seconds=0.
         self.previous=gray;self.last_time=timestamp_s if np.isfinite(timestamp_s) else None
         identity=np.array([[1.,0.,0.],[0.,1.,0.]])
@@ -275,6 +300,9 @@ class ImageBoundaryTracker:
     def _fuse(self, observations, predicted, motion, motion_score, step):
         """Fuse only supported rows; commit history only after pair validation."""
         output=[];states=[];scores=[];supports=[];residuals=[None,None]
+        for side,o in enumerate(observations):
+            self.side_missing[side]=self.side_missing[side]+step if o is None else 0.
+
         for side,observation in enumerate(observations):
             prior=predicted[side]
             p=(prior.copy() if prior is not None else
@@ -290,7 +318,21 @@ class ImageBoundaryTracker:
                 # Current evidence controls its own rows. Old unobserved rows
                 # remain predicted; no full-curve polynomial refit is allowed.
                 alpha=1-(1-(.2+.45*quality))**(step/.1)
-                p[existing,0]+=np.clip(alpha*(measured[existing,0]-p[existing,0]),-80*step,80*step)
+                correction=np.zeros(48)
+                correction[existing]=np.clip(alpha*(measured[existing,0]-p[existing,0]),-80*step,80*step)
+                # Join a partial update through nearby retained rows, never by
+                # extrapolating the absolute polynomial into unobserved space.
+                indices=np.flatnonzero(existing)
+                retained=np.isfinite(p[:,0])&~support
+                if len(indices) and retained.any():
+                    for j in np.flatnonzero(retained):
+                        k=indices[np.argmin(abs(indices-j))]
+                        distance=abs(k-j)
+                        if distance<=8:correction[j]=correction[k]*(1-distance/9.)
+                    for _ in range(2):
+                        correction=np.convolve(np.pad(correction,1,mode='edge'),[.25,.5,.25],mode='valid')
+                finite=np.isfinite(p[:,0])
+                p[finite,0]+=correction[finite]
                 p[fresh,0]=measured[fresh,0]
                 residuals[side]=float(np.percentile(abs(p[support,0]-measured[support,0]),90))
                 score=float(quality*np.exp(-residuals[side]/6.))
@@ -298,6 +340,8 @@ class ImageBoundaryTracker:
             if np.isfinite(p[:,0]).sum()<8:
                 state='unavailable';score=0.
             output.append(p);states.append(state);scores.append(float(score));supports.append(support)
+            self.observed_streak[side]=(self.observed_streak[side]+1
+                if state=='observed' and score>=.65 else 0)
 
         # Bootstrap only a missing side from visible support; owned history is
         # not dragged by the opposite boundary on every frame.
@@ -307,6 +351,25 @@ class ImageBoundaryTracker:
                 target=output[1-side].copy()
                 target[:,0]+=width*(-1 if side==0 else 1)
                 output[side]=target;states[side]='inferred';scores[side]=min(.15,scores[1-side]*.3)
+
+        # Only long-lost sides may follow a stable opposite. Use spacing from
+        # repeated TWO-sided observations, never a guessed metric/default width.
+        for side in (0,1):
+            other=1-side
+            if (observations[side] is None and self.side_missing[side]>=1.
+                    and self.observed_streak[other]>=5 and self.width is not None):
+                trusted=(self.width_samples>=5)&supports[other]&np.isfinite(output[side][:,0])
+                if trusted.sum()>=8:
+                    target=output[other][:,0]+self.width*(-1 if side==0 else 1)
+                    candidate=output[side].copy()
+                    delta=np.zeros(48)
+                    delta[trusted]=np.clip((target[trusted]-candidate[trusted,0])*.1,-20*step,20*step)
+                    for _ in range(2):
+                        delta=np.convolve(np.pad(delta,1,mode='edge'),[.25,.5,.25],mode='valid')
+                    finite=np.isfinite(candidate[:,0]);candidate[finite,0]+=delta[finite]
+                    pair=list(output);pair[side]=candidate
+                    if self._valid_pair(pair):
+                        output[side]=candidate;states[side]='inferred';scores[side]=min(scores[side],.15)
 
         restored=False
         if not self._valid_pair(output):
@@ -353,9 +416,11 @@ class ImageBoundaryTracker:
                 widths=output[1][:,0]-output[0][:,0]
                 if self.width is None:self.width=np.clip(1.6*(self.rows-65),24,240)
                 self.width[common]=.9*self.width[common]+.1*widths[common]
+                self.width_samples[common]+=1
         self.scores=scores
         observed=[s for s in (0,1) if supports[s].any() and states[s] in ('observed','aligning')]
         reference='both' if len(observed)==2 else 'left' if observed==[0] else 'right' if observed==[1] else 'none'
         state='tracking' if observed else 'held' if restored else 'predicted' if self.last_valid_pair is not None else 'unavailable'
         return ImageBoundaryEstimate(*output,projection_for((180,320),self.config),*states,*scores,
-                                     motion_score,motion,state,reference,*supports,*residuals,restored)
+                                     motion_score,motion,state,reference,*supports,*residuals,restored,
+                                     [dict(v) for v in self.detection_diagnostics])

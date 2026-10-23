@@ -151,15 +151,58 @@ class ImageBoundaryTests(unittest.TestCase):
         for actual,expected in zip(t.history,previous):
             np.testing.assert_allclose(actual,expected,equal_nan=True)
 
-    def test_partial_observation_leaves_unseen_rows_unchanged(self):
+    def test_partial_observation_only_blends_nearby_retained_rows(self):
         t=ImageBoundaryTracker();a=self.update(t,self.scene(),0)
         prior=[a.image_left.copy(),a.image_right.copy()]
         measured=prior[0].copy();measured[:,0]+=5
         measured[:20,0]=np.nan
         b=t._fuse([(measured,.9),None],prior,np.array([[1,0,0],[0,1,0]]),0,.1)
-        np.testing.assert_allclose(b.image_left[:20],prior[0][:20],equal_nan=True)
+        np.testing.assert_allclose(b.image_left[:10],prior[0][:10],equal_nan=True)
+        self.assertLess(np.nanmax(abs(b.image_left[:,0]-prior[0][:,0])),8.01)
         np.testing.assert_allclose(b.image_right,prior[1],equal_nan=True)
         self.assertEqual(b.reference_side,'left')
+
+    def test_stale_side_requires_measured_width_and_stable_opposite(self):
+        t=ImageBoundaryTracker();self.update(t,self.scene(),0)
+        for i in range(1,10):self.update(t,self.scene(),i)
+        baseline=t.history[1].copy()
+        # Simulate drift of the old right boundary, retaining learned width.
+        t.history[1][:,0]+=15;t.last_valid_pair=[p.copy() for p in t.history]
+        start=t.history[1].copy()
+        inferred=0
+        for i in range(10,40):
+            before=t.history[1].copy()
+            b=self.update(t,self.scene(right=False),i)
+            inferred+=b.right_state=='inferred'
+            self.assertTrue(b.pair_valid)
+            self.assertLessEqual(np.nanmax(abs(b.image_right[:,0]-before[:,0])),2.01)
+        good=np.isfinite(baseline[:,0])&np.isfinite(b.image_right[:,0])
+        self.assertLess(np.mean(abs(b.image_right[good,0]-baseline[good,0])),
+                        np.mean(abs(start[good,0]-baseline[good,0])))
+        self.assertGreater(inferred,0)
+        self.assertLessEqual(b.right_confidence,.15)
+
+    def test_no_unlearned_width_drags_existing_side(self):
+        t=ImageBoundaryTracker();self.update(t,self.scene(),0)
+        t.width_samples[:]=0
+        before=t.history[1].copy()
+        for i in range(1,40):b=self.update(t,self.scene(right=False),i)
+        np.testing.assert_allclose(b.image_right,before,equal_nan=True,atol=1e-8)
+
+    def test_partial_join_is_bounded_over_many_frames(self):
+        t=ImageBoundaryTracker();self.update(t,self.scene(),0)
+        p=t.history[0].copy();p[:,0]+=40;p[t.rows<140,0]=np.nan
+        for _ in range(30):
+            b=t._fuse([(p,.9),None],[v.copy() for v in t.history],np.eye(2,3),0,.1)
+            self.assertTrue(b.pair_valid)
+            self.assertTrue(t._smooth_shape(b.image_left))
+
+    def test_shape_gate_keeps_smooth_curve_rejects_fold(self):
+        t=ImageBoundaryTracker();u=(t.rows-125)/50
+        p=np.column_stack((85+20*u+15*u*u,t.rows))
+        self.assertTrue(t._smooth_shape(p))
+        p[20,0]+=30
+        self.assertFalse(t._smooth_shape(p))
 
     def test_single_initial_side_supplies_low_confidence_pair(self):
         t=ImageBoundaryTracker();b=self.update(t,self.scene(right=False),0)

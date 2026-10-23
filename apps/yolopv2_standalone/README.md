@@ -2,7 +2,18 @@
 
 한국어 실습 안내: [OAK4D Pro 개발 빌드 배포 매뉴얼](../../docs/oak4d_development_deployment_manual.md).
 
-## Current: supported-row fusion and valid history (0.30.0, 2026-10-23)
+## Current: guarded partial fusion (0.30.1, 2026-10-23)
+
+Partial corrections taper through up to ten neighboring retained rows, avoiding a
+hard seam without refitting an unobserved polynomial. Shape validation rejects
+slopes above 4 px/px or adjacent slope changes above 1.8; these broad image-space
+limits require further handheld/steep-curve validation.
+After one second of one-sided loss, a stable opposite (five high-confidence
+observations) may guide the missing side at at most 2 px/update at 10 FPS, only
+where spacing has at least five simultaneous observed samples. Unlearned width
+does not drag existing history. Invalid corrections are held, not forced.
+Telemetry `boundary_detection_diagnostics` counts seed and candidate rejection
+stages per side. This does not explain preprocessing-mask exclusions.
 
 The active node uses `ImageBoundaryTracker`, not the fixed-anchor BEV candidate search.
 Each side follows RGB white-paint evidence near the segmented pavement, excluding
