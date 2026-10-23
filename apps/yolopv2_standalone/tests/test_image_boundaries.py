@@ -224,15 +224,25 @@ class ImageBoundaryTests(unittest.TestCase):
         p,score=t._detect(mask,1,prior)
         self.assertTrue(np.isnan(p[t.rows<164,0]).all())
 
-    def test_short_gap_uses_early_direction_without_claiming_gap_pixels(self):
+    def test_collinear_second_dash_is_claimed_but_not_the_gap(self):
         t=ImageBoundaryTracker();mask=np.zeros((180,320),bool)
         for y in list(range(164,175))+list(range(154,159)):
             mask[y,200+(y-164)]=True
         prior=np.column_stack((200+(t.rows-164),t.rows))
         p,score=t._detect(mask,1,prior)
         self.assertTrue(np.isfinite(p[t.rows==164,0]).all())
-        self.assertTrue(np.isnan(p[t.rows==154,0]).all())
+        self.assertLess(abs(p[t.rows==154,0][0]-190),1.)
         self.assertTrue(np.isnan(p[t.rows==160,0]).all())
+        self.assertLess(score,.65)
+
+    def test_offset_second_fragment_is_not_chained(self):
+        t=ImageBoundaryTracker();mask=np.zeros((180,320),bool)
+        for y in range(164,175):mask[y,200+(y-164)]=True
+        # Same direction, but laterally offset: not one straight marking.
+        for y in range(150,159):mask[y,205+(y-164)]=True
+        prior=np.column_stack((200+(t.rows-164),t.rows))
+        p,score=t._detect(mask,1,prior)
+        self.assertTrue(np.isnan(p[t.rows<162,0]).all())
 
     def test_partial_recovery_preserves_shape_without_creating_a_seam(self):
         t=ImageBoundaryTracker();self.update(t,self.scene(),0)
@@ -246,6 +256,58 @@ class ImageBoundaryTests(unittest.TestCase):
         self.assertEqual(b.right_state,'partial')
         self.assertLess(b.right_confidence,.65)
 
+    # Halla campus frame (2026-10-23 multiview): bright overcast pavement,
+    # dashed right marking behind parked cars, lamp post above the road apex.
+    # 320x180 RGB/drivable mask/vehicle boxes rebuilt from the screenshot;
+    # truth points are hand-labelled paint centres in tracking pixels.
+    def parked_scene(self):
+        from pathlib import Path
+        f=np.load(Path(__file__).with_name('fixtures')/'parked_dashed_right_20261023.npz')
+        boxes=[SimpleNamespace(xmin=a,ymin=b,xmax=c,ymax=d) for a,b,c,d in f['boxes']]
+        return f,(f['road'].astype(np.uint8)*255,np.zeros((180,320),np.uint8)),boxes
+    @staticmethod
+    def truth_error(points,truth):
+        good=np.isfinite(points[:,0]);rows=points[good,1][::-1];xs=points[good,0][::-1]
+        inside=(truth[:,1]>=rows[0])&(truth[:,1]<=rows[-1])
+        return abs(np.interp(truth[inside,1],rows,xs)-truth[inside,0])
+    def test_parked_scene_two_dashes_correct_stale_right_slope(self):
+        f,(road,lane),boxes=self.parked_scene();t=ImageBoundaryTracker()
+        def line(points):
+            x=np.interp(t.rows,points[::-1,1],points[::-1,0],left=np.nan,right=np.nan)
+            return np.column_stack((x,t.rows))
+        # Device state seen on screen: right too steep, left bent onto the post.
+        pair=[line(f['left_prior']),line(f['right_prior'])]
+        upper=f['right_truth'][:,1]<=154
+        self.assertGreater(self.truth_error(pair[1],f['right_truth'])[upper[2:]].min(),10)
+        t.history=[p.copy() for p in pair];t.last_valid_pair=[p.copy() for p in pair]
+        t.scores=[.64,.35];t.last_time=-.1
+        for i in range(10):
+            b=t.update(road,lane,i*.1,rgb=f['rgb'],detections=boxes)
+        self.assertTrue(b.pair_valid)
+        self.assertEqual(b.right_state,'partial')
+        self.assertLess(b.right_confidence,.65)
+        error=self.truth_error(b.image_right,f['right_truth'])
+        self.assertLess(error.max(),3.)
+        # Both dashes are current support; the gap between them is not.
+        rows=b.image_right[b.right_support,1]
+        self.assertTrue(any(abs(rows-152)<=1) and any(abs(rows-170)<=1))
+        self.assertFalse(any((rows>156)&(rows<164)))
+        self.assertLess(self.truth_error(b.image_left,f['left_truth']).max(),3.)
+    def test_parked_scene_lamp_post_is_never_boundary_support(self):
+        f,(road,lane),boxes=self.parked_scene();t=ImageBoundaryTracker()
+        lo,hi=f['lamp_post_x']
+        for i in range(5):
+            b=t.update(road,lane,i*.1,rgb=f['rgb'],detections=boxes)
+            for side in ('left','right'):
+                p=getattr(b,'image_'+side);support=getattr(b,side+'_support')
+                if support is None or not support.any():continue
+                post=support&(p[:,1]<134)&(p[:,0]>=lo-2)&(p[:,0]<=hi+2)
+                self.assertFalse(post.any(),side)
+    def test_worn_paint_on_bright_pavement_is_detected(self):
+        image=self.scene();image[image==60]=180;image[image==230]=200
+        b=self.update(ImageBoundaryTracker(),image,0)
+        self.assertTrue(b.pair_valid)
+        self.assertEqual((b.left_state,b.right_state),('observed','observed'))
     def test_single_initial_side_supplies_low_confidence_pair(self):
         t=ImageBoundaryTracker();b=self.update(t,self.scene(right=False),0)
         self.assertTrue(b.pair_valid)

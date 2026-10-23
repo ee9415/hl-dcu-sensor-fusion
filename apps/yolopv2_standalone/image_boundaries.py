@@ -213,13 +213,29 @@ class ImageBoundaryTracker:
                 # A short fragment may correct existing geometry only. It is
                 # never used to initialize a whole boundary or learn its width.
                 if prior is not None and start>=160 and len(ys)>=5 and np.ptp(ys)>=8:
-                    # Prefer the near contiguous fragment for correction;
-                    # a distant linked fragment must not rotate its short fit.
-                    near=np.array(ys)>=start-10
-                    ys=np.array(ys)[near];xs=np.array(xs)[near]
-                    if len(ys)<5:continue
-                    coef=np.polynomial.polynomial.polyfit(ys,xs,1)
-                    err=float(np.mean(abs(np.polynomial.polynomial.polyval(ys,coef)-xs)))
+                    # Prefer the near contiguous fragment for correction. A
+                    # linked further dash (>=3 samples, direction-gated above)
+                    # is kept only if the pair is one smoothly bending marking:
+                    # the slope across the gap lies between both dash slopes.
+                    # A laterally offset (parallel) stripe fails this check.
+                    ys,xs=np.array(ys),np.array(xs)
+                    near=ys>=start-10
+                    if near.sum()<5:continue
+                    coef=np.polynomial.polynomial.polyfit(ys[near],xs[near],1)
+                    err=float(np.mean(abs(np.polynomial.polynomial.polyval(ys[near],coef)-xs[near])))
+                    chained=False
+                    if (~near).sum()>=3:
+                        far=np.polynomial.polynomial.polyfit(ys[~near],xs[~near],1)[1]
+                        a,b=np.argmin(ys[near]),np.argmax(ys[~near])
+                        join=(xs[near][a]-xs[~near][b])/(ys[near][a]-ys[~near][b])
+                        if min(coef[1],far)-.25<=join<=max(coef[1],far)+.25:
+                            # Support rows only; the quadratic never extends past them.
+                            chain=np.polynomial.polynomial.polyfit(ys,xs,2)
+                            chain_res=abs(np.polynomial.polynomial.polyval(ys,chain)-xs)
+                            if chain_res.max()<=1.5:
+                                coef,err,chained=chain,float(chain_res.mean()),True
+                    if not chained:
+                        ys,xs=ys[near],xs[near]
                     values=np.polynomial.polynomial.polyval(self.rows,coef)
                     valid=(self.rows>=min(ys))&(self.rows<=max(ys))
                     # Do not label an unobserved gap as current paint support.
@@ -321,7 +337,21 @@ class ImageBoundaryTracker:
                 allowed |= padded[dy:dy+180,dx:dx+320]
         brightness=image.mean(axis=2)
         pavement=brightness[road & (np.indices(road.shape)[0]>90)]
-        threshold=max(125.,float(np.median(pavement))+25.) if len(pavement) else 150.
+        # Paint cannot exceed 255: on bright (overcast/concrete) pavement a
+        # fixed +25 margin rejects worn markings that still form a local ridge.
+        # The margin shrinks with remaining headroom; ridge contrast still applies.
+        median=float(np.median(pavement)) if len(pavement) else 125.
+        threshold=max(125.,median+min(25.,.2*(255.-median)))
+        # Poles/lamp posts: a near-vertical ridge run (<~0.5px/row drift) that
+        # continues above the admitted road area. Lane paint ends at the road;
+        # a post's base would otherwise extend a boundary into the horizon.
+        # Uses ridge evidence before the brightness gate, which fragments posts.
+        wide=paint.copy();wide[:,1:]|=paint[:,:-1];wide[:,:-1]|=paint[:,1:]
+        index=np.arange(180)[:,None]
+        run_start=np.maximum.accumulate(np.where(wide,-1,index),axis=0)
+        outside=np.vstack((np.zeros((1,320),int),np.cumsum(wide&~allowed,axis=0)))
+        above=outside[index+1,np.arange(320)]-outside[run_start+1,np.arange(320)]
+        paint &= ~(wide&(index-run_start>=10)&(above>=4))
         paint &= brightness>=threshold
         for box in detections:
             a,b=np.clip([int(box.xmin*320),int(np.ceil(box.xmax*320))],0,320)
@@ -402,7 +432,16 @@ class ImageBoundaryTracker:
                     # A tiny fragment cannot justify changing whole-curve
                     # curvature. Translate the retained shape coherently instead
                     # of accumulating a seam at its observation boundary.
-                    correction[finite]=np.clip(alpha*np.median(measured[existing,0]-p[existing,0]),-80*step,80*step)
+                    rows=self.rows[existing];diff=measured[existing,0]-p[existing,0]
+                    shift=np.full(finite.sum(),np.median(diff))
+                    if np.ptp(rows)>=16:
+                        # Linked dashes span enough rows to measure direction:
+                        # rotate the retained shape about the fragment instead
+                        # of carrying a stale slope into occluded rows.
+                        center=rows.mean()
+                        tilt=float(np.clip(np.polynomial.polynomial.polyfit(rows-center,diff,1)[1],-.6,.6))
+                        shift=np.median(diff-tilt*(rows-center))+tilt*(self.rows[finite]-center)
+                    correction[finite]=np.clip(alpha*shift,-80*step,80*step)
                 p[finite,0]+=correction[finite]
                 p[fresh,0]=measured[fresh,0]
                 residuals[side]=float(np.percentile(abs(p[support,0]-measured[support,0]),90))
