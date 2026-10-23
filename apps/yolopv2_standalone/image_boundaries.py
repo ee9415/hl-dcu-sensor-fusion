@@ -139,6 +139,8 @@ class ImageBoundaryTracker:
         self.short_pair_hits=[0,0]
         self.short_pair_previous=[None,None]
         self.nn_rank_mask=None
+        self.curve_reference_hits=np.zeros(2,dtype=int)
+        self.curve_guidance=np.zeros(2)
 
     def _nn_support(self, points):
         """Tie-break only on observed paint; never change acceptance/confidence."""
@@ -267,13 +269,19 @@ class ImageBoundaryTracker:
         self.detection_diagnostics[side]['short_pair_selected']=True
         return observations,predicted
 
-    def _display_continuation(self, output, states, supports):
+    def _display_continuation(self, output, states, supports, step=.1):
         """Bounded virtual tail; never feeds tracking, support or width learning."""
         result=[p.copy() for p in output]
         for side in (0,1):
+            reliable=(states[side]=='observed' and self.scores[side]>=.6
+                      and supports[side].sum()>=12)
+            self.curve_reference_hits[side]=self.curve_reference_hits[side]+1 if reliable else 0
+        for side in (0,1):
             other=1-side
             if (states[side]!='partial' or states[other]!='observed'
-                    or self.short_pair_hits[side]<3):continue
+                    or self.short_pair_hits[side]<3):
+                self.curve_guidance[side]=0.
+                continue
             p=output[side];good=np.isfinite(p[:,0]);observed=good&supports[side]
             if observed.sum()<8 or np.ptp(self.rows[observed])<14:continue
             # A short fit's curvature is poorly constrained. Reject nonlinear
@@ -286,6 +294,22 @@ class ImageBoundaryTracker:
             edge_x=float(np.polynomial.polynomial.polyval(ue,c))
             values=np.polynomial.polynomial.polyval(u,c)
             tail=(self.rows<edge)&(self.rows>=edge-24)&np.isfinite(output[other][:,0])
+            # Subtract the opposite's local tangent: perspective convergence
+            # (constant/linear terms) is NOT transferred. This is an image-space
+            # curvature prior, not a calibrated road-curvature measurement.
+            target=0.
+            reference=supports[other]&np.isfinite(output[other][:,0])
+            if (self.curve_reference_hits[other]>=5 and self.scores[other]-self.scores[side]>=.08
+                    and reference.sum()>=12 and np.ptp(self.rows[reference])>=24):
+                oc=np.polynomial.polynomial.polyfit(u[reference],output[other][reference,0],2)
+                target=self.config.opposite_curve_weight*(oc[2]-c[2])/2500
+            # Smooth coefficient changes, capped at 2 px at the 24 px endpoint.
+            target=float(np.clip(target,-2/576,2/576))
+            alpha=1-np.exp(-max(0.,step)/.5)
+            delta=alpha*(target-self.curve_guidance[side])
+            self.curve_guidance[side]+=float(np.clip(delta,-2*step/576,2*step/576))
+            guidance=self.curve_guidance[side] if self.config.opposite_curve_weight else 0.
+            values[tail]+=guidance*(self.rows[tail]-edge)**2
             added=0
             for index in np.flatnonzero(tail):
                 tangent=edge_x+slope*(self.rows[index]-edge)
@@ -296,6 +320,9 @@ class ImageBoundaryTracker:
                 result=candidate;added+=1
             self.detection_diagnostics[side]['virtual_extension_rows']=added
             self.detection_diagnostics[side]['virtual_extension_limit_px']=24
+            self.detection_diagnostics[side]['opposite_curve_target']=target
+            self.detection_diagnostics[side]['opposite_curve_applied']=guidance
+            self.detection_diagnostics[side]['opposite_curve_reference_hits']=int(self.curve_reference_hits[other])
         return result
 
     def _reacquire_observation(self, paint, side, prior, selected):
@@ -653,6 +680,7 @@ class ImageBoundaryTracker:
             self.fragment_hits[:]=0;self.fragment_offsets[:]=np.nan
             self.region_segments=[[],[]];self.reacquire=[None,None];self.reacquire_hits=[0,0]
             self.short_pair_hits=[0,0];self.short_pair_previous=[None,None]
+            self.curve_reference_hits[:]=0;self.curve_guidance[:]=0.
         motion,motion_score=road_motion(self.previous,gray,allowed[::2,::2])
         # A discontinuous source cut must not carry old boundaries into a new scene.
         if self.previous is not None and motion_score==0 and np.mean(abs(gray-self.previous))>45:
@@ -663,6 +691,7 @@ class ImageBoundaryTracker:
             self.fragment_hits[:]=0;self.fragment_offsets[:]=np.nan
             self.region_segments=[[],[]];self.reacquire=[None,None];self.reacquire_hits=[0,0]
             self.short_pair_hits=[0,0];self.short_pair_previous=[None,None]
+            self.curve_reference_hits[:]=0;self.curve_guidance[:]=0.
         self.previous=gray;self.last_time=timestamp_s if np.isfinite(timestamp_s) else None
         identity=np.array([[1.,0.,0.],[0.,1.,0.]])
         step=float(np.clip(dt if np.isfinite(dt) else .1,.01,.2))
@@ -829,7 +858,7 @@ class ImageBoundaryTracker:
         observed=[s for s in (0,1) if supports[s].any() and states[s] in ('observed','aligning','partial')]
         reference='both' if len(observed)==2 else 'left' if observed==[0] else 'right' if observed==[1] else 'none'
         state='tracking' if observed else 'held' if restored else 'predicted' if self.last_valid_pair is not None else 'unavailable'
-        output=self._display_continuation(output,states,supports)
+        output=self._display_continuation(output,states,supports,step)
         return ImageBoundaryEstimate(*output,projection_for((180,320),self.config),*states,*scores,
                                      motion_score,motion,state,reference,*supports,*residuals,restored,
                                      [dict(v) for v in self.detection_diagnostics])

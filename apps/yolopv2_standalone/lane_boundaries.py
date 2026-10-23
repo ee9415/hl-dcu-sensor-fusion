@@ -13,6 +13,7 @@ import numpy as np
 
 @dataclass(frozen=True)
 class BoundaryConfig:
+    opposite_curve_weight: float = .25
     image_nn_rank_weight: float = .06
     image_min_width_ratio: float = .25
     image_retained_width_ratio: float = .55
@@ -38,8 +39,10 @@ class BoundaryConfig:
             value = getattr(self, field.name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not np.isfinite(value):
                 raise ValueError(f'{field.name} must be a finite number')
-            if value < 0 or (value == 0 and field.name not in ('left_margin_m', 'right_margin_m', 'image_nn_rank_weight')):
+            if value < 0 or (value == 0 and field.name not in ('left_margin_m', 'right_margin_m', 'image_nn_rank_weight', 'opposite_curve_weight')):
                 raise ValueError(f'{field.name} is out of range')
+        if self.opposite_curve_weight > .5:
+            raise ValueError('Opposite curvature weight must not exceed 0.5')
         if self.image_nn_rank_weight > .1:
             raise ValueError('NN ranking weight must not exceed 0.1')
         if max(self.image_min_width_ratio,self.image_retained_width_ratio)>1:
