@@ -34,12 +34,12 @@ def update(tracker, *args, **kwargs):
     prefix = 'f%03d' % len(records)
     record = {'history_before': frozen(tracker.history,prefix+'_history'),
               'scores_before': list(tracker.scores),
-              'width_before': frozen(tracker.width,prefix+'_width'), 'calls': []}
+              'width_before': frozen(tracker.width,prefix+'_width'), 'boxes': [[b.xmin,b.ymin,b.xmax,b.ymax] for b in kwargs.get('detections',())], 'calls': []}
     def profile(frame, event, result):
         if event != 'return' or frame.f_code.co_filename != tracker.update.__code__.co_filename:
             return
         name = frame.f_code.co_name
-        if name not in ('update','_detect','_complete','_warp'):
+        if name not in ('update','_detect','_complete','_warp','_fuse'):
             return
         call = {'name':name}
         key = prefix+'_c'+str(len(record['calls']))
