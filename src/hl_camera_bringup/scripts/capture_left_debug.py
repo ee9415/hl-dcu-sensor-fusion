@@ -9,9 +9,11 @@ def run(code):
     if r.returncode:raise RuntimeError(r.stderr+r.stdout)
     return r.stdout
 mode=sys.argv[1]
-if mode=='install':
-    probe=(root/'src/hl_camera_bringup/scripts/boundary_debug_capture.py').read_text()
-    probe=probe.replace("'0'))))", "'10'))))").replace("'60')))","'30')))")
+if mode in ('install','timing-install'):
+    source='boundary_timing_capture.py' if mode=='timing-install' else 'boundary_debug_capture.py'
+    probe=(root/'src/hl_camera_bringup/scripts'/source).read_text()
+    count=min(100,max(1,int(sys.argv[3]))) if len(sys.argv)>3 else 10
+    probe=probe.replace("'0'))))", "'"+str(count)+"'))))").replace("'60')))","'30')))")
     probe=probe.replace("'_fuse')", "'_fuse','_detect_full','_detect_legacy','_detect_regions')")
     code="from pathlib import Path; import base64\n"
     code+="Path('/app/boundary_debug.npz').unlink(missing_ok=True)\n"
@@ -20,8 +22,9 @@ if mode=='install':
     code+="s=p.read_text(); s=s.replace('boundaries = self._boundary_tracker.update(', 'boundaries = __import__(\"boundary_debug_capture\").update(self._boundary_tracker,'); p.write_text(s)\n"
     run(code)
     subprocess.run(cmd+['sv','restart','/etc/service/backend'],check=True)
-elif mode=='export':
-    for name in ['boundary_debug.npz','image_boundaries.py','lane_boundaries.py','lane_boundaries.json']:
+elif mode in ('export','timing-export'):
+    names=['boundary_timing.json'] if mode=='timing-export' else ['boundary_debug.npz','image_boundaries.py','lane_boundaries.py','lane_boundaries.json']
+    for name in names:
         data=run("from pathlib import Path;import base64; print('PAYLOAD='+base64.b64encode(Path('/app/"+name+"').read_bytes()).decode())")
         payload=data.split('PAYLOAD=',1)[1].splitlines()[0].strip()
         (out/name).write_bytes(base64.b64decode(payload))

@@ -143,6 +143,7 @@ class ImageBoundaryTracker:
         self.curve_guidance=np.zeros(2)
         self.current_pair_hits=0
         self.current_pair_previous=None
+        self.observation_motion=np.array([[1.,0.,0.],[0.,1.,0.]])
 
     def _nn_support(self, points):
         """Tie-break only on observed paint; never change acceptance/confidence."""
@@ -154,8 +155,9 @@ class ImageBoundaryTracker:
         good=(xy[:,0]>=0)&(xy[:,0]<320)&(xy[:,1]>=0)&(xy[:,1]<180)
         if not good.all():return 0.
         # Equal weight per image row; thick masks cannot inflate support.
-        rows=np.unique(xy[:,1])
-        support=np.array([self.nn_rank_mask[xy[xy[:,1]==y,1],xy[xy[:,1]==y,0]].any() for y in rows])
+        rows,inverse=np.unique(xy[:,1],return_inverse=True)
+        support=np.zeros(len(rows),bool)
+        np.logical_or.at(support,inverse,self.nn_rank_mask[xy[:,1],xy[:,0]])
         return float(support.mean()) if support.mean()>=.5 else 0.
 
     def _complete(self, points):
@@ -239,10 +241,15 @@ class ImageBoundaryTracker:
         repeat=self.current_pair_previous is not None
         if repeat:
             for p,old in zip(pair,self.current_pair_previous):
+                old=self._warp(old,self.observation_motion)
+                if old is None:
+                    repeat=False
+                    break
                 common=np.isfinite(p[:,0])&np.isfinite(old[:,0])
                 repeat=repeat and common.sum()>=8 and np.max(abs(p[common,0]-old[common,0]))<=3
         self.current_pair_hits=self.current_pair_hits+1 if repeat else 1
         self.current_pair_previous=[p.copy() for p in pair]
+        for stats in self.detection_diagnostics:stats['current_pair_hits']=self.current_pair_hits
         if self.current_pair_hits<3:return predicted
         common=np.isfinite(pair[0][:,0])&np.isfinite(pair[1][:,0])
         if self.width is not None and not self._plausible_pair(pair):
@@ -256,6 +263,12 @@ class ImageBoundaryTracker:
             if overlap.sum()<3:
                 result[side]=None
                 self.detection_diagnostics[side]['disjoint_reacquired']=True
+            elif np.percentile(abs(pair[side][overlap,0]-predicted[side][overlap,0]),90)>6:
+                # Three independent, motion-consistent BOTH-side observations
+                # may replace stale geometry. Use only observed support; never
+                # transplant an extrapolated tail from the rejected history.
+                result[side]=pair[side].copy()
+                self.detection_diagnostics[side]['stale_prior_reacquired']=True
         return result
 
     def _resolve_duplicate_observations(self, observations, predicted):
@@ -373,6 +386,7 @@ class ImageBoundaryTracker:
             self.reacquire[side]=None;self.reacquire_hits[side]=0
             return selected
         curve=candidate[0];previous=self.reacquire[side]
+        if previous is not None:previous=self._warp(previous,self.observation_motion)
         common=np.isfinite(curve[:,0])&(np.isfinite(previous[:,0]) if previous is not None else False)
         repeat=common.sum()>=8 and np.max(abs(curve[common,0]-previous[common,0]))<=4
         self.reacquire_hits[side]=self.reacquire_hits[side]+1 if repeat else 1
@@ -473,11 +487,12 @@ class ImageBoundaryTracker:
         """Independent overlapping bands in the bottom 60%, then joint fit."""
         from itertools import product, combinations
         bands=((72,124),(100,160),(136,178))
+        row_pixels={y:np.flatnonzero(paint[y]) for y in range(72,178,2)}
         candidates=[]
         for lo,hi in bands:
-            segments=[];seeds=[]
+            segments=[];seeds=[];centroids=[]
             for y in range(hi-2,lo+5,-4):
-                xs=np.flatnonzero(paint[y])
+                xs=row_pixels[y]
                 xs=xs[(xs>8)&(xs<312)&((xs<185) if side==0 else (xs>135))]
                 groups=np.split(xs,np.flatnonzero(np.diff(xs)>2)+1) if len(xs) else []
                 for g in groups:
@@ -486,7 +501,7 @@ class ImageBoundaryTracker:
                 pts=[];last=start;slope=0.
                 for y in range(start,lo-1,-2):
                     if last-y>6:break
-                    options=np.flatnonzero(paint[y]);prediction=x+slope*(y-last)
+                    options=row_pixels[y];prediction=x+slope*(y-last)
                     options=options[abs(options-prediction)<4]
                     if not len(options):continue
                     x=float(options[np.argmin(abs(options-prediction))]);pts.append((x,y));last=y
@@ -499,34 +514,50 @@ class ImageBoundaryTracker:
                 c=np.polynomial.polynomial.polyfit((q[:,1]-125)/50,q[:,0],1)
                 error=np.max(abs(np.polynomial.polynomial.polyval((q[:,1]-125)/50,c)-q[:,0]))
                 if error>2:continue
-                if any(abs(np.median(q[:,0])-np.median(v[:,0]))<3 and abs(np.median(q[:,1])-np.median(v[:,1]))<8 for v in segments):continue
-                segments.append(q)
+                center=np.median(q,axis=0)
+                if any(abs(center[0]-v[0])<3 and abs(center[1]-v[1])<8 for v in centroids):continue
+                segments.append(q);centroids.append(center)
             segments.sort(key=lambda q:np.ptp(q[:,1]),reverse=True)
             candidates.append(segments[:4])
         self.region_segments[side]=[q for band in candidates for q in band]
-        best=None
+        # The same segment occurs in many band combinations. Compute its
+        # row-aligned samples and tangent once, preserving ALL candidates.
+        row_grid=np.arange(72,178,2)
+        segment_data={}
+        for segment in self.region_segments[side]:
+            aligned=np.full(len(row_grid),np.nan)
+            aligned[((segment[:,1]-72)/2).astype(int)]=segment[:,0]
+            local=np.polyfit(segment[:,1],segment[:,0],1)
+            noise=np.max(abs(np.polyval(local,segment[:,1])-segment[:,0]))
+            segment_data[id(segment)]=(aligned,local[0],noise,np.ptp(segment[:,1]),segment[:,1].mean())
+        best=None;fit_cache={}
         for count in (3,2):
             for band_ids in combinations(range(3),count):
                 for group in product(*(candidates[k] for k in band_ids)):
                     # Merge overlapping evidence once; reject conflicting locations.
-                    raw=np.vstack(group)
-                    ys=np.unique(raw[:,1])
-                    if any(np.ptp(raw[raw[:,1]==y,0])>3 for y in ys):continue
-                    q=np.array([(np.median(raw[raw[:,1]==y,0]),y) for y in ys])
+                    aligned=np.vstack([segment_data[id(segment)][0] for segment in group])
+                    active=np.isfinite(aligned).any(axis=0)
+                    aligned=aligned[:,active]
+                    if np.any(np.nanmax(aligned,axis=0)-np.nanmin(aligned,axis=0)>3):continue
+                    q=np.column_stack((np.nanmedian(aligned,axis=0),row_grid[active]))
                     if len(q)<10 or np.ptp(q[:,1])<20:continue
-                    u=(q[:,1]-125)/50
-                    c=np.polynomial.polynomial.polyfit(u,q[:,0],2)
-                    errors=abs(np.polynomial.polynomial.polyval(u,c)-q[:,0])
+                    # Overlapping segment combinations can yield identical
+                    # samples. Reuse ONLY identical fits, keeping each group's
+                    # independent tangent checks and original candidate order.
+                    key=q.tobytes()
+                    if key not in fit_cache:
+                        u=(q[:,1]-125)/50
+                        c=np.polynomial.polynomial.polyfit(u,q[:,0],2)
+                        errors=abs(np.polynomial.polynomial.polyval(u,c)-q[:,0])
+                        fit_cache[key]=(c,errors)
+                    c,errors=fit_cache[key]
                     if errors.max()>2:continue
                     # Short fragments have uncertain tangent estimates. Check the
                     # fitted tangent against each fragment, with length-scaled tolerance.
                     compatible=True
                     for segment in group:
-                        span=np.ptp(segment[:,1])
-                        local=np.polyfit(segment[:,1],segment[:,0],1)
-                        slope=local[0]
-                        noise=np.max(abs(np.polyval(local,segment[:,1])-segment[:,0]))
-                        tangent=(c[1]+2*c[2]*(segment[:,1].mean()-125)/50)/50
+                        _,slope,noise,span,mean_y=segment_data[id(segment)]
+                        tangent=(c[1]+2*c[2]*(mean_y-125)/50)/50
                         if abs(tangent-slope)>.2+min(1.,noise*2)*4/max(span,4):
                             compatible=False;break
                     if not compatible:continue
@@ -815,6 +846,9 @@ class ImageBoundaryTracker:
             self.current_pair_hits=0;self.current_pair_previous=None
         self.previous=gray;self.last_time=timestamp_s if np.isfinite(timestamp_s) else None
         identity=np.array([[1.,0.,0.],[0.,1.,0.]])
+        # Compare independently detected candidates in the CURRENT frame.
+        # Reliable measured flow is geometric compensation, not inertia.
+        self.observation_motion=motion.copy() if motion_score>=.5 else identity.copy()
         step=float(np.clip(dt if np.isfinite(dt) else .1,.01,.2))
         if motion_score:
             # Filter motion velocity, so noisy alternating flow cannot reverse
@@ -824,7 +858,10 @@ class ImageBoundaryTracker:
         else:
             self.motion_velocity*=np.exp(-step/.6)
         # Unobserved motion decays to a retained shape instead of drifting away.
-        motion=identity+self.motion_velocity*step*np.exp(-self.missing_seconds/1.5)
+        if motion_score<.5:
+            motion=identity+self.motion_velocity*step*np.exp(-self.missing_seconds/1.5)
+        else:
+            motion=identity+(motion-identity)*np.exp(-self.missing_seconds/1.5)
         predicted=[self._warp(p,motion) for p in self.history]
         observations=[self._detect(paint,s,predicted[s]) for s in (0,1)]
         observations,predicted=self._resolve_duplicate_observations(observations,predicted)
@@ -833,6 +870,15 @@ class ImageBoundaryTracker:
 
     def _fuse(self, observations, predicted, motion, motion_score, step):
         """Fuse only supported rows; commit history only after pair validation."""
+        for side,o in enumerate(observations):
+            stats=self.detection_diagnostics[side]
+            stats['observation_quality']=float(o[1]) if o is not None else None
+            stats['observation_prior_error_px']=None
+            if o is not None and predicted[side] is not None:
+                common=np.isfinite(o[0][:,0])&np.isfinite(predicted[side][:,0])
+                if len(o)>2:common &= o[2]
+                if common.any():
+                    stats['observation_prior_error_px']=float(np.percentile(abs(o[0][common,0]-predicted[side][common,0]),90))
         predicted=self._confirm_current_pair(observations,predicted)
         predicted=[self._quadratic(p) for p in predicted]
         output=[];states=[];scores=[];supports=[];residuals=[None,None]
@@ -925,11 +971,34 @@ class ImageBoundaryTracker:
                     if self._plausible_pair(pair):
                         output[side]=candidate;states[side]='inferred';scores[side]=min(scores[side],.15)
 
+        # A valid confirmed current pair must not be discarded because its
+        # fusion with unobserved OLD tails violates spacing. Preserve all
+        # absolute/learned pair guards; replace only after motion-consistent
+        # bilateral confirmation, and only over current supported rows.
+        if (not self._plausible_pair(output) and self.current_pair_hits>=3
+                and self.current_pair_previous is not None
+                and self._plausible_pair(self.current_pair_previous)):
+            reason='learned_width' if self._plausible_pair(output,learned=False) else 'shape_or_absolute_width'
+            output=[p.copy() for p in self.current_pair_previous]
+            states=['observed','observed'];scores=[float(o[1]) for o in observations]
+            supports=[np.isfinite(p[:,0]) for p in output];residuals=[0.,0.]
+            for stats in self.detection_diagnostics:
+                stats['confirmed_pair_replaced_invalid_fusion']=reason
         restored=False
         if not self._plausible_pair(output):
+            common=np.isfinite(output[0][:,0])&np.isfinite(output[1][:,0])
+            gap=output[1][:,0]-output[0][:,0]
+            basic=self._plausible_pair(output,learned=False)
+            reason='learned_width' if basic else 'shape_or_absolute_width'
+            for stats in self.detection_diagnostics:
+                stats['fusion_pair_rejection']=reason
+                stats['fusion_pair_common_rows']=int(common.sum())
+                stats['fusion_pair_min_gap']=float(gap[common].min()) if common.any() else None
             # Try accepting either side independently against the last VALID
             # opposite, before holding both. Never reuse arbitrary history.
             fallback=predicted if self._plausible_pair(predicted) else ([self._quadratic(p) for p in self.last_valid_pair] if self.last_valid_pair is not None else None)
+            for stats in self.detection_diagnostics:
+                stats['fallback_source']='predicted' if fallback is predicted else 'last_valid_pair'
             choices=[]
             if fallback is not None and self._plausible_pair(fallback):
                 for side in (0,1):
