@@ -218,14 +218,17 @@ pixel coordinate system.
 
 ## Desktop multiview (0.13.0)
 
-### Frame telemetry CSV (0.14.0, 2026-10-16)
+### Frame telemetry CSV (recording lifecycle updated 2026-10-26)
 
-Connecting video in the desktop UI starts automatic CSV logging, independent
-of the MP4 recording button. The UI shows path, successfully flushed frame
-and object row counts, sequence gaps and connection/storage errors. Closing
-the app closes the CSV files; reconnecting appends within the same session.
-Each new UI run gets a unique directory beside recordings: `telemetry/<date_id>`.
-Files grow until the app closes; no automatic rotation/deletion is implemented.
+Connecting video only starts previews. CSV logging starts after `녹화 시작`
+successfully opens all selected MP4 writers, and stops with `녹화 멈춤` or app
+closure. Each new recording gets a unique directory beside recordings:
+`telemetry/<date_id>`. Failed recording starts create no CSV session.
+The UI shows path, successfully flushed frame and object row counts, sequence
+gaps and connection/storage errors. Reconnection during recording appends to
+the same session. Existing logs are retained; video export remains separate.
+Video and telemetry use separate streams, so shared recording controls do not
+imply hardware frame synchronization. Restart an already running UI to apply.
 
 - `frames.csv`: frame/NN/depth sequences and monotonic timestamps, estimated
   capture wall time, PC UTC receive time, c0..c3, validity/tracking/turn state,

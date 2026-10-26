@@ -93,6 +93,8 @@ class FrameCsvLogger:
                                 # Renew the estimate periodically; gaps remain explicit in CSV.
                                 while not self.stop.is_set() and time.monotonic()-synced < 5:
                                     line = stream.readline(1048576)
+                                    if self.stop.is_set():
+                                        break
                                     received = time.time()
                                     received_mono = time.monotonic()
                                     if not line:
@@ -149,3 +151,6 @@ class FrameCsvLogger:
                         self.connection = None
         except (OSError, CsvStorageError) as exc:
             self.status = f'CSV 저장 실패: {exc}'
+        finally:
+            if self.stop.is_set() and not self.status.startswith('CSV 저장 실패'):
+                self.status = '기록 중지'

@@ -485,7 +485,7 @@ class RecorderApp:
             sticky="ew",
         )
         self.root.after(50, self._update_preview)
-        self.csv_status = tk.StringVar(value='CSV: 영상 연결 시 자동 기록 시작')
+        self.csv_status = tk.StringVar(value='CSV 대기 · 녹화 시작 시 함께 기록')
         ttk.Label(record_controls, textvariable=self.csv_status, style='App.TLabel',
                   wraplength=1100).grid(row=2, column=0, columnspan=5, sticky='ew')
 
@@ -666,9 +666,6 @@ class RecorderApp:
         )
         self.sources["bev"].url = self.bev_url_override or f"rtsp://{ip}:8553/bev"
         self.sources["depth"].url = f"rtsp://{ip}:8556/depth"
-        if self.csv_logger is None:
-            self.csv_logger = FrameCsvLogger(ip, self.output_dir.parent / 'telemetry')
-            self.csv_logger.start()
         for source in self.sources.values():
             source.start()
         self.connect_button.configure(text="영상 연결 중...", state=tk.DISABLED)
@@ -793,6 +790,8 @@ class RecorderApp:
         return True
 
     def start_recording(self) -> None:
+        if self.recording:
+            return
         keys = self._selected_keys()
         if not keys:
             messagebox.showwarning("녹화 시작", "원본 RGB 또는 YOLO 결과를 선택해 주세요.")
@@ -827,6 +826,10 @@ class RecorderApp:
 
         self.recording_keys = started
         self.recording = True
+        # A preview connection must not create logs. Each successful recording
+        # gets its own logger/session; a stopped logger cannot be restarted.
+        self.csv_logger = FrameCsvLogger(self.device_ip, self.output_dir.parent / 'telemetry')
+        self.csv_logger.start()
         self.start_button.configure(state=tk.DISABLED)
         self.stop_button.configure(state=tk.NORMAL)
         self.save_button.configure(state=tk.DISABLED)
@@ -843,6 +846,8 @@ class RecorderApp:
             for key in self.recording_keys
             if (path := self.sources[key].stop_recording()) is not None
         }
+        if self.csv_logger is not None:
+            self.csv_logger.close()
         self.recording = False
         self.recording_keys = []
         self.start_button.configure(state=tk.NORMAL)

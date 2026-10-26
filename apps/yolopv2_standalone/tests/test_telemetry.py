@@ -51,6 +51,8 @@ class TelemetryTests(unittest.TestCase):
                 while logger.frames < 3 and time.monotonic() < deadline:
                     time.sleep(.01)
                 logger.close()
+                self.assertFalse(logger.thread.is_alive())
+                self.assertEqual(logger.status,'기록 중지')
                 with (logger.path/'frames.csv').open(encoding='utf-8-sig') as f:
                     rows = list(csv.DictReader(f))
                 with (logger.path/'objects.csv').open(encoding='utf-8-sig') as f:
