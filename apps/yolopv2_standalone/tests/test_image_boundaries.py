@@ -68,6 +68,21 @@ class ImageBoundaryTests(unittest.TestCase):
         b=t.update(np.zeros((180,320),np.uint8),np.zeros((180,320),np.uint8),0,rgb=image)
         self.assertFalse(b.valid)
 
+    def test_shadow_paint_requires_network_and_local_contrast(self):
+        image=self.scene();lane=(image[:,:,0]==230).astype(np.uint8)
+        image[image==230]=105
+        road=np.ones((180,320),np.uint8)
+        result=ImageBoundaryTracker().update(road,lane,0,rgb=image)
+        self.assertEqual(result.reference_side,'both')
+        self.assertTrue(result.pair_valid)
+        # A network hallucination on uniform pavement is not paint evidence.
+        flat=np.full_like(image,105)
+        self.assertFalse(ImageBoundaryTracker().update(road,lane,0,rgb=flat).valid)
+        # Shadow admission must not bypass either exclusion mask.
+        self.assertFalse(ImageBoundaryTracker().update(road*0,lane,0,rgb=image).valid)
+        box=SimpleNamespace(xmin=0,ymin=0,xmax=1,ymax=1)
+        self.assertFalse(ImageBoundaryTracker().update(road,lane,0,rgb=image,detections=[box]).valid)
+
     def test_render_does_not_change_tracking_coordinates(self):
         from lane_boundaries import draw_boundaries,render_boundary_bev
         import json

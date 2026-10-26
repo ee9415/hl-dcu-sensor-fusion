@@ -63,7 +63,8 @@ def update(tracker, *args, **kwargs):
         sys.setprofile(previous)
     record['telemetry'] = estimate.telemetry()
     record['region_segments'] = frozen(tracker.region_segments,prefix+'_segments')
-    record['detection_diagnostics'] = tracker.detection_diagnostics
+    # Tracker diagnostic dicts are mutated on subsequent frames.
+    record['detection_diagnostics'] = json.loads(json.dumps(tracker.detection_diagnostics))
     records.append(record)
     if len(records) == COUNT:
         arrays['records_json'] = np.array(json.dumps(records))

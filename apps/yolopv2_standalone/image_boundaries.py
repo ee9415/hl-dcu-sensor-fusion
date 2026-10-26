@@ -810,7 +810,15 @@ class ImageBoundaryTracker:
         inside_depth=index-last_outside
         pole_transition=wide&(index-run_start>=10)&(above>=4)&(inside_depth<=12)
         paint &= ~pole_transition
-        paint &= brightness>=threshold
+        # Global pavement brightness can suppress genuine paint in shadows
+        # (especially when filming a monitor). Admit locally contrasted paint
+        # supported by the network, not the network mask alone. Keep pole,
+        # road and vehicle exclusions identical for both admission paths.
+        nn_support=self.nn_rank_mask.copy()
+        for offset in (1,2,3):
+            nn_support[:,offset:] |= self.nn_rank_mask[:,:-offset]
+            nn_support[:,:-offset] |= self.nn_rank_mask[:,offset:]
+        paint &= (brightness>=threshold) | (nn_support & (brightness>=85.))
         for box in detections:
             a,b=np.clip([int(box.xmin*320),int(np.ceil(box.xmax*320))],0,320)
             c,d=np.clip([int(box.ymin*180),int(np.ceil(box.ymax*180))],0,180)
