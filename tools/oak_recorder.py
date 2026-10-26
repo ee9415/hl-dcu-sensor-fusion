@@ -828,7 +828,8 @@ class RecorderApp:
         self.recording = True
         # A preview connection must not create logs. Each successful recording
         # gets its own logger/session; a stopped logger cannot be restarted.
-        self.csv_logger = FrameCsvLogger(self.device_ip, self.output_dir.parent / 'telemetry')
+        self.csv_logger = FrameCsvLogger(
+            self.device_ip, Path(__file__).resolve().parents[1] / 'artifacts' / 'telemetry')
         self.csv_logger.start()
         self.start_button.configure(state=tk.DISABLED)
         self.stop_button.configure(state=tk.NORMAL)
@@ -850,12 +851,31 @@ class RecorderApp:
             self.csv_logger.close()
         self.recording = False
         self.recording_keys = []
+        # Finalize video beside this recording's CSV files. On a filesystem
+        # failure retain the temporary paths for retry/manual export.
+        save_error = None
+        session_path = self.csv_logger.path
+        try:
+            if self.unsaved_paths:
+                session_path.mkdir(parents=True, exist_ok=True)
+            for key, source in list(self.unsaved_paths.items()):
+                destination = session_path / f'oak4dpro_{self.recording_stamp}_{key}.mp4'
+                if destination.exists():
+                    raise FileExistsError(f'이미 존재하는 파일: {destination}')
+                shutil.move(str(source), str(destination))
+                self.unsaved_paths.pop(key)
+        except OSError as exc:
+            save_error = str(exc)
         self.start_button.configure(state=tk.NORMAL)
         self.stop_button.configure(state=tk.DISABLED)
-        self.save_button.configure(state=tk.NORMAL)
+        self.save_button.configure(state=tk.NORMAL if self.unsaved_paths else tk.DISABLED)
         self.rgb_check.configure(state=tk.NORMAL)
         self.result_check.configure(state=tk.NORMAL)
-        self.status_text.set("녹화 멈춤 — 파일 저장 버튼을 눌러 주세요")
+        if save_error:
+            self.status_text.set('자동 저장 실패 — 임시 영상 유지, 파일 저장 버튼으로 저장 가능')
+            messagebox.showerror('녹화 자동 저장', save_error)
+        else:
+            self.status_text.set(f'녹화 종료 · 영상/로그 저장 위치: {session_path}')
 
     def save_recording(self) -> None:
         if self.recording:

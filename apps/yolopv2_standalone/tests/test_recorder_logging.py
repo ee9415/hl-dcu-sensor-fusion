@@ -1,6 +1,7 @@
 """Recorder controls share the video and telemetry recording lifecycle."""
 import sys
 import unittest
+import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -64,6 +65,39 @@ class RecorderLoggingTests(unittest.TestCase):
         self.assertTrue(logger.return_value.close.called)
         self.assertFalse(app.recording)
         app.root.destroy.assert_called_once()
+
+    @patch('oak_recorder.FrameCsvLogger')
+    def test_stop_saves_both_videos_beside_csv(self,logger):
+        root=Path(__file__).resolve().parents[3]
+        with tempfile.TemporaryDirectory(dir=root/'artifacts') as folder:
+            folder=Path(folder);session=folder/'session';session.mkdir()
+            (session/'frames.csv').write_text('frame_seq\n1\n')
+            logger.return_value.path=session
+            app=self.app();app.start_recording()
+            for key in ('rgb','yolopv2'):
+                source=folder/f'{key}.mp4';source.write_bytes(key.encode())
+                app.sources[key].stop_recording.return_value=source
+            app.stop_recording()
+            self.assertFalse(app.unsaved_paths)
+            for key in ('rgb','yolopv2'):
+                self.assertEqual((session/f'oak4dpro_{app.recording_stamp}_{key}.mp4').read_bytes(),key.encode())
+            self.assertTrue((session/'frames.csv').exists())
+            self.assertEqual(logger.call_args.args[1],root/'artifacts'/'telemetry')
+
+    @patch('oak_recorder.messagebox')
+    @patch('oak_recorder.shutil.move',side_effect=OSError('disk unavailable'))
+    @patch('oak_recorder.FrameCsvLogger')
+    def test_auto_save_failure_retains_video_for_retry(self,logger,move,dialogs):
+        root=Path(__file__).resolve().parents[3]
+        with tempfile.TemporaryDirectory(dir=root/'artifacts') as folder:
+            folder=Path(folder);source=folder/'rgb.mp4';source.write_bytes(b'video')
+            logger.return_value.path=folder/'session'
+            app=self.app();app.start_recording()
+            app.sources['rgb'].stop_recording.return_value=source
+            app.stop_recording()
+            self.assertEqual(app.unsaved_paths,{'rgb':source})
+            self.assertTrue(source.exists())
+            self.assertFalse(app.recording)
 
 
 if __name__=='__main__':unittest.main()

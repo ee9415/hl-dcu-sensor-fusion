@@ -223,10 +223,12 @@ pixel coordinate system.
 Connecting video only starts previews. CSV logging starts after `녹화 시작`
 successfully opens all selected MP4 writers, and stops with `녹화 멈춤` or app
 closure. Each new recording gets a unique directory beside recordings:
-`telemetry/<date_id>`. Failed recording starts create no CSV session.
+`<repository>/artifacts/telemetry/<date_id>`. Failed recording starts create no CSV session.
 The UI shows path, successfully flushed frame and object row counts, sequence
 gaps and connection/storage errors. Reconnection during recording appends to
-the same session. Existing logs are retained; video export remains separate.
+the same session. On recording stop, MP4 files are automatically finalized into
+that same CSV session directory. No separate save dialog is needed. If automatic
+video saving fails, temporary videos are retained and `파일 저장` remains available.
 Video and telemetry use separate streams, so shared recording controls do not
 imply hardware frame synchronization. Restart an already running UI to apply.
 
@@ -338,9 +340,12 @@ use live RTSP streams. Depth remains an explicit placeholder until its
 PC-facing video output is added.
 
 Use the recorder window in this order: `영상 연결`, select `원본 RGB`,
-`YOLO 결과`, or both, then use `녹화 시작`, `녹화 멈춤`, and `파일 저장`.
+`YOLO 결과`, or both, then use `녹화 시작` and `녹화 멈춤`.
 The two available live previews start as soon as `영상 연결` succeeds and remain
-visible before, during, and after recording. A single recording selection opens
+visible before, during, and after recording. Stopping automatically saves selected
+MP4s beside `frames.csv` and `objects.csv` under `artifacts/telemetry/<date_id>`.
+The following manual export dialogs are only needed if automatic saving fails.
+A single recording selection opens
 a normal file-save dialog. Selecting both opens a folder dialog and creates two files:
 `*_rgb.mp4` (`1920x1080`) and `*_yolopv2.mp4` (`960x540`). Both are 10 FPS.
 The recorder uses H.264 in the MP4 container through Windows Media Foundation,
