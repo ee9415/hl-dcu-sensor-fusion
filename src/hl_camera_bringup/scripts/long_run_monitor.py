@@ -27,6 +27,7 @@ import time
 ROOT = Path(__file__).resolve().parents[3]
 OAKCTL = '/mnt/c/Program Files/oakctl/bin/oakctl.exe'
 FIELDS = ('input_source', 'source_epoch', 'source_media_epoch', 'source_frame_index', 'source_media_time_s',
+          'processing_mode','processing_epoch',
           'frame_seq', 'nn_seq', 'depth_seq', 'capture_monotonic_est_s', 'sent_monotonic_s',
           'nn_timestamp_s', 'depth_available', 'boundary_state', 'left_boundary_state',
           'right_boundary_state', 'stop_line_state')
@@ -55,7 +56,7 @@ def device_stats(ip):
 
 def record(args):
     sys.path.insert(0, str(ROOT/'tools'))
-    from video_file_sender import VideoFileSender, select_camera
+    from video_file_sender import VideoFileSender, select_camera, set_processing_mode
     args.output.mkdir(parents=True, exist_ok=True)
     frames, stats, events = [], [], []
     stop = threading.Event()
@@ -90,6 +91,7 @@ def record(args):
                 events.append(dict(t=time.time(), event='stats_error', error=str(exc)))
             stop.wait(args.stats_interval)
 
+    set_processing_mode(args.device_ip,args.processing)
     select_camera(args.device_ip)
     threads = [threading.Thread(target=f, daemon=True) for f in (read, sample)]
     for t in threads:
@@ -121,6 +123,7 @@ def record(args):
         if sender is not None:
             sender.close()
         select_camera(args.device_ip)
+        set_processing_mode(args.device_ip,'basic')
         stop.set()
         for t in threads:
             t.join(timeout=15)
@@ -128,7 +131,7 @@ def record(args):
     (args.output/'frames.jsonl').write_text('\n'.join(json.dumps(f) for f in measured))
     (args.output/'stats.jsonl').write_text('\n'.join(json.dumps(s) for s in stats))
     (args.output/'run.json').write_text(json.dumps(dict(
-        source=args.source, video=str(args.video) if args.video else None, start_s=args.start, end_s=args.end,
+        source=args.source, processing_mode=args.processing, video=str(args.video) if args.video else None, start_s=args.start, end_s=args.end,
         minutes=args.minutes, device_ip=args.device_ip, events=events, sender=sender_status,
         other_source_frames=len(frames[begin:])-len(measured)), indent=2, ensure_ascii=False), encoding='utf-8')
     return args.output
@@ -214,6 +217,7 @@ def main():
     p.add_argument('--analyze', type=Path, help='only summarize an existing output directory')
     p.add_argument('--device-ip')
     p.add_argument('--source', choices=('pc', 'camera'))
+    p.add_argument('--processing',choices=('basic','full'),default='full')
     p.add_argument('--video', type=Path)
     p.add_argument('--start', type=float, default=0.)
     p.add_argument('--end', type=float)

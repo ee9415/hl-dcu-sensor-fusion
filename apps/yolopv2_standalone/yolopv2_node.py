@@ -4,8 +4,8 @@ import time
 import depthai as dai
 import numpy as np
 from telemetry_server import TelemetryServer
-from stop_line import StopLineTracker, draw_stop_line
-from image_boundaries import ImageBoundaryTracker
+from stop_line import StopLineTracker, StopLineEstimate, draw_stop_line
+from image_boundaries import ImageBoundaryTracker, ImageBoundaryEstimate
 from lane_boundaries import (BoundaryConfig, BoundaryEstimate,
                              draw_boundaries, render_boundary_bev)
 
@@ -253,6 +253,9 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._stop_line_tracker = StopLineTracker()
         self.video_input = None
         self._input_epoch = None
+        self._processing_key = None
+        self._basic_bev = np.zeros((480,640,3),np.uint8)
+        self._draw_text(self._basic_bev,'BASIC MODE - BEV DISABLED',10,10,(0,220,255))
 
     def build(
         self,
@@ -428,14 +431,19 @@ class Yolopv2Postprocess(dai.node.HostNode):
         drivable_up = np.repeat(np.repeat(drivable, 3, axis=0), 3, axis=1)
 
         self._blend_mask(rendered, drivable_up, (0, 180, 0), 0.20)
-        draw_boundaries(rendered, boundaries, (drivable.shape[1], drivable.shape[0]))
-        draw_stop_line(rendered,stop_line)
-        self._draw_text(rendered, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' ')
-                        +' REF '+boundaries.reference_side.upper(),
-                        10, 12, (0, 220, 255))
-        self._draw_text(rendered,f'L {boundaries.left_confidence:.2f} {boundaries.left_state.upper()} '
-                        f'R {boundaries.right_confidence:.2f} {boundaries.right_state.upper()}',10,32,(0,220,255))
-        self._draw_text(rendered,f'STOP {stop_line.state.upper()} {stop_line.confidence:.2f}',10,52,(255,0,255))
+        full = boundaries.state != 'disabled'
+        if full:
+            draw_boundaries(rendered, boundaries, (drivable.shape[1], drivable.shape[0]))
+            draw_stop_line(rendered,stop_line)
+            self._draw_text(rendered, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' ')
+                            +' REF '+boundaries.reference_side.upper(),10,12,(0,220,255))
+            self._draw_text(rendered,f'L {boundaries.left_confidence:.2f} {boundaries.left_state.upper()} '
+                            f'R {boundaries.right_confidence:.2f} {boundaries.right_state.upper()}',10,32,(0,220,255))
+            self._draw_text(rendered,f'STOP {stop_line.state.upper()} {stop_line.confidence:.2f}',10,52,(255,0,255))
+        else:
+            lane_up=np.repeat(np.repeat(lane,3,axis=0),3,axis=1)
+            self._blend_mask(rendered,lane_up,(255,255,0),.8)
+            self._draw_text(rendered,'YOLOPV2 BASIC',10,12,(0,220,255))
         invalid_labels = 0
         for detection, measurement in zip(detections, measurements, strict=True):
             self._draw_box(rendered, detection)
@@ -443,7 +451,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 detection.ymax - detection.ymin,
                 0.0,
             )
-            if measurement.valid or (box_area >= 0.025 and invalid_labels < 4):
+            if full and (measurement.valid or (box_area >= 0.025 and invalid_labels < 4)):
                 self._draw_distance(rendered, detection, measurement)
                 if not measurement.valid:
                     invalid_labels += 1
@@ -465,10 +473,13 @@ class Yolopv2Postprocess(dai.node.HostNode):
                   if self.video_input is not None else {})
         if self.video_input is not None and not source:
             return  # Do not process a frame whose source provenance expired.
-        if source and source.get('source_epoch') != self._input_epoch:
+        processing_mode=source.get('processing_mode','full')
+        processing_key=(processing_mode,source.get('processing_epoch',0))
+        if (source and source.get('source_epoch') != self._input_epoch) or processing_key!=self._processing_key:
             self._boundary_tracker = ImageBoundaryTracker(self._boundary_tracker.config)
             self._stop_line_tracker = StopLineTracker()
-            self._input_epoch = source['source_epoch']
+            self._input_epoch = source.get('source_epoch')
+            self._processing_key = processing_key
         depth_frame = aligned_depth.getFrame()
         depth_transformation = aligned_depth.getTransformation()
         if source.get('input_source') == 'pc':
@@ -547,27 +558,35 @@ class Yolopv2Postprocess(dai.node.HostNode):
             self._source_size,
         )
         boundary_started = time.monotonic()
-        boundaries = self._boundary_tracker.update(
-            drivable, lane, nn_data.getTimestamp().total_seconds(), rgb=preview.getCvFrame(),
-            detections=detection_messages)
-        boundary_finished = time.monotonic()
-        stop_line=self._stop_line_tracker.update(preview.getCvFrame(),boundaries,
-                         nn_data.getTimestamp().total_seconds(),detection_messages)
-        stop_finished=time.monotonic()
-        bev = render_boundary_bev(boundaries)
-        draw_stop_line(bev,stop_line,boundaries)
-        bev_finished = time.monotonic()
-        self._draw_text(bev, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' ')
-                        +' REF '+boundaries.reference_side.upper(),
-                        10, 10, (0, 220, 255))
-        self._draw_text(bev,f'L {boundaries.left_confidence:.2f} {boundaries.left_state.upper()} '
-                        f'R {boundaries.right_confidence:.2f} {boundaries.right_state.upper()}',10,32,(0,220,255))
-        self._draw_text(bev,f'STOP {stop_line.state.upper()} {stop_line.confidence:.2f}',10,52,(255,0,255))
+        if processing_mode=='full':
+            boundaries = self._boundary_tracker.update(
+                drivable, lane, nn_data.getTimestamp().total_seconds(), rgb=preview.getCvFrame(),
+                detections=detection_messages)
+            boundary_finished = time.monotonic()
+            stop_line=self._stop_line_tracker.update(preview.getCvFrame(),boundaries,
+                             nn_data.getTimestamp().total_seconds(),detection_messages)
+            stop_finished=time.monotonic()
+            bev = render_boundary_bev(boundaries)
+            draw_stop_line(bev,stop_line,boundaries)
+            bev_finished = time.monotonic()
+            self._draw_text(bev, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' ')
+                            +' REF '+boundaries.reference_side.upper(),10,10,(0,220,255))
+            self._draw_text(bev,f'L {boundaries.left_confidence:.2f} {boundaries.left_state.upper()} '
+                            f'R {boundaries.right_confidence:.2f} {boundaries.right_state.upper()}',10,32,(0,220,255))
+            self._draw_text(bev,f'STOP {stop_line.state.upper()} {stop_line.confidence:.2f}',10,52,(255,0,255))
+        else:
+            empty=np.empty((0,2),float)
+            boundaries=ImageBoundaryEstimate(empty,empty,np.eye(3),'disabled','disabled',0.,0.,0.,
+                                             np.array([[1.,0.,0.],[0.,1.,0.]]),'disabled','none')
+            stop_line=StopLineEstimate(state='disabled')
+            bev=self._basic_bev
+            boundary_finished=stop_finished=bev_finished=boundary_started
         capture_s = preview.getTimestamp().total_seconds()
         capture_wall = time.time() - (dai.Clock.now().total_seconds() - capture_s)
         capture_mono = time.monotonic() - (dai.Clock.now().total_seconds() - capture_s)
         self._telemetry.publish({
             **source,
+            'processing_mode':processing_mode,
             'depth_available': source.get('input_source', 'camera') == 'camera',
             'frame_seq': int(preview.getSequenceNum()),
             'nn_seq': int(nn_data.getSequenceNum()),
@@ -614,6 +633,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 **boundaries.telemetry(self._boundary_tracker.config),
                 **stop_line.telemetry(),
                 "status": "running",
+                "processing_mode":processing_mode,
                 "frames": self._frames,
                 "average_fps": round(self._frames / elapsed, 2),
                 "postprocess_ms": round((now - started_at) * 1000.0, 2),

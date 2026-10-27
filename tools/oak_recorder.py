@@ -21,7 +21,7 @@ os.environ.setdefault('OPENCV_FFMPEG_CAPTURE_OPTIONS', 'rtsp_transport;tcp')
 import cv2
 from PIL import Image, ImageTk
 from frame_csv_logger import FrameCsvLogger
-from video_file_sender import VideoFileSender, select_camera, parse_video_time
+from video_file_sender import VideoFileSender, select_camera, parse_video_time, set_processing_mode
 
 RESAMPLE_LANCZOS = getattr(Image, "Resampling", Image).LANCZOS
 
@@ -267,6 +267,9 @@ class RecorderApp:
         self.active_input = 'camera'
         self.source_events = queue.SimpleQueue()
         self.source_change_pending = False
+        self.processing_events = queue.SimpleQueue()
+        self.processing_pending = False
+        self.confirmed_full_processing = False
         self.source_closing = threading.Event()
         self.sources = {
             "rgb": CaptureSource("rgb", "원본 RGB", ""),
@@ -561,6 +564,14 @@ class RecorderApp:
         self.source_fps_choice.pack(side=tk.LEFT,padx=5)
         ttk.Label(segment,text='초 또는 분:초 · 종료 공란: 영상 끝 · 변경 후 소스 적용',
                   style='App.TLabel').pack(side=tk.LEFT)
+        self.full_processing = tk.BooleanVar(value=False)
+        self.processing_check = ttk.Checkbutton(panel,text='전체 후처리 (경계 추적·가상 경계·정지선)',
+            variable=self.full_processing,command=self._apply_processing_mode,state=tk.DISABLED,
+            style='App.TCheckbutton')
+        self.processing_check.grid(row=4,column=0,columnspan=3,sticky='w',pady=(4,0))
+        self.processing_status = tk.StringVar(value='기본 인식: 객체·주행 영역·차선 마스크')
+        ttk.Label(panel,textvariable=self.processing_status,style='App.TLabel').grid(
+            row=4,column=3,columnspan=4,sticky='w')
         progress = ttk.Frame(panel, style='Panel.TFrame')
         progress.grid(row=2,column=0,columnspan=7,sticky='ew',pady=(4,0))
         progress.columnconfigure(1,weight=1)
@@ -588,6 +599,22 @@ class RecorderApp:
         tenths = max(0,round(seconds*10))
         minutes, rest = divmod(tenths,600)
         return f'{minutes:02d}:{rest//10:02d}.{rest%10}'
+
+    def _apply_processing_mode(self):
+        if self.processing_pending or not self.connect_requested:
+            return
+        desired=bool(self.full_processing.get())
+        self.processing_pending=True
+        self.processing_check.configure(state=tk.DISABLED)
+        self.processing_status.set('장치 처리 모드 적용 중...')
+        ip=self.device_ip
+        def change():
+            try:
+                set_processing_mode(ip,'full' if desired else 'basic')
+                self.processing_events.put(('ok',desired))
+            except (OSError,ValueError,RuntimeError,EOFError) as exc:
+                self.processing_events.put(('error',str(exc)))
+        threading.Thread(target=change,daemon=True,name='processing-control').start()
 
     def _begin_seek(self, event=None):
         self.source_progress_dragging = str(self.source_progress.cget('state')) != 'disabled'
@@ -716,6 +743,18 @@ class RecorderApp:
             self.source_pause.configure(state=tk.DISABLED)
 
     def _update_input_status(self):
+        while True:
+            try:event,data=self.processing_events.get_nowait()
+            except queue.Empty:break
+            self.processing_pending=False
+            self.processing_check.configure(state=tk.NORMAL)
+            if event=='ok':
+                self.confirmed_full_processing=data
+                self.full_processing.set(data)
+                self.processing_status.set('전체 후처리 · 이후 입력부터 적용' if data else '기본 인식 · 이후 입력부터 적용')
+            else:
+                self.full_processing.set(self.confirmed_full_processing)
+                self.processing_status.set(f'모드 적용 실패: {data}')
         while True:
             try:
                 event, data = self.source_events.get_nowait()
@@ -931,6 +970,9 @@ class RecorderApp:
         self.status_text.set(f"{ip} RGB, YOLO, BEV, Depth 스트림 연결 중...")
         if hasattr(self, 'source_apply'):
             self.source_apply.configure(state=tk.NORMAL)
+        if hasattr(self,'processing_check'):
+            self.processing_check.configure(state=tk.NORMAL)
+            self._apply_processing_mode()
 
     def _drain_connection_events(self) -> None:
         while True:

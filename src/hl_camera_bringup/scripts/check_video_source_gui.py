@@ -33,6 +33,11 @@ def main():
             assert condition(),app.source_status.get()
         try:
             root.update();app.connect_requested=True
+            app.processing_check.configure(state='normal')
+            app.full_processing.set(True);app._apply_processing_mode()
+            pump(lambda:app.confirmed_full_processing and hub.processing_mode=='full')
+            app.full_processing.set(False);app._apply_processing_mode()
+            pump(lambda:not app.confirmed_full_processing and hub.processing_mode=='basic')
             app.source_apply.configure(state='normal')
             app.input_mode.set('PC 영상 파일');app.input_file.set(str(path))
             app.input_start.set('0.5');app.input_end.set('0:01.5')

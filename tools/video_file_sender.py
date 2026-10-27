@@ -40,6 +40,18 @@ def select_camera(ip, port=PORT):
         return response
 
 
+def set_processing_mode(ip, mode, port=PORT):
+    if mode not in ('basic','full'):
+        raise ValueError('Processing mode must be basic or full')
+    with socket.create_connection((ip,port),timeout=3) as connection:
+        send_message(connection,dict(op='processing',mode=mode))
+        with connection.makefile('rb') as stream:
+            response,_=read_message(stream)
+        if not response.get('ok') or response.get('processing_mode')!=mode:
+            raise RuntimeError(response.get('error','Processing mode was not applied'))
+        return response
+
+
 def fit_frame(bgr):
     """Preserve aspect ratio inside a 16:9 canvas before JPEG transmission."""
     height, width = bgr.shape[:2]

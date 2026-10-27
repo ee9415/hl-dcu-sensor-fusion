@@ -15,7 +15,7 @@ from video_transport import (VideoInputServer, jpeg_size, read_message, send_mes
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT/'tools'))
-from video_file_sender import VideoFileSender, fit_frame, select_camera, parse_video_time
+from video_file_sender import VideoFileSender, fit_frame, select_camera, parse_video_time, set_processing_mode
 
 
 def jpeg(value=100):
@@ -250,6 +250,25 @@ class TransportTests(unittest.TestCase):
             self.assertEqual(sender.snapshot()['effective_fps'],15)
             self.assertEqual(sender.snapshot()['device_fps'],15)
         with self.assertRaises(ValueError):VideoFileSender('127.0.0.1','unused',fps=21)
+
+    def test_processing_switch_keeps_publisher_and_frame_provenance(self):
+        token=object()
+        self.command(token,'select',source='pc')
+        self.command(token,'frame',frame_index=0,media_time_s=0.,media_epoch=0)
+        source_epoch=self.hub.epoch
+        set_processing_mode('127.0.0.1','full',self.port)
+        self.assertIs(self.hub.owner,token)
+        self.assertEqual(self.hub.epoch,source_epoch)
+        _,meta=self.hub.take()
+        self.assertEqual(meta['processing_mode'],'full')
+        self.hub.remember(9,meta)
+        set_processing_mode('127.0.0.1','basic',self.port)
+        self.assertEqual(self.hub.metadata(9)['processing_mode'],'full')
+        self.command(token,'frame',frame_index=1,media_time_s=.1,media_epoch=0)
+        _,new=self.hub.take()
+        self.assertEqual(new['processing_mode'],'basic')
+        self.assertGreater(new['processing_epoch'],meta['processing_epoch'])
+        with self.assertRaises(ValueError):set_processing_mode('127.0.0.1','invalid',self.port)
 
 
 if __name__=='__main__':unittest.main()

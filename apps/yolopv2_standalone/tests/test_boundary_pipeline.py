@@ -135,3 +135,22 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertFalse(payload['depth_available'])
             self.assertEqual(payload['source_frame_index'],20)
             self.assertFalse(payload['objects'][0]['depth_valid'])
+            # Basic must bypass the expensive algorithms, not just hide lines.
+            processor.video_input.metadata.return_value=dict(input_source='pc',source_epoch=2,
+                processing_mode='basic',processing_epoch=1)
+            with patch.object(node.ImageBoundaryTracker,'update',side_effect=AssertionError('boundary ran')), \
+                 patch.object(node.StopLineTracker,'update',side_effect=AssertionError('stop ran')), \
+                 patch.object(node,'render_boundary_bev',side_effect=AssertionError('BEV ran')):
+                processor.process(Frame(),Frame(),Frame())
+            basic_tracker=processor._boundary_tracker
+            payload=server.return_value.publish.call_args.args[0]
+            self.assertEqual(payload['processing_mode'],'basic')
+            self.assertEqual(payload['boundary_state'],'disabled')
+            self.assertEqual(payload['stop_line_state'],'disabled')
+            self.assertFalse(payload['boundary_valid'])
+            self.assertTrue(np.any(np.all(processor.result.send.call_args.args[0].data==(240,248,36),axis=2)))
+            processor.video_input.metadata.return_value=dict(input_source='pc',source_epoch=2,
+                processing_mode='full',processing_epoch=2)
+            processor.process(Frame(),Frame(),Frame())
+            self.assertIsNot(basic_tracker,processor._boundary_tracker)
+            self.assertEqual(server.return_value.publish.call_args.args[0]['processing_mode'],'full')

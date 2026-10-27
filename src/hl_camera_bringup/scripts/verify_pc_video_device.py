@@ -10,7 +10,7 @@ import time
 
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/'tools'))
-from video_file_sender import VideoFileSender,select_camera
+from video_file_sender import VideoFileSender,select_camera,set_processing_mode
 from frame_csv_logger import FrameCsvLogger
 
 
@@ -23,6 +23,7 @@ def main():
     p.add_argument('--start',type=float,default=0.)
     p.add_argument('--end',type=float)
     p.add_argument('--fps',type=float,default=10)
+    p.add_argument('--processing',choices=('basic','full'),default='full')
     args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True)
     frames=[];stop=threading.Event();errors=[]
     def read():
@@ -39,6 +40,7 @@ def main():
                         if 'frame_seq' in payload:frames.append(payload)
         except (OSError,ValueError) as exc:
             if not stop.is_set():errors.append(str(exc))
+    set_processing_mode(args.device_ip,args.processing)
     select_camera(args.device_ip)
     reader=threading.Thread(target=read,daemon=True);reader.start()
     sender=VideoFileSender(args.device_ip,args.video,loop=True,fps=args.fps,start_s=args.start,end_s=args.end)
@@ -78,6 +80,8 @@ def main():
              if len(continuous)>1 else 0.)
         report=dict(pc_frames=len(pc),source_file=str(args.video),output_fps=fps,
             requested_send_fps=args.fps,
+            processing_mode=args.processing,
+            observed_processing_modes=sorted(set(f.get('processing_mode','unknown') for f in pc)),
             input_clock_fps=input_clock_fps,measurement_seconds=args.seconds,
             requested_start_s=args.start,requested_end_s=args.end,
             outside_range=sum(f['source_media_time_s']<args.start or
@@ -92,7 +96,8 @@ def main():
             camera_recovered=True,csv_frames=logger.frames,csv_path=str(logger.path),errors=errors)
         report['passed']=(len(pc)>=20 and not report['outside_range'] and not report['depth_available_in_pc'] and
             not report['depth_valid_objects_in_pc'] and not report['pc_sequence_mismatches'] and
-            not report['centerline_valid_in_pc'] and paused_no_camera and logger.frames>0 and not errors)
+            not report['centerline_valid_in_pc'] and paused_no_camera and logger.frames>0 and not errors
+            and report['observed_processing_modes']==[args.processing])
         (args.output/'report.json').write_text(json.dumps(report,indent=2))
         (args.output/'frames.jsonl').write_text('\n'.join(json.dumps(f) for f in frames))
         print(json.dumps(report),flush=True)
@@ -100,6 +105,7 @@ def main():
     finally:
         logger.close();sender.close();stop.set();reader.join(timeout=3)
         select_camera(args.device_ip)
+        set_processing_mode(args.device_ip,'basic')
 
 
 if __name__=='__main__':main()

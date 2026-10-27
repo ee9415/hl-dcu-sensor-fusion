@@ -80,6 +80,8 @@ class VideoInputServer:
         self.input_fps = input_fps
         self.lock = threading.Lock()
         self.mode = 'camera'
+        self.processing_mode = 'basic'
+        self.processing_epoch = 0
         self.epoch = 0
         self.owner = None
         self.latest = None
@@ -152,6 +154,13 @@ class VideoInputServer:
                 self.last_frame_index, self.last_media_epoch = index, media_epoch
                 self.received += 1
                 self.last_received = time.monotonic()
+            elif op == 'processing':
+                mode = header.get('mode')
+                if mode not in ('basic','full') or payload:
+                    raise ValueError('Processing mode must be basic or full')
+                if mode != self.processing_mode:
+                    self.processing_mode = mode
+                    self.processing_epoch += 1
             elif op == 'stop':
                 if self.owner is token:
                     self.latest = None
@@ -163,6 +172,7 @@ class VideoInputServer:
 
     def _status(self):
         return dict(source=self.mode, source_epoch=self.epoch,
+                    processing_mode=self.processing_mode,processing_epoch=self.processing_epoch,
                     input_fps_limit=self.input_fps,
                     publisher_connected=self.owner is not None,
                     received_frames=self.received, consumed_frames=self.consumed,
@@ -180,12 +190,14 @@ class VideoInputServer:
         with self.lock:
             if self.mode == 'camera':
                 return None, dict(input_source='camera', source_epoch=self.epoch,
+                                  processing_mode=self.processing_mode,processing_epoch=self.processing_epoch,
                                   source_frame_index=None, source_media_time_s=None)
             pending, self.latest = self.latest, None
             if pending is None:
                 return None, None
             self.consumed += 1
-            return pending
+            return pending[0], dict(pending[1],processing_mode=self.processing_mode,
+                                    processing_epoch=self.processing_epoch)
 
     def remember(self, sequence, metadata):
         with self.lock:

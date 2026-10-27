@@ -9,7 +9,7 @@ import time
 import uuid
 
 FRAME_FIELDS = ['session', 'frame_seq', 'nn_seq', 'depth_seq',
-                'input_source', 'source_epoch', 'source_file', 'source_frame_index',
+                'input_source', 'source_epoch', 'processing_mode', 'processing_epoch', 'source_file', 'source_frame_index',
                 'source_media_time_s', 'source_media_epoch', 'depth_available', 'capture_timestamp_s',
                 'nn_timestamp_s', 'depth_timestamp_s', 'capture_wall_est_s',
                 'sent_wall_s', 'pc_receive_wall_s', 'pc_receive_utc',
