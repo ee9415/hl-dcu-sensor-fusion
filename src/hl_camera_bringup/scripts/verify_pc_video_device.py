@@ -27,7 +27,9 @@ def main():
     def read():
         try:
             with socket.create_connection((args.device_ip,8557),timeout=5) as connection:
-                connection.settimeout(2);connection.sendall(b'HELLO\n')
+                # PC pause publishes nothing for ~2 s once no backlog is queued;
+                # idle tolerance must exceed it or the reader silently stops.
+                connection.settimeout(10);connection.sendall(b'HELLO\n')
                 with connection.makefile('rb') as stream:
                     while not stop.is_set():
                         line=stream.readline()

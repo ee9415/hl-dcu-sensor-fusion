@@ -59,6 +59,8 @@ FONT_5X7 = {
     "Z": ("11111", "00001", "00010", "00100", "01000", "10000", "11111"),
     "m": ("00000", "00000", "11010", "10101", "10101", "10101", "10101"),
 }
+# (glyph, scale) -> read-only boolean pixel mask; bounded by the font size.
+GLYPH_MASKS = {}
 
 
 class DiagnosticFrameSource(dai.node.ThreadedHostNode):
@@ -345,6 +347,18 @@ class Yolopv2Postprocess(dai.node.HostNode):
             frame[top : bottom + 1, right] = color
 
     @staticmethod
+    def _glyph_mask(glyph: tuple[str, ...], scale: int) -> np.ndarray:
+        key = (glyph, scale)
+        mask = GLYPH_MASKS.get(key)
+        if mask is None:
+            # Each "1" becomes a scale x scale cell; cells tile without overlap.
+            bits = np.array([[selected == "1" for selected in row] for row in glyph])
+            mask = np.repeat(np.repeat(bits, scale, axis=0), scale, axis=1)
+            mask.setflags(write=False)
+            GLYPH_MASKS[key] = mask
+        return mask
+
+    @staticmethod
     def _draw_text(
         frame: np.ndarray,
         text: str,
@@ -357,18 +371,14 @@ class Yolopv2Postprocess(dai.node.HostNode):
         cursor_x = max(x, 0)
         for character in text:
             glyph = FONT_5X7.get(character, FONT_5X7["?"])
-            for row_index, row in enumerate(glyph):
-                for column_index, selected in enumerate(row):
-                    if selected != "1":
-                        continue
-                    left = cursor_x + column_index * scale
-                    top = y + row_index * scale
-                    if left >= width or top >= height:
-                        continue
-                    right = min(left + scale, width)
-                    bottom = min(top + scale, height)
-                    if right > 0 and bottom > 0:
-                        frame[max(top, 0) : bottom, max(left, 0) : right] = color
+            mask = Yolopv2Postprocess._glyph_mask(glyph, scale)
+            # Same pixels as painting each cell clipped to the frame.
+            top, bottom = max(y, 0), min(y + mask.shape[0], height)
+            left, right = cursor_x, min(cursor_x + mask.shape[1], width)
+            if bottom > top and right > left:
+                frame[top:bottom, left:right][
+                    mask[top - y : bottom - y, left - cursor_x : right - cursor_x]
+                ] = color
             cursor_x += 6 * scale
 
     @staticmethod

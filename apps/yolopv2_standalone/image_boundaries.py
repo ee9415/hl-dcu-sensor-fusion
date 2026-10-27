@@ -68,6 +68,23 @@ class ImageBoundaryEstimate:
                     corridor_feasible=None,clearance_sufficient=None)
 
 
+def nanmedian_columns(values):
+    """Bit-identical np.nanmedian(values, axis=0) for a 2-D float array.
+
+    For a short axis NumPy builds masked arrays (np.ma.median) per call. This
+    keeps the same NaN exclusion: NaN sorts last, then the same low/high order
+    statistics are summed and halved. An all-NaN column stays NaN.
+    """
+    ordered=np.sort(values,axis=0)
+    count=np.count_nonzero(~np.isnan(values),axis=0)
+    columns=np.arange(values.shape[1])
+    low=ordered[np.maximum(count-1,0)//2,columns]
+    high=ordered[count//2-(count==0),columns]
+    result=(low+high)/2
+    result[count==0]=np.nan
+    return result
+
+
 def road_motion(previous, current, allowed):
     """Robust affine patch flow at 160x90; reject ambiguous/large scene changes."""
     identity=np.array([[1.,0.,0.],[0.,1.,0.]])
@@ -539,7 +556,7 @@ class ImageBoundaryTracker:
                     active=np.isfinite(aligned).any(axis=0)
                     aligned=aligned[:,active]
                     if np.any(np.nanmax(aligned,axis=0)-np.nanmin(aligned,axis=0)>3):continue
-                    q=np.column_stack((np.nanmedian(aligned,axis=0),row_grid[active]))
+                    q=np.column_stack((nanmedian_columns(aligned),row_grid[active]))
                     if len(q)<10 or np.ptp(q[:,1])<20:continue
                     # Overlapping segment combinations can yield identical
                     # samples. Reuse ONLY identical fits, keeping each group's
