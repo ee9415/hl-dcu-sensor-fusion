@@ -70,6 +70,8 @@ class VideoFileSender:
                            source_selected=False)
         self.connection = None
         self.thread = None
+        self.pending_seek = None
+        self.seek_serial = 0
 
     def start(self):
         if self.thread is not None:
@@ -90,6 +92,16 @@ class VideoFileSender:
             self.paused.clear()
         else:
             self.paused.set()
+
+    def seek(self, seconds):
+        """Queue a seek for the decoder thread; keep pause and loop count."""
+        seconds = parse_video_time(seconds)
+        with self.lock:
+            if self.stop.is_set() or self.status['state'] not in ('전송 중', '일시정지'):
+                raise ValueError('영상 전송 중에만 위치를 이동할 수 있습니다')
+            self.seek_serial += 1
+            self.pending_seek = (self.seek_serial, seconds)
+            return self.seek_serial
 
     def close(self, timeout=2):
         self.stop.set()
@@ -124,19 +136,20 @@ class VideoFileSender:
             if last is not None and first >= last:
                 raise ValueError('선택한 구간에 영상 프레임이 없습니다')
 
-            def seek_start():
-                if not capture.set(cv2.CAP_PROP_POS_FRAMES, first):
+            def seek_frame(position):
+                if not capture.set(cv2.CAP_PROP_POS_FRAMES, position):
                     raise ValueError('선택한 시작 위치로 이동할 수 없습니다')
                 valid, image = capture.read()
                 actual = capture.get(cv2.CAP_PROP_POS_FRAMES) - 1
-                if not valid or abs(actual-first) > .5:
+                if not valid or abs(actual-position) > .5:
                     raise ValueError('선택한 시작 프레임을 정확히 읽을 수 없습니다')
                 return image
 
             if first:
-                frame = seek_start()
-            self._set(range_start_s=self.start_s, range_end_s=self.end_s,
-                      media_time_s=first/source_fps, media_epoch=0)
+                frame = seek_frame(first)
+            self._set(range_start_s=self.start_s,
+                      range_end_s=self.end_s if self.end_s is not None else (total/source_fps if total else None),
+                      media_time_s=first/source_fps, media_epoch=0, loop_count=1, seek_applied=0)
             if self.stop.is_set():
                 self._set(state='전송 중지')
                 return
@@ -159,18 +172,35 @@ class VideoFileSender:
                     started = time.monotonic()
                     deadline = started
                     index, media_epoch, sent = first, 0, 0
+                    loop_count = 1
                     while not self.stop.is_set():
-                        if self.paused.is_set():
+                        with self.lock:
+                            request, self.pending_seek = self.pending_seek, None
+                        if request is not None:
+                            position = max(first, math.ceil(request[1]*source_fps-1e-9))
+                            if last is not None:
+                                position = min(last-1, position)
+                            frame = seek_frame(position)
+                            index = position; media_epoch += 1
+                            started = time.monotonic() - (index-first)/source_fps
+                            deadline = time.monotonic()
+                        if self.paused.is_set() and request is None:
                             pause_start = time.monotonic()
                             self._set(state='일시정지')
-                            while self.paused.is_set() and not self.stop.wait(.2):
-                                exchange(dict(op='status'))
+                            heartbeat = pause_start
+                            while self.paused.is_set() and not self.stop.wait(.05):
+                                with self.lock:
+                                    pending = self.pending_seek is not None
+                                if pending:
+                                    break
+                                if time.monotonic()-heartbeat >= .2:
+                                    exchange(dict(op='status')); heartbeat = time.monotonic()
                             paused_for = time.monotonic() - pause_start
                             started += paused_for; deadline += paused_for
                             continue
                         if self.stop.wait(max(0, deadline-time.monotonic())):
                             break
-                        target = first + int((time.monotonic()-started)*source_fps)
+                        target = index if request is not None else first + int((time.monotonic()-started)*source_fps)
                         eof = last is not None and target >= last
                         while not eof and index < target:
                             if self.stop.is_set():
@@ -184,8 +214,9 @@ class VideoFileSender:
                         if eof:
                             if not self.loop:
                                 break
-                            frame = seek_start()
+                            frame = seek_frame(first)
                             index = first; media_epoch += 1
+                            loop_count += 1
                             started = deadline = time.monotonic()
                         ok, encoded = cv2.imencode('.jpg', fit_frame(frame),
                                                    [cv2.IMWRITE_JPEG_QUALITY, 85])
@@ -195,10 +226,12 @@ class VideoFileSender:
                             media_time_s=index/source_fps, media_epoch=media_epoch,
                             file=self.path.name), encoded.tobytes())
                         sent += 1
-                        self._set(state='전송 중', sent=sent,
+                        self._set(state='일시정지' if self.paused.is_set() else '전송 중', sent=sent,
                                   acknowledged=response['received_frames'],
                                   consumed=response['consumed_frames'],
-                                  media_time_s=index/source_fps, media_epoch=media_epoch)
+                                  media_time_s=index/source_fps, media_epoch=media_epoch,
+                                  loop_count=loop_count,
+                                  seek_applied=request[0] if request is not None else self.snapshot().get('seek_applied',0))
                         deadline = max(deadline+1/self.fps, time.monotonic())
                     if not self.stop.is_set():
                         exchange(dict(op='stop'))

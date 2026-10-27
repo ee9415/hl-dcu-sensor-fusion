@@ -175,5 +175,48 @@ class TransportTests(unittest.TestCase):
                 self.assertEqual(self.hub.mode,'camera')
                 self.assertEqual(self.hub.received,0)
 
+    def test_seek_while_paused_preserves_loop_count_and_resets_epoch(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'artifacts') as folder:
+            sender=VideoFileSender('127.0.0.1',self.make_video(folder,fps=10,count=30),
+                                   port=self.port,start_s=.5,end_s=2.)
+            def wait(condition):
+                end=time.monotonic()+3
+                while not condition() and time.monotonic()<end:time.sleep(.01)
+                self.assertTrue(condition(),sender.snapshot())
+            sender.start()
+            try:
+                wait(lambda:sender.snapshot()['sent']>=2)
+                sender.toggle_pause();wait(lambda:sender.snapshot()['state']=='일시정지')
+                # Let the in-flight frame settle before checking pause retention.
+                time.sleep(.15)
+                before=sender.snapshot();epoch=self.hub.epoch
+                request=sender.seek(1.4)
+                wait(lambda:sender.snapshot().get('seek_applied')==request)
+                self.assertEqual(sender.snapshot()['state'],'일시정지')
+                self.assertAlmostEqual(sender.snapshot()['media_time_s'],1.4)
+                self.assertEqual(sender.snapshot()['loop_count'],before['loop_count'])
+                self.assertGreater(self.hub.epoch,epoch)
+                count=sender.snapshot()['sent'];time.sleep(.15)
+                self.assertEqual(sender.snapshot()['sent'],count)
+                request=sender.seek(0)
+                wait(lambda:sender.snapshot().get('seek_applied')==request)
+                self.assertEqual(sender.snapshot()['media_time_s'],.5)
+                request=sender.seek(999)
+                wait(lambda:sender.snapshot().get('seek_applied')==request)
+                self.assertEqual(sender.snapshot()['media_time_s'],1.9)
+                sender.toggle_pause()
+                wait(lambda:sender.snapshot()['loop_count']>before['loop_count'])
+            finally:sender.close()
+
+    def test_default_end_is_reported_for_progress_and_seek_requires_active_sender(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'artifacts') as folder:
+            sender=VideoFileSender('127.0.0.1',self.make_video(folder,fps=10,count=5),
+                                   port=self.port,loop=False)
+            with self.assertRaises(ValueError):sender.seek(0)
+            sender.start();sender.thread.join(3)
+            self.assertEqual(sender.snapshot()['range_end_s'],.5)
+            self.assertEqual(sender.snapshot()['state'],'재생 완료')
+            with self.assertRaises(ValueError):sender.seek(.2)
+
 
 if __name__=='__main__':unittest.main()

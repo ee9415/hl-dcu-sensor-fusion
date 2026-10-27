@@ -35,17 +35,38 @@ def main():
             root.update();app.connect_requested=True
             app.source_apply.configure(state='normal')
             app.input_mode.set('PC 영상 파일');app.input_file.set(str(path))
-            app.input_start.set('0.5');app.input_end.set('0:00.9')
+            app.input_start.set('0.5');app.input_end.set('0:01.5')
             app._apply_input_source()
-            pump(lambda:app.active_input=='pc' and hub.last_media_epoch is not None and hub.last_media_epoch>=1)
-            assert .5 <= hub.latest[1]['source_media_time_s'] < .9
+            pump(lambda:app.active_input=='pc' and app.source_progress_value.get()>=60)
+            high_progress=app.source_progress_value.get()
+            pump(lambda:app.file_sender.snapshot()['loop_count']>=2 and app.source_progress_value.get()<40)
+            loop_progress=app.source_progress_value.get()
+            assert .5 <= hub.latest[1]['source_media_time_s'] < 1.5
             pc_status=app.source_status.get()
             app._pause_input();pump(lambda:app.file_sender.snapshot()['state']=='일시정지')
+            root.update()
+            loop_count=app.file_sender.snapshot()['loop_count']
+            app._begin_seek();app.source_progress_value.set(90);app._finish_seek()
+            pump(lambda:app.file_sender.snapshot()['seek_applied']==app.source_progress_seek_id)
+            root.update()
+            assert abs(app.file_sender.snapshot()['media_time_s']-1.4)<.01
+            assert app.file_sender.snapshot()['loop_count']==loop_count
+            assert app.file_sender.snapshot()['state']=='일시정지'
+            assert abs(app.source_progress_value.get()-90)<.01
             app._pause_input();pump(lambda:app.file_sender.snapshot()['state']=='전송 중')
             app.input_mode.set('카메라');app._apply_input_source()
             pump(lambda:hub.mode=='camera' and app.active_input=='camera')
-            widgets=[app.source_apply,app.source_pause,app.source_start_entry,app.source_end_entry]
+            app.input_mode.set('PC 영상 파일');app.input_end.set('0.9');app.input_loop.set(False)
+            app._apply_input_source()
+            pump(lambda:app.file_sender is not None and app.file_sender.snapshot()['state']=='재생 완료'
+                 and app.source_progress_value.get()==100)
+            completed_progress=app.source_progress_value.get()
+            app.input_mode.set('카메라');app._apply_input_source()
+            pump(lambda:hub.mode=='camera' and app.active_input=='camera')
+            widgets=[app.source_apply,app.source_pause,app.source_start_entry,app.source_end_entry,app.source_progress]
             report=dict(pc_status=pc_status,camera_status=app.source_status.get(),
+                high_progress=high_progress,after_repeat_progress=loop_progress,paused_seek_s=1.4,
+                completed_progress=completed_progress,
                 widgets_mapped=all(w.winfo_ismapped() for w in widgets),
                 controls_inside_window=all(w.winfo_rootx()+w.winfo_width()<=root.winfo_rootx()+root.winfo_width()
                                            for w in widgets),

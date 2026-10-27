@@ -544,9 +544,81 @@ class RecorderApp:
         self.source_end_entry.pack(side=tk.LEFT,padx=5)
         ttk.Label(segment,text='초 또는 분:초 · 종료 공란: 영상 끝 · 변경 후 소스 적용',
                   style='App.TLabel').pack(side=tk.LEFT)
+        progress = ttk.Frame(panel, style='Panel.TFrame')
+        progress.grid(row=2,column=0,columnspan=7,sticky='ew',pady=(4,0))
+        progress.columnconfigure(1,weight=1)
+        ttk.Label(progress,text='PC 전송 위치',style='App.TLabel').grid(row=0,column=0,padx=(0,6))
+        self.source_progress_value = tk.DoubleVar(value=0.)
+        self.source_progress_dragging = False
+        self.source_progress_seek_id = 0
+        self.source_progress = ttk.Scale(progress,from_=0,to=100,variable=self.source_progress_value,
+                                         state=tk.DISABLED,command=self._preview_seek)
+        self.source_progress.grid(row=0,column=1,sticky='ew')
+        self.source_progress.bind('<ButtonPress-1>',self._begin_seek)
+        self.source_progress.bind('<ButtonRelease-1>',self._finish_seek)
+        for key in ('Left','Right','Up','Down','Home','End'):
+            self.source_progress.bind(f'<KeyPress-{key}>',self._begin_seek)
+            self.source_progress.bind(f'<KeyRelease-{key}>',self._finish_seek)
+        self.source_progress_text = tk.StringVar(value='PC 영상 대기')
+        ttk.Label(progress,textvariable=self.source_progress_text,style='App.TLabel',width=46).grid(
+            row=0,column=2,padx=(8,0))
         self.source_status = tk.StringVar(value='카메라 입력 · PC 영상 전송은 최대 10 FPS')
         ttk.Label(panel, textvariable=self.source_status, style='App.TLabel').grid(
-            row=2,column=0,columnspan=7,sticky='w',pady=(4,0))
+            row=3,column=0,columnspan=7,sticky='w',pady=(4,0))
+
+    @staticmethod
+    def _video_clock(seconds):
+        tenths = max(0,round(seconds*10))
+        minutes, rest = divmod(tenths,600)
+        return f'{minutes:02d}:{rest//10:02d}.{rest%10}'
+
+    def _begin_seek(self, event=None):
+        self.source_progress_dragging = str(self.source_progress.cget('state')) != 'disabled'
+
+    def _preview_seek(self, value):
+        if self.source_progress_dragging and self.file_sender:
+            status = self.file_sender.snapshot()
+            start, end = status.get('range_start_s',0), status.get('range_end_s')
+            if end is not None:
+                target = start+(end-start)*float(value)/100
+                self.source_progress_text.set(f'이동 예정 {self._video_clock(target)}')
+
+    def _finish_seek(self, event=None):
+        dragging, self.source_progress_dragging = self.source_progress_dragging, False
+        if not dragging or not self.file_sender:
+            return
+        status = self.file_sender.snapshot()
+        start, end = status.get('range_start_s',0), status.get('range_end_s')
+        if end is not None:
+            try:
+                self.source_progress_seek_id = self.file_sender.seek(
+                    start+(end-start)*self.source_progress_value.get()/100)
+                self.source_progress_text.set('재생 위치 이동 중...')
+            except ValueError as exc:
+                self.source_progress_text.set(str(exc))
+
+    def _update_source_progress(self, status=None):
+        if status is None:
+            self.source_progress.configure(state=tk.DISABLED)
+            self.source_progress_value.set(0.)
+            self.source_progress_text.set('PC 영상 대기')
+            return
+        start, end = status.get('range_start_s',0), status.get('range_end_s')
+        ready = end is not None and end > start
+        active = status['state'] in ('전송 중','일시정지') and ready and not self.source_change_pending
+        self.source_progress.configure(state=tk.NORMAL if active else tk.DISABLED)
+        if self.source_progress_dragging:
+            return
+        if active and status.get('seek_applied',0) < self.source_progress_seek_id:
+            return
+        current = status['media_time_s']
+        ratio = max(0,min(1,(current-start)/(end-start))) if ready else 0
+        if status['state'] == '재생 완료' and ready:
+            ratio, current = 1., end
+        self.source_progress_value.set(ratio*100)
+        end_text = self._video_clock(end) if end is not None else '끝 미상'
+        self.source_progress_text.set(f'{self._video_clock(current)} / {end_text} · '
+                                      f'{ratio:.0%} · {status.get("loop_count",1)}회차')
 
     def _choose_input_file(self):
         if self.recording:
@@ -583,6 +655,9 @@ class RecorderApp:
                 messagebox.showwarning('전송 구간',str(exc))
                 return
         self.source_change_pending = True
+        self.source_progress_dragging = False
+        self.source_progress_seek_id = 0
+        self.source_progress.configure(state=tk.DISABLED)
         self.source_apply.configure(state=tk.DISABLED)
         self.source_status.set('장치 영상 소스 전환 중...')
         old_sender, self.file_sender = self.file_sender, None
@@ -645,10 +720,13 @@ class RecorderApp:
             if not status.get('error') and status.get('range_start_s') is not None:
                 end = status.get('range_end_s')
                 detail += (f" · 구간 {status['range_start_s']:g}~"
-                           f"{f'{end:g}초' if end is not None else '끝'} / 회차 {status.get('media_epoch',0)+1}")
+                           f"{f'{end:g}초' if end is not None else '끝'} / 회차 {status.get('loop_count',1)}")
             self.source_status.set(f"PC 영상 {status['state']} · {detail} · Depth/거리 없음")
             if status['state'] in ('오류', '전송 중지', '재생 완료'):
                 self.source_pause.configure(state=tk.DISABLED)
+            self._update_source_progress(status)
+        else:
+            self._update_source_progress()
 
     def _build_preview_panel(
         self,
