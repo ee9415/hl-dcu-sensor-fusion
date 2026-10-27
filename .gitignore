@@ -29,8 +29,66 @@ devel/
 
 # Logs
 *.log
+*.log.*
+*.[lL][oO][gG]
+*.[lL][oO][gG].*
 *.rosout
 ros2_log*/
+logs/
+telemetry/
+recordings/
+captures/
+*.[cC][sS][vV]
+*.[tT][sS][vV]
+*.[jJ][sS][oO][nN][lL]
+*.[nN][dD][jJ][sS][oO][nN]
+*_log.txt
+*_logs.txt
+
+# Captured/exported images (including uppercase extensions)
+*.[pP][nN][gG]
+*.[jJ][pP][gG]
+*.[jJ][pP][eE][gG]
+*.[bB][mM][pP]
+*.[gG][iI][fF]
+*.[wW][eE][bB][pP]
+*.[tT][iI][fF]
+*.[tT][iI][fF][fF]
+*.[sS][vV][gG]
+*.[iI][cC][oO]
+*.[aA][vV][iI][fF]
+*.[hH][eE][iI][cC]
+*.[eE][xX][rR]
+*.[pP][gG][mM]
+*.[pP][pP][mM]
+*.[pP][nN][mM]
+
+# Recorded video / elementary streams
+*.[mM][pP]4
+*.[mM]4[vV]
+*.[aA][vV][iI]
+*.[mM][oO][vV]
+*.[mM][kK][vV]
+*.[wW][eE][bB][mM]
+*.[wW][mM][vV]
+*.[fF][lL][vV]
+*.[mM][pP][gG]
+*.[mM][pP][eE][gG]
+*.[mM][tT][sS]
+*.[mM]2[tT][sS]
+*.[hH]264
+*.[hH]265
+*.[hH][eE][vV][cC]
+*.[yY][uU][vV]
+
+# ROS sensor recording data
+*.[bB][aA][gG]
+*.[bB][aA][gG].*
+rosbag2_*/
+*.[mM][cC][aA][pP]
+*.db3
+*.db3-shm
+*.db3-wal
 
 # IDE / OS
 .vscode/settings.json
@@ -49,4 +107,8 @@ Thumbs.db
 # OAK4 local deployment artifacts
 apps/yolopv2_standalone/models/*.dlc
 apps/yolopv2_standalone/models/*.tar.xz
-artifacts/recordings/
+# All generated measurements, profiling JSON, captures and temporary fixtures
+/artifacts/
+/docs/verification/camera/*_observation_*/
+
+# Keep source/configuration/docs and fixed regression .npz fixtures tracked.

@@ -1,5 +1,11 @@
 # PROJECT_STATUS.md
 
+## 생성 미디어·로그 Git 제외 (2026-10-27)
+
+- 이미지·영상(대문자 확장자 포함), CSV/TSV/JSONL 로그, ROS bag 기록 및 artifacts/ 전체를 .gitignore에 추가.
+- docs 아래 기존 observation 캡처 폴더도 제외. 설정 JSON·문서·소스 및 고정 NPZ 회귀 fixture는 유지.
+- 현재 추적 중인 제외 대상 파일이 없어 인덱스 제거 대상0개. 실제 파일은 보존하며 Git 이력 재작성은 하지 않음.
+
 ## FPS 및 지연 병목 계측 (2026-10-27)
 
 - person 모델 대표 PC 영상 정상 실행: 입력 시각 기준9.31 FPS이나 실제 결과 발행 기준8.64 FPS. 검증기 output_fps를 발행 시각으로 수정하고 기존 값은 input_clock_fps로 분리.
