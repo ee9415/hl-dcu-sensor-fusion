@@ -15,7 +15,7 @@ from video_transport import (VideoInputServer, jpeg_size, read_message, send_mes
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT/'tools'))
-from video_file_sender import VideoFileSender, fit_frame, select_camera
+from video_file_sender import VideoFileSender, fit_frame, select_camera, parse_video_time
 
 
 def jpeg(value=100):
@@ -122,6 +122,58 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(frame.shape,(540,960,3))
         self.assertFalse(frame[:,0].any())
         self.assertEqual(int(frame[270,480,0]),200)
+
+    def test_time_formats_and_invalid_ranges(self):
+        self.assertEqual(parse_video_time('01:02.5'),62.5)
+        self.assertEqual(parse_video_time('1:02:03'),3723)
+        for value in ('','nan','inf','-1','1:60','1::2','1.5:20'):
+            with self.assertRaises(ValueError):parse_video_time(value)
+        for start,end in ((2,1),(1,1),(-1,None),(0,float('nan'))):
+            with self.assertRaises(ValueError):
+                VideoFileSender('127.0.0.1','unused',start_s=start,end_s=end)
+
+    def test_selected_range_pixels_and_loop(self):
+        original=self.hub.handle
+        observed=[]
+        def handle(token,header,payload):
+            response=original(token,header,payload)
+            if header.get('op')=='frame':
+                image=cv2.imdecode(np.frombuffer(payload,np.uint8),cv2.IMREAD_COLOR)
+                observed.append((header.copy(),float(image[100:400,100:800].mean())))
+            return response
+        self.hub.handle=handle
+        with tempfile.TemporaryDirectory(dir=ROOT/'artifacts') as folder:
+            path=self.make_video(folder,fps=10,count=30)
+            for loop in (False,True):
+                observed.clear()
+                sender=VideoFileSender('127.0.0.1',path,loop=loop,port=self.port,
+                                       start_s=.55,end_s=1.05)
+                sender.start()
+                try:
+                    end=time.monotonic()+4
+                    while (sender.thread.is_alive() and
+                           (not loop or self.hub.last_media_epoch in (None,0)) and time.monotonic()<end):
+                        time.sleep(.02)
+                    if loop:self.assertGreaterEqual(self.hub.last_media_epoch,1)
+                    else:self.assertEqual(sender.snapshot()['state'],'재생 완료')
+                finally:sender.close()
+                self.assertTrue(observed)
+                self.assertEqual(observed[0][0]['frame_index'],6)
+                for header,pixel in observed:
+                    self.assertTrue(6<=header['frame_index']<11,header)
+                    self.assertTrue(.55<=header['media_time_s']<1.05,header)
+                    self.assertAlmostEqual(pixel,40+header['frame_index'],delta=3)
+
+    def test_range_beyond_file_does_not_switch_source(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'artifacts') as folder:
+            path=self.make_video(folder,fps=10,count=10)
+            for start,end in ((1,None),(0,2)):
+                sender=VideoFileSender('127.0.0.1',path,port=self.port,start_s=start,end_s=end)
+                sender.start();sender.thread.join(3)
+                self.assertFalse(sender.thread.is_alive())
+                self.assertEqual(sender.snapshot()['state'],'오류')
+                self.assertEqual(self.hub.mode,'camera')
+                self.assertEqual(self.hub.received,0)
 
 
 if __name__=='__main__':unittest.main()

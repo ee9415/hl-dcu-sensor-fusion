@@ -21,7 +21,7 @@ os.environ.setdefault('OPENCV_FFMPEG_CAPTURE_OPTIONS', 'rtsp_transport;tcp')
 import cv2
 from PIL import Image, ImageTk
 from frame_csv_logger import FrameCsvLogger
-from video_file_sender import VideoFileSender, select_camera
+from video_file_sender import VideoFileSender, select_camera, parse_video_time
 
 RESAMPLE_LANCZOS = getattr(Image, "Resampling", Image).LANCZOS
 
@@ -516,6 +516,8 @@ class RecorderApp:
         self.input_mode = tk.StringVar(value='카메라')
         self.input_file = tk.StringVar()
         self.input_loop = tk.BooleanVar(value=True)
+        self.input_start = tk.StringVar(value='0')
+        self.input_end = tk.StringVar(value='')
         ttk.Combobox(panel, textvariable=self.input_mode, state='readonly',
                      values=('카메라', 'PC 영상 파일'), width=15).grid(row=0,column=0,padx=(0,6))
         ttk.Entry(panel, textvariable=self.input_file, state='readonly').grid(
@@ -532,9 +534,19 @@ class RecorderApp:
         self.source_pause.grid(row=0,column=5)
         ttk.Button(panel, text='전송 중지', command=self._stop_input).grid(
             row=0,column=6,padx=(5,0))
+        segment = ttk.Frame(panel, style='Panel.TFrame')
+        segment.grid(row=1,column=0,columnspan=7,sticky='w',pady=(5,0))
+        ttk.Label(segment,text='전송 구간 시작',style='App.TLabel').pack(side=tk.LEFT)
+        self.source_start_entry = ttk.Entry(segment,textvariable=self.input_start,width=10)
+        self.source_start_entry.pack(side=tk.LEFT,padx=5)
+        ttk.Label(segment,text='종료',style='App.TLabel').pack(side=tk.LEFT)
+        self.source_end_entry = ttk.Entry(segment,textvariable=self.input_end,width=10)
+        self.source_end_entry.pack(side=tk.LEFT,padx=5)
+        ttk.Label(segment,text='초 또는 분:초 · 종료 공란: 영상 끝 · 변경 후 소스 적용',
+                  style='App.TLabel').pack(side=tk.LEFT)
         self.source_status = tk.StringVar(value='카메라 입력 · PC 영상 전송은 최대 10 FPS')
         ttk.Label(panel, textvariable=self.source_status, style='App.TLabel').grid(
-            row=1,column=0,columnspan=7,sticky='w',pady=(4,0))
+            row=2,column=0,columnspan=7,sticky='w',pady=(4,0))
 
     def _choose_input_file(self):
         if self.recording:
@@ -560,6 +572,16 @@ class RecorderApp:
         if mode != '카메라' and not Path(path).is_file():
             messagebox.showwarning('영상 소스', '전송할 영상 파일을 선택해 주세요.')
             return
+        start_s, end_s = 0., None
+        if mode != '카메라':
+            try:
+                start_s = parse_video_time(self.input_start.get())
+                end_s = parse_video_time(self.input_end.get()) if self.input_end.get().strip() else None
+                if end_s is not None and end_s <= start_s:
+                    raise ValueError('종료 시간은 시작 시간보다 커야 합니다')
+            except ValueError as exc:
+                messagebox.showwarning('전송 구간',str(exc))
+                return
         self.source_change_pending = True
         self.source_apply.configure(state=tk.DISABLED)
         self.source_status.set('장치 영상 소스 전환 중...')
@@ -578,7 +600,7 @@ class RecorderApp:
                     select_camera(ip)
                     self.source_events.put(('camera', None))
                 else:
-                    sender = VideoFileSender(ip, path, loop=loop)
+                    sender = VideoFileSender(ip, path, loop=loop, start_s=start_s, end_s=end_s)
                     sender.start()
                     if self.source_closing.is_set():
                         sender.close()
@@ -620,6 +642,10 @@ class RecorderApp:
                 self.active_input = 'pc'
             detail = status.get('error') or (f"보낸 프레임 {status['sent']} / "
                      f"장치 수신 누적 {status['acknowledged']} / 재생 {status['media_time_s']:.1f}초")
+            if not status.get('error') and status.get('range_start_s') is not None:
+                end = status.get('range_end_s')
+                detail += (f" · 구간 {status['range_start_s']:g}~"
+                           f"{f'{end:g}초' if end is not None else '끝'} / 회차 {status.get('media_epoch',0)+1}")
             self.source_status.set(f"PC 영상 {status['state']} · {detail} · Depth/거리 없음")
             if status['state'] in ('오류', '전송 중지', '재생 완료'):
                 self.source_pause.configure(state=tk.DISABLED)

@@ -35,14 +35,16 @@ def main():
             root.update();app.connect_requested=True
             app.source_apply.configure(state='normal')
             app.input_mode.set('PC 영상 파일');app.input_file.set(str(path))
+            app.input_start.set('0.5');app.input_end.set('0:00.9')
             app._apply_input_source()
-            pump(lambda:app.active_input=='pc' and hub.received>=3)
+            pump(lambda:app.active_input=='pc' and hub.last_media_epoch is not None and hub.last_media_epoch>=1)
+            assert .5 <= hub.latest[1]['source_media_time_s'] < .9
             pc_status=app.source_status.get()
             app._pause_input();pump(lambda:app.file_sender.snapshot()['state']=='일시정지')
             app._pause_input();pump(lambda:app.file_sender.snapshot()['state']=='전송 중')
             app.input_mode.set('카메라');app._apply_input_source()
             pump(lambda:hub.mode=='camera' and app.active_input=='camera')
-            widgets=[app.source_apply,app.source_pause]
+            widgets=[app.source_apply,app.source_pause,app.source_start_entry,app.source_end_entry]
             report=dict(pc_status=pc_status,camera_status=app.source_status.get(),
                 widgets_mapped=all(w.winfo_ismapped() for w in widgets),
                 controls_inside_window=all(w.winfo_rootx()+w.winfo_width()<=root.winfo_rootx()+root.winfo_width()

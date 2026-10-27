@@ -20,6 +20,8 @@ def main():
     p.add_argument('--video',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--seconds',type=float,default=15)
+    p.add_argument('--start',type=float,default=0.)
+    p.add_argument('--end',type=float)
     args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True)
     frames=[];stop=threading.Event();errors=[]
     def read():
@@ -36,16 +38,17 @@ def main():
             if not stop.is_set():errors.append(str(exc))
     select_camera(args.device_ip)
     reader=threading.Thread(target=read,daemon=True);reader.start()
-    sender=VideoFileSender(args.device_ip,args.video,loop=True)
+    sender=VideoFileSender(args.device_ip,args.video,loop=True,start_s=args.start,end_s=args.end)
     logger=FrameCsvLogger(args.device_ip,args.output/'telemetry')
     def wait_for(condition,seconds=15):
         end=time.monotonic()+seconds
         while not condition() and time.monotonic()<end:time.sleep(.05)
         if not condition():raise RuntimeError(f'Condition timed out; sender={sender.snapshot()}, errors={errors}')
     try:
-        wait_for(lambda:len(frames)>=3)
+        wait_for(lambda:sum(f.get('input_source')=='camera' for f in frames)>=3)
+        replay_begin=len(frames)
         sender.start()
-        wait_for(lambda:any(f.get('input_source')=='pc' for f in frames))
+        wait_for(lambda:any(f.get('input_source')=='pc' for f in frames[replay_begin:]))
         logger.start()
         time.sleep(args.seconds)
         sender.toggle_pause()
@@ -60,13 +63,17 @@ def main():
         select_camera(args.device_ip)
         after_switch=len(frames)
         wait_for(lambda:any(f.get('input_source')=='camera' for f in frames[after_switch:]))
-        pc=[f for f in frames if f.get('input_source')=='pc']
+        pc=[f for f in frames[replay_begin:] if f.get('input_source')=='pc']
         # Exclude the intentionally paused interval from the continuous FPS window.
         begin=pc[0]['nn_timestamp_s']
         continuous=[f for f in pc if f['nn_timestamp_s']-begin<args.seconds-1]
         fps=((len(continuous)-1)/(continuous[-1]['nn_timestamp_s']-continuous[0]['nn_timestamp_s'])
              if len(continuous)>1 else 0.)
         report=dict(pc_frames=len(pc),source_file=str(args.video),output_fps=fps,
+            requested_start_s=args.start,requested_end_s=args.end,
+            outside_range=sum(f['source_media_time_s']<args.start or
+                              (args.end is not None and f['source_media_time_s']>=args.end) for f in pc),
+            media_epochs=sorted(set(f.get('source_media_epoch') for f in pc)),
             sender=sender.snapshot(),source_states=dict(Counter(f.get('input_source') for f in frames)),
             depth_available_in_pc=sum(bool(f['depth_available']) for f in pc),
             depth_valid_objects_in_pc=sum(bool(o['depth_valid']) for f in pc for o in f['objects']),
@@ -74,7 +81,7 @@ def main():
             centerline_valid_in_pc=sum(bool(f['centerline_valid']) for f in pc),
             pause_never_fell_back_to_camera=paused_no_camera,
             camera_recovered=True,csv_frames=logger.frames,csv_path=str(logger.path),errors=errors)
-        report['passed']=(len(pc)>=20 and not report['depth_available_in_pc'] and
+        report['passed']=(len(pc)>=20 and not report['outside_range'] and not report['depth_available_in_pc'] and
             not report['depth_valid_objects_in_pc'] and not report['pc_sequence_mismatches'] and
             not report['centerline_valid_in_pc'] and paused_no_camera and logger.frames>0 and not errors)
         (args.output/'report.json').write_text(json.dumps(report,indent=2))
