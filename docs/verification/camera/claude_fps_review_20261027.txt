@@ -1,0 +1,65 @@
+OAK4-D Pro YOLOPv2 프로젝트의 FPS 병목과 안전한 최적화 전략을 코드 기준으로 검토해 주세요.
+우선 분석과 변경 제안만 해 주세요. 근거 없이 검출 기준을 완화하거나 모델을 교체하지 마세요.
+
+프로젝트: D:\git_hub\hl-dcu-sensor-fusion
+실행 장치: OAK4-D Pro RVC4, IP192.168.201.2
+현재 모델: yolopv2_person_320.rvc4.tar.xz, FP16 SNPE2.41.0
+입력 RGB NHWC 320x320, /255. 검출3개+도로+차선의5출력, 80클래스 구조입니다.
+PC가 영상 파일을 최대10Hz JPEG로 전송하고 장치가 수신·추론·경계 추적·RTSP를 처리합니다.
+카메라 소스도 지원합니다. PC 입력에서는 실제 Depth/거리 계산 결과가 유효해지면 안 됩니다.
+
+최근 실측(2026-10-27):
+- 2~18초 도로 구간을20초 반복. 계측 없는 실행198프레임 반환.
+- 보존된 입력 시각 기준9.31FPS였지만 실제 결과 발행 시각 기준은8.64FPS입니다.
+- 캡처/주입→텔레메트리 발행 지연 평균1.215초, P95 1.641초입니다.
+- 가벼운 콜백 타이머의180프레임 결과(평균/P95):
+  후처리 전체119.6/164.6ms
+  경계 추적66.0/90.2ms
+  결과 렌더링·전달23.6/30.4ms
+  BEV 렌더링10.8/16.8ms
+  정지선 검출6.6/10.3ms
+  검출 텐서 추출·decode5.1/6.5ms
+  segmentation1.9/2.7ms, NMS0.39/0.54ms
+  별도 Depth 미리보기32.7/51.2ms
+  PC JPEG selector14.6/22.7ms, RGB FP16 전처리6.4/20.5ms
+  RTSP 큐 삽입0.06~0.08ms (하드웨어 인코딩/네트워크 전체 비용은 미측정)
+- 전처리 종료→후처리 시작 약1.2초는 NN 큐/입력 동기화가 포함됩니다. 순수 NPU 추론 시간으로 해석하지 마세요.
+- 단계가 중첩되고 노드가 병렬 실행하므로 위 시간을 모두 더하지 마세요.
+- cProfile은 자체 부하로5.56FPS까지 떨어집니다. 함수 호출량/후보 찾기에만 참고하세요.
+  이 실행에서 numpy.polynomial.polynomial.polyfit 약205회/프레임과 masked-array 관련 호출이 많았습니다.
+- HEALTH bev_draw_ms는 정지선 검출 시간을 포함하므로 BEV 순수 비용과 다릅니다.
+
+읽을 파일:
+1. docs/verification/camera/fps_profile_20261027.md
+2. artifacts/fps_profile_20261027/summary.json, profile.json, normal/report.json, normal/frames.jsonl
+3. artifacts/fps_profile_20261027/detail/profile.json (정밀 계측, 지연 수치 과대 가능)
+4. apps/yolopv2_standalone/image_boundaries.py: ImageBoundaryTracker.update, 지역 후보 결합, 반복 polyfit
+5. apps/yolopv2_standalone/yolopv2_node.py: process, _result_frame, _blend_mask, _draw_text
+6. apps/yolopv2_standalone/depth_preview.py, depth_color.py
+7. apps/yolopv2_standalone/video_input_node.py, video_transport.py, main.py
+8. tools/video_file_sender.py, src/hl_camera_bringup/scripts/verify_pc_video_device.py
+9. src/hl_camera_bringup/scripts/profile_oak_pipeline.py 및 analyze_oak_profile.py
+
+검토할 개선 후보:
+- 후보 수를 줄이기 전에 공통 좌표/기저행렬/적합 결과를 재사용할 수 있나?
+- masked array가 필요한 위치인지, 중복 변환인지 실제 자료형을 확인할 것. 마스크를 무시하는 np.asarray 변환은 금지.
+- 한 프레임에서 preview.getCvFrame을 반복 호출하지 않고 읽기 전용 RGB를 재사용할 수 있나?
+- 결과 마스크 확대/혼합과 텍스트 그리기를 동일 픽셀 결과로 줄일 수 있나?
+- PC 입력의 항상0인 Depth 미리보기를 캐시할 수 있나? 실제 카메라 Depth는 유지할 것.
+- 기본 큐/동기화의 backlog가 어디에서 생기는가? 순수 NN 처리 시간과 큐 대기를 어떻게 분리할 것인가?
+- 10Hz 송신과 카메라10Hz 콜백의 별도 시계 및 최신1프레임 큐가 누락에 미치는 영향도 확인할 것.
+
+유지 조건:
+- 좌우2차 경계선·관측/가상 유지·신뢰도·재검출 복귀 전략 유지, 중심선 추가 금지.
+- 간격/교차 보호와 오검출 방지를 완화하지 않을 것. 후보를 무조건 축소해 검출력을 떨어뜨리지 않을 것.
+- PC 구간 반복/탐색, 소스 전환 시 이력 초기화, 입력/NN/Depth 시퀀스 정합 유지.
+- 영상 녹화와 CSV 시작/중지 연동 유지.
+- 동일 프레임 복제로10FPS처럼 보이게 하지 않을 것.
+
+답변 형식:
+1. 실측으로 확인된 병목과 아직 추정인 부분을 분리.
+2. 우선순위별 파일/함수/예상 절감 근거/부작용/검증 방법 표.
+3. 가장 안전한 첫 변경1~2개와 코드 수정 범위 제안.
+4. 같은 입력/seed/초기상태에서 전후 계수·경계·신뢰도·정지선 결과의 동등성 검사 계획.
+5. 실제 출력 발행 FPS, 고유 입력 소비율, p50/p95 지연, 누락률로 성능 판정 계획.
+최적화 목표는 지속10FPS와 지연 감소지만 계측 전 절감량/달성을 확정하지 마세요.

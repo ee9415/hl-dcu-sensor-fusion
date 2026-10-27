@@ -1,5 +1,12 @@
 # PROJECT_STATUS.md
 
+## FPS 및 지연 병목 계측 (2026-10-27)
+
+- person 모델 대표 PC 영상 정상 실행: 입력 시각 기준9.31 FPS이나 실제 결과 발행 기준8.64 FPS. 검증기 output_fps를 발행 시각으로 수정하고 기존 값은 input_clock_fps로 분리.
+- 가벼운180프레임 계측: 후처리119.6ms, 경계66.0ms, 결과 렌더링23.6ms, 별도 Depth 미리보기32.7ms. 정상 캡처→발행 평균1.215초/P95 1.641초. 순수 NPU 시간은 미분리.
+- 알고리즘 변경 없이 계측 완료 후 장치4개 소스 바이트 일치 복구/재시작 확인. 계산 재사용·RGB 변환 재사용·PC 무효Depth 캐시·큐 지연 관리가 우선 후보.
+- docs/verification/camera/fps_profile_20261027.md 및 claude_fps_review_20261027.txt 참조.
+
 ## 사용자 person 모델 장치 배포 (2026-10-27)
 
 - 지정 폴더의 yolopv2_person_320.rvc4.tar.xz를 OAK 192.168.201.2 개발 앱에 업로드하고 SHA256 일치 확인. 기본 모델 경로 변경, 이전 main.py 백업 및 baseline 모델 보존.

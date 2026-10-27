@@ -67,9 +67,14 @@ def main():
         # Exclude the intentionally paused interval from the continuous FPS window.
         begin=pc[0]['nn_timestamp_s']
         continuous=[f for f in pc if f['nn_timestamp_s']-begin<args.seconds-1]
-        fps=((len(continuous)-1)/(continuous[-1]['nn_timestamp_s']-continuous[0]['nn_timestamp_s'])
+        input_clock_fps=((len(continuous)-1)/(continuous[-1]['nn_timestamp_s']-continuous[0]['nn_timestamp_s'])
+             if len(continuous)>1 else 0.)
+        # NN timestamps preserve capture time. Use output publication time for
+        # throughput so a growing queue cannot make the measured FPS optimistic.
+        fps=((len(continuous)-1)/(continuous[-1]['sent_monotonic_s']-continuous[0]['sent_monotonic_s'])
              if len(continuous)>1 else 0.)
         report=dict(pc_frames=len(pc),source_file=str(args.video),output_fps=fps,
+            input_clock_fps=input_clock_fps,measurement_seconds=args.seconds,
             requested_start_s=args.start,requested_end_s=args.end,
             outside_range=sum(f['source_media_time_s']<args.start or
                               (args.end is not None and f['source_media_time_s']>=args.end) for f in pc),
