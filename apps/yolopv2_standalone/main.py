@@ -20,7 +20,10 @@ CAMERA_SIZE = (1920, 1080)
 STEREO_SIZE = (640, 400)
 MODEL_SIZE = (320, 320)
 FPS = 10
-MODEL_ARCHIVE = Path(__file__).parent / "models" / "yolopv2_320.rvc4.tar.xz"
+MODEL_ARCHIVE = Path(os.environ.get(
+    'YOLOPV2_MODEL_ARCHIVE',
+    str(Path(__file__).parent / 'models' / 'yolopv2_person_320.rvc4.tar.xz'),
+))
 PIPELINE_STAGE = os.environ.get("PIPELINE_STAGE", "full").lower()
 VALID_STAGES = {"camera", "depth", "manip", "nn", "static_nn", "full"}
 

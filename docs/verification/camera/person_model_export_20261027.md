@@ -1,5 +1,7 @@
 # YOLOPv2 person 모델 내보내기 (2026-10-27)
 
+후속 상태: 같은 날짜에 사용자 요청으로 실제 장치 배포/추론을 수행했다. 아래 변환 당시 미검증 기록과 구분하며, 최신 결과는 [장치 배포 검증](person_model_deployment_20261027.md)을 참조한다.
+
 ## 입력 및 산출물
 
 - 사용자 지정 원본: `D:/git_hub/OAK_4D_PRO/apps/yolopv2_standalone/models/yolopv2_person/yolopv2_person.pt`
