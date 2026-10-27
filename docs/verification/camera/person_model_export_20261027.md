@@ -17,8 +17,15 @@
 
 Windows 기존 PyTorch는 DLL 정책 오류로 실행되지 않아 작업 폴더의 격리된 WSL Python3.10 환경을 사용했다. PyTorch2.5.1+cpu, ONNX1.17.0, ONNX Runtime1.20.1, NumPy1.26.4.
 
-## 남은 변환 단계
+## RVC4 변환 결과 및 남은 검증
 
-OAK4-D Pro 목표 설정은 RVC4, FP16, SNPE2.41.0. 사용자가 HubAI 업로드를 승인하고 직접 웹에 업로드했다고 알렸지만, 브라우저 URL 검증 실패 후 자동 승인 검토가 추가 UI 접근을 거절하여 최종 변환 상태는 확인하지 못했다. 해당 제한을 우회하지 않았다.
+OAK4-D Pro 목표 설정은 RVC4, FP16, SNPE2.41.0. 초기 Chrome 제어는 실패했으나 이후 사용자가 연 앱 내 브라우저에서 URL과 로그인 상태를 정상 확인했다. 사용자가 파일을 직접 선택한 뒤 `yolopv2_person_320.onnx` 표시, 320×320, FP16, SNPE2.41.0을 확인하고 제출했다.
 
-최종 `.rvc4.tar.xz`/`.dlc` 생성 및 장치 추론 검증은 **미완료**. 다운로드 폴더의 2026-10-02 `yolopv2_320.rvc4.tar.xz`는 이전 모델이므로 이번 변환 결과로 취급하지 않는다. 카메라 모델 교체/배포 없음.
+- 새 작업: Model 3 - Instance 1, 시작2026-10-27 14:31 KST, 종료14:36 KST. Jobs의 Completed 및 인스턴스 Success 확인.
+- 모델ID `aim_TcJqVELh67WsngvbR5Dxru`, 버전ID `aimv_TcJqVHc4wvgsg1MwuUruNz`, 인스턴스ID `aimi_UE7qo7RbM6YjHiUU6HLsof`, Hub 해시 `5d33740`.
+- 출력 파일명: `yolopv2_person_320.rvc4.tar.xz`.
+- 결과 URL: https://hub.luxonis.com/ai/models/aim_TcJqVELh67WsngvbR5Dxru/version/aimv_TcJqVHc4wvgsg1MwuUruNz?view=successful-export&instanceId=aimi_UE7qo7RbM6YjHiUU6HLsof
+- 성공 화면: `artifacts/person_conversion_20261027/rvc4_success.png`.
+- 다운로드 버튼은 화면에 있지만 자동 다운로드 이벤트 대기와 링크 클릭이 시간 초과 또는 저장 시작 없음으로 끝났다. 로컬 새 person 아카이브는 확인하지 못했다. 다운로드 후 `inspect_rvc4_archive.py`로 텐서 스키마·DLC 및 SHA256을 검사할 수 있도록 도구를 준비했고 구문 검사는 통과했다. 실제 새 아카이브에 대한 실행 검증은 **대기**.
+- 클라우드 변환 성공과 실제 장치 수치 검증을 구분한다. DLC 내부 출력 수치 및 장치 추론은 **미검증**. 카메라 모델 교체/배포 없음.
+- Quick Conversions의 기존 Completed가 가리킨 Model1/해시0455dd6은 이번 결과로 취급하지 않았다. Jobs에는 이전 Model2 작업도 Completed로 있으나 출처 확인 없이 이번 산출물로 사용하지 않았다.

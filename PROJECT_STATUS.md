@@ -1,10 +1,11 @@
 # PROJECT_STATUS.md
 
-## YOLOPv2 person 모델 ONNX 재생성 (2026-10-27)
+## YOLOPv2 person 모델 변환 (2026-10-27)
 
 - 외부 프로젝트 OAK_4D_PRO의 사용자 지정 `models/yolopv2_person/yolopv2_person.pt`를 320×320 ONNX로 재생성.
 - 실제/임의 입력의 5개 출력 수치 비교와 ONNX checker 통과. 최대 절대오차4.578e-5. 이전 경로 모델 및 결과와 해시 동일.
-- 최종 RVC4 FP16 변환은 HubAI 결과 다운로드 대기. 브라우저 자동 제어는 URL 검증 실패 후 승인 검토에서 차단됨. 카메라 배포 없음.
+- 앱 내 브라우저에서 사용자 선택 파일 확인 후 HubAI 제출. Model3, RVC4 FP16/SNPE2.41.0, 14:31~14:36 KST Completed/Success, 해시5d33740 확인.
+- 최종 파일명 yolopv2_person_320.rvc4.tar.xz. 자동 다운로드는 응답/이벤트 문제로 로컬 저장 확인 실패. 아카이브 내부 및 장치 검증 대기. 카메라 배포 없음.
 - 상세: docs/verification/camera/person_model_export_20261027.md.
 
 ## 모니터 환경의 그늘 차선 복원 (2026-10-26)
