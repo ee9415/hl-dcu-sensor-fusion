@@ -112,3 +112,6 @@ apps/yolopv2_standalone/models/*.tar.xz
 /docs/verification/camera/*_observation_*/
 
 # Keep source/configuration/docs and fixed regression .npz fixtures tracked.
+
+# Local TC275 workspace
+/TC275/
