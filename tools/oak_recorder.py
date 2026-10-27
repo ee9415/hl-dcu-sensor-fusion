@@ -17,9 +17,11 @@ import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+os.environ.setdefault('OPENCV_FFMPEG_CAPTURE_OPTIONS', 'rtsp_transport;tcp')
 import cv2
 from PIL import Image, ImageTk
 from frame_csv_logger import FrameCsvLogger
+from video_file_sender import VideoFileSender, select_camera
 
 RESAMPLE_LANCZOS = getattr(Image, "Resampling", Image).LANCZOS
 
@@ -153,20 +155,25 @@ class CaptureSource:
         self.temp_path: Path | None = None
         self.connected = False
         self.started = False
+        self.thread = None
 
     def start(self) -> None:
         if self.started:
             return
         self.started = True
-        threading.Thread(
+        self.thread = threading.Thread(
             target=self._capture_loop,
             daemon=True,
             name=f"oak-capture-{self.key}",
-        ).start()
+        )
+        self.thread.start()
 
     def _capture_loop(self) -> None:
         while not self.stop_event.is_set():
-            capture = cv2.VideoCapture(self.url, cv2.CAP_FFMPEG)
+            capture = cv2.VideoCapture(self.url, cv2.CAP_FFMPEG, [
+                cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000,
+                cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000,
+            ])
             capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             if not capture.isOpened():
                 with self.lock:
@@ -220,6 +227,8 @@ class CaptureSource:
     def close(self) -> None:
         self.stop_event.set()
         self.stop_recording()
+        if self.thread is not None:
+            self.thread.join(timeout=6)
 
 
 class RecorderApp:
@@ -242,6 +251,11 @@ class RecorderApp:
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.csv_logger = None
+        self.file_sender = None
+        self.active_input = 'camera'
+        self.source_events = queue.SimpleQueue()
+        self.source_change_pending = False
+        self.source_closing = threading.Event()
         self.sources = {
             "rgb": CaptureSource("rgb", "원본 RGB", ""),
             "yolopv2": CaptureSource("yolopv2", "YOLO 결과", ""),
@@ -427,7 +441,7 @@ class RecorderApp:
         self.connect_button.grid(row=0, column=5, rowspan=2, padx=(10, 0), sticky="ns")
 
         record_controls = ttk.Frame(controls, style="App.TFrame")
-        record_controls.grid(row=1, column=0, pady=(8, 0), sticky="ew")
+        record_controls.grid(row=2, column=0, pady=(8, 0), sticky="ew")
         record_controls.columnconfigure(1, weight=1)
         choices = ttk.Frame(record_controls, style="App.TFrame")
         choices.grid(row=0, column=0, sticky="w")
@@ -491,7 +505,124 @@ class RecorderApp:
 
         ttk.Label(controls,
                   text="경계선: 왼쪽 노랑 / 오른쪽 하늘색 · 영상 흰색선 우선 · 움직임 보정 추정 · 고정 폭 없음",
-                  style="App.TLabel").grid(row=2, column=0, sticky="w", pady=(6, 0))
+                  style="App.TLabel").grid(row=3, column=0, sticky="w", pady=(6, 0))
+        self._build_source_controls(controls)
+
+    def _build_source_controls(self, controls):
+        panel = ttk.LabelFrame(controls, text='영상 입력 소스',
+                               style='Control.TLabelframe', padding=8)
+        panel.grid(row=1, column=0, sticky='ew', pady=(6,0))
+        panel.columnconfigure(1, weight=1)
+        self.input_mode = tk.StringVar(value='카메라')
+        self.input_file = tk.StringVar()
+        self.input_loop = tk.BooleanVar(value=True)
+        ttk.Combobox(panel, textvariable=self.input_mode, state='readonly',
+                     values=('카메라', 'PC 영상 파일'), width=15).grid(row=0,column=0,padx=(0,6))
+        ttk.Entry(panel, textvariable=self.input_file, state='readonly').grid(
+            row=0,column=1,sticky='ew')
+        ttk.Button(panel, text='영상 파일 선택', command=self._choose_input_file).grid(
+            row=0,column=2,padx=5)
+        ttk.Checkbutton(panel, text='반복 재생', variable=self.input_loop,
+                        style='App.TCheckbutton').grid(row=0,column=3)
+        self.source_apply = ttk.Button(panel, text='소스 적용 / 전송 시작',
+                                       command=self._apply_input_source, state=tk.DISABLED)
+        self.source_apply.grid(row=0,column=4,padx=5)
+        self.source_pause = ttk.Button(panel, text='일시정지 / 재생',
+                                       command=self._pause_input, state=tk.DISABLED)
+        self.source_pause.grid(row=0,column=5)
+        ttk.Button(panel, text='전송 중지', command=self._stop_input).grid(
+            row=0,column=6,padx=(5,0))
+        self.source_status = tk.StringVar(value='카메라 입력 · PC 영상 전송은 최대 10 FPS')
+        ttk.Label(panel, textvariable=self.source_status, style='App.TLabel').grid(
+            row=1,column=0,columnspan=7,sticky='w',pady=(4,0))
+
+    def _choose_input_file(self):
+        if self.recording:
+            messagebox.showwarning('영상 소스', '녹화를 멈춘 뒤 영상 소스를 변경해 주세요.')
+            return
+        path = filedialog.askopenfilename(title='OAK로 전송할 영상', filetypes=[
+            ('영상 파일', '*.mp4 *.avi *.mkv *.mov *.m4v'), ('모든 파일', '*.*')])
+        if path:
+            self.input_file.set(path)
+            self.input_mode.set('PC 영상 파일')
+
+    def _apply_input_source(self):
+        if self.recording:
+            messagebox.showwarning('영상 소스', '녹화를 멈춘 뒤 영상 소스를 변경해 주세요.')
+            return
+        if self.source_change_pending:
+            return
+        if not self.connect_requested:
+            messagebox.showwarning('영상 소스', '먼저 OAK 영상 연결을 완료해 주세요.')
+            return
+        mode = self.input_mode.get()
+        path, loop = self.input_file.get(), self.input_loop.get()
+        if mode != '카메라' and not Path(path).is_file():
+            messagebox.showwarning('영상 소스', '전송할 영상 파일을 선택해 주세요.')
+            return
+        self.source_change_pending = True
+        self.source_apply.configure(state=tk.DISABLED)
+        self.source_status.set('장치 영상 소스 전환 중...')
+        old_sender, self.file_sender = self.file_sender, None
+        ip = self.device_ip
+
+        def change():
+            try:
+                if old_sender:
+                    old_sender.close(timeout=5)
+                    if old_sender.thread.is_alive():
+                        raise RuntimeError('이전 영상 전송이 아직 종료되지 않았습니다')
+                if self.source_closing.is_set():
+                    return
+                if mode == '카메라':
+                    select_camera(ip)
+                    self.source_events.put(('camera', None))
+                else:
+                    sender = VideoFileSender(ip, path, loop=loop)
+                    sender.start()
+                    if self.source_closing.is_set():
+                        sender.close()
+                        return
+                    self.source_events.put(('sender', sender))
+            except (OSError, RuntimeError, ValueError) as exc:
+                self.source_events.put(('error', str(exc)))
+        threading.Thread(target=change, daemon=True, name='source-control').start()
+
+    def _pause_input(self):
+        if self.file_sender:
+            self.file_sender.toggle_pause()
+
+    def _stop_input(self):
+        if self.file_sender:
+            self.file_sender.close(timeout=.1)
+            self.source_pause.configure(state=tk.DISABLED)
+
+    def _update_input_status(self):
+        while True:
+            try:
+                event, data = self.source_events.get_nowait()
+            except queue.Empty:
+                break
+            self.source_change_pending = False
+            self.source_apply.configure(state=tk.NORMAL)
+            if event == 'camera':
+                self.active_input = 'camera'
+                self.source_status.set('카메라 입력 · 실제 RGB 정렬 Depth 사용')
+                self.source_pause.configure(state=tk.DISABLED)
+            elif event == 'sender':
+                self.file_sender = data
+                self.source_pause.configure(state=tk.NORMAL)
+            else:
+                self.source_status.set(f'입력 소스 오류: {data} · 장치 TCP 8558 수신 코드 확인')
+        if self.file_sender:
+            status = self.file_sender.snapshot()
+            if status.get('source_selected'):
+                self.active_input = 'pc'
+            detail = status.get('error') or (f"보낸 프레임 {status['sent']} / "
+                     f"장치 수신 누적 {status['acknowledged']} / 재생 {status['media_time_s']:.1f}초")
+            self.source_status.set(f"PC 영상 {status['state']} · {detail} · Depth/거리 없음")
+            if status['state'] in ('오류', '전송 중지', '재생 완료'):
+                self.source_pause.configure(state=tk.DISABLED)
 
     def _build_preview_panel(
         self,
@@ -670,6 +801,8 @@ class RecorderApp:
             source.start()
         self.connect_button.configure(text="영상 연결 중...", state=tk.DISABLED)
         self.status_text.set(f"{ip} RGB, YOLO, BEV, Depth 스트림 연결 중...")
+        if hasattr(self, 'source_apply'):
+            self.source_apply.configure(state=tk.NORMAL)
 
     def _drain_connection_events(self) -> None:
         while True:
@@ -720,6 +853,7 @@ class RecorderApp:
         return None
 
     def _update_preview(self) -> None:
+        self._update_input_status()
         if self.csv_logger is not None:
             log = self.csv_logger
             self.csv_status.set(f'CSV {log.status} | 프레임 {log.frames:,}건 / 객체 {log.objects:,}건 '
@@ -737,6 +871,11 @@ class RecorderApp:
         }
         for key, (connected, frame) in preview_frames.items():
             preview = self.preview_labels[key]
+            if key == 'depth' and self.active_input == 'pc':
+                preview.configure(image='', text='PC 영상 입력 · 실제 Depth/거리 없음')
+                preview.image = None
+                self.preview_status[key].set('사용 안 함')
+                continue
             if frame is not None:
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 image = Image.fromarray(rgb)
@@ -791,6 +930,9 @@ class RecorderApp:
 
     def start_recording(self) -> None:
         if self.recording:
+            return
+        if getattr(self, 'source_change_pending', False):
+            messagebox.showwarning('녹화 시작', '영상 소스 적용이 끝난 뒤 녹화를 시작해 주세요.')
             return
         keys = self._selected_keys()
         if not keys:
@@ -933,6 +1075,12 @@ class RecorderApp:
             for path in self.unsaved_paths.values():
                 path.unlink(missing_ok=True)
             self.unsaved_paths.clear()
+        if getattr(self, 'source_closing', None):
+            self.source_closing.set()
+        if getattr(self, 'file_sender', None):
+            self.file_sender.close()
+        for source in self.sources.values():
+            source.stop_event.set()
         for source in self.sources.values():
             source.close()
         if self.csv_logger is not None:

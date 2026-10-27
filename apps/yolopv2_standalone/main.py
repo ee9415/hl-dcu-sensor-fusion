@@ -12,6 +12,8 @@ from yolopv2_node import (
 )
 from stream_output import StreamOutput
 from depth_preview import DepthPreview
+from video_transport import VideoInputServer
+from video_input_node import VideoInputSelector
 
 
 CAMERA_SIZE = (1920, 1080)
@@ -77,16 +79,6 @@ with dai.Pipeline(device) as pipeline:
         enableUndistortion=True,
     )
 
-    encoder = pipeline.create(dai.node.VideoEncoder)
-    encoder.setDefaultProfilePreset(FPS, dai.VideoEncoderProperties.Profile.H264_MAIN)
-    camera_out.link(encoder.input)
-
-    pipeline.create(StreamOutput).build(encoder.out, FPS, 8555, "/rgb")
-    print("RGB RTSP: rtsp://<device-ip>:8555/rgb", flush=True)
-
-    if PIPELINE_STAGE != "full":
-        visualizer.addTopic("Video", encoder.out, "images")
-
     if PIPELINE_STAGE in {"depth", "full"}:
         left = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_B)
         right = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_C)
@@ -106,18 +98,34 @@ with dai.Pipeline(device) as pipeline:
         stereo.depth.link(depth_align.input)
         camera_out.link(depth_align.inputAlignTo)
         aligned_depth = depth_align.outputAligned
-        depth_preview = pipeline.create(DepthPreview).build(aligned_depth)
-        depth_encoder = pipeline.create(dai.node.VideoEncoder)
-        depth_encoder.setDefaultProfilePreset(FPS, dai.VideoEncoderProperties.Profile.H264_MAIN)
-        depth_preview.preview_out.link(depth_encoder.input)
-        pipeline.create(StreamOutput).build(depth_encoder.out, FPS, 8556, '/depth')
-        print('Depth preview RTSP: rtsp://<device-ip>:8556/depth (640x360, display only)', flush=True)
         visualizer.addTopic("DepthAligned", aligned_depth)
         print(
             "DepthAligned: CAM_B/C stereo depth aligned to CAM_A "
             f"({CAMERA_SIZE[0]}x{CAMERA_SIZE[1]}, millimeters)",
             flush=True,
         )
+
+    video_input = None
+    if PIPELINE_STAGE == 'full':
+        video_input = VideoInputServer()
+        source = pipeline.create(VideoInputSelector).build(camera_out, aligned_depth, video_input)
+        camera_out, aligned_depth = source.video_out, source.depth_out
+        print('PC video input: TCP 8558 (camera/PC source selection)', flush=True)
+
+    encoder = pipeline.create(dai.node.VideoEncoder)
+    encoder.setDefaultProfilePreset(FPS, dai.VideoEncoderProperties.Profile.H264_MAIN)
+    camera_out.link(encoder.input)
+    pipeline.create(StreamOutput).build(encoder.out, FPS, 8555, '/rgb')
+    print('RGB RTSP: rtsp://<device-ip>:8555/rgb', flush=True)
+    if PIPELINE_STAGE != 'full':
+        visualizer.addTopic('Video', encoder.out, 'images')
+    if PIPELINE_STAGE in {'depth', 'full'}:
+        depth_preview = pipeline.create(DepthPreview).build(aligned_depth)
+        depth_encoder = pipeline.create(dai.node.VideoEncoder)
+        depth_encoder.setDefaultProfilePreset(FPS, dai.VideoEncoderProperties.Profile.H264_MAIN)
+        depth_preview.preview_out.link(depth_encoder.input)
+        pipeline.create(StreamOutput).build(depth_encoder.out, FPS, 8556, '/depth')
+        print('Depth preview RTSP: rtsp://<device-ip>:8556/depth', flush=True)
 
     if PIPELINE_STAGE not in {"camera", "depth"}:
         manip = pipeline.create(dai.node.ImageManip)
@@ -150,6 +158,7 @@ with dai.Pipeline(device) as pipeline:
                     aligned_depth,
                 )
                 postprocess.set_source_size(*CAMERA_SIZE)
+                postprocess.video_input = video_input
                 visualizer.addTopic(
                     "SpatialDetections",
                     postprocess.spatial_detections,

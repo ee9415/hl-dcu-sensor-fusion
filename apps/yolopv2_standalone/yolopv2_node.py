@@ -249,6 +249,8 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._last_health_at = self._started_at
         self._boundary_tracker = ImageBoundaryTracker(BoundaryConfig.load())
         self._stop_line_tracker = StopLineTracker()
+        self.video_input = None
+        self._input_epoch = None
 
     def build(
         self,
@@ -449,8 +451,20 @@ class Yolopv2Postprocess(dai.node.HostNode):
         aligned_depth: dai.ImgFrame,
     ) -> None:
         started_at = time.monotonic()
+        source = (self.video_input.metadata(nn_data.getSequenceNum())
+                  if self.video_input is not None else {})
+        if self.video_input is not None and not source:
+            return  # Do not process a frame whose source provenance expired.
+        if source and source.get('source_epoch') != self._input_epoch:
+            self._boundary_tracker = ImageBoundaryTracker(self._boundary_tracker.config)
+            self._stop_line_tracker = StopLineTracker()
+            self._input_epoch = source['source_epoch']
         depth_frame = aligned_depth.getFrame()
         depth_transformation = aligned_depth.getTransformation()
+        if source.get('input_source') == 'pc':
+            # Never assign live stereo distances to unrelated PC footage.
+            depth_frame = np.zeros_like(depth_frame)
+            depth_transformation = None
         if depth_transformation is None:
             intrinsics = np.zeros((3, 3), dtype=np.float64)
         else:
@@ -543,6 +557,8 @@ class Yolopv2Postprocess(dai.node.HostNode):
         capture_wall = time.time() - (dai.Clock.now().total_seconds() - capture_s)
         capture_mono = time.monotonic() - (dai.Clock.now().total_seconds() - capture_s)
         self._telemetry.publish({
+            **source,
+            'depth_available': source.get('input_source', 'camera') == 'camera',
             'frame_seq': int(preview.getSequenceNum()),
             'nn_seq': int(nn_data.getSequenceNum()),
             'depth_seq': int(aligned_depth.getSequenceNum()),

@@ -119,3 +119,19 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertTrue(np.any(np.all(result.data==(0,220,255),axis=2)))
             self.assertEqual(payload['right_boundary_state'],'inferred')
             self.assertTrue(np.any(np.all(result.data==(114,81,0),axis=2)))
+            # Even if a real-looking stereo image reaches the callback, PC
+            # provenance must suppress its distances and reset old tracking.
+            old_tracker=processor._boundary_tracker
+            processor.video_input=MagicMock()
+            processor.video_input.metadata.return_value=dict(input_source='pc',
+                source_epoch=2,source_frame_index=20,source_media_time_s=2.)
+            with patch.object(Frame,'getFrame',return_value=np.full((180,320),2000,np.uint16)), \
+                 patch.object(node,'non_max_suppression',return_value=np.array([[80,100,180,220,.9,0]])), \
+                 patch.object(node,'estimate_spatial_from_depth',wraps=node.estimate_spatial_from_depth) as spatial:
+                processor.process(Frame(),Frame(),Frame())
+            self.assertIsNot(old_tracker,processor._boundary_tracker)
+            self.assertFalse(spatial.call_args.args[0].any())
+            payload=server.return_value.publish.call_args.args[0]
+            self.assertFalse(payload['depth_available'])
+            self.assertEqual(payload['source_frame_index'],20)
+            self.assertFalse(payload['objects'][0]['depth_valid'])
