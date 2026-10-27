@@ -773,3 +773,10 @@ Depth 결합, 3차식 중심선, 후처리 영상 표시, ROS2 구조화 데이�
 실측 LEFT154/RIGHT227/NONE125프레임, NONE 유지 이동0, 관측 복귀 시 이동 제한 준수.
 29개 테스트 통과. 관측쪽 판정과 실제 흰색선 정답 정확도는 별개.
 검증: docs/verification/camera/single_side_reference_20261022.md.
+## 2026-10-27 직사각형 모델 시험
+
+320×192 RVC4 FP16 변환과 장치 시험 완료. 3분 PC 도로 영상 전체 처리
+9.97 FPS, 지연 p50/p95 154/235 ms. 일부 경계의 흰색선 이탈은 남아 있으며
+10 FPS 이상 지속과 FP16·ONNX 직접 동등성은 아직 미확인이다. 장치는 기존
+320×320 설정으로 복구했다. 상세: docs/verification/camera/rectangular_input_20261027.md.
+

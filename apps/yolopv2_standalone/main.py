@@ -18,7 +18,10 @@ from video_input_node import VideoInputSelector
 
 CAMERA_SIZE = (1920, 1080)
 STEREO_SIZE = (640, 400)
-MODEL_SIZE = (320, 320)
+MODEL_SIZE = (int(os.environ.get('YOLOPV2_INPUT_WIDTH', '320')),
+              int(os.environ.get('YOLOPV2_INPUT_HEIGHT', '320')))
+if MODEL_SIZE not in ((320, 320), (320, 192)):
+    raise ValueError('Supported model sizes are 320x320 and 320x192')
 FPS = int(os.environ.get('OAK_INPUT_FPS', '20'))
 if FPS not in (10, 15, 20):
     raise ValueError('OAK_INPUT_FPS must be 10, 15 or 20')
@@ -33,6 +36,8 @@ if PIPELINE_STAGE not in VALID_STAGES:
     raise ValueError(
         f"PIPELINE_STAGE must be one of {sorted(VALID_STAGES)}, got {PIPELINE_STAGE!r}"
     )
+if PIPELINE_STAGE == 'static_nn' and MODEL_SIZE != (320, 320):
+    raise ValueError('static_nn diagnostic currently requires 320x320')
 
 
 class LocalOnlyConnection:
@@ -151,12 +156,14 @@ with dai.Pipeline(device) as pipeline:
             print(f"Model: {MODEL_ARCHIVE}", flush=True)
             archive = dai.NNArchive(MODEL_ARCHIVE)
             preprocess = pipeline.create(Yolopv2Preprocess).build(manip.out)
+            preprocess.model_size = MODEL_SIZE
             neural_network = pipeline.create(dai.node.NeuralNetwork).build(
                 preprocess.tensor_out, archive
             )
 
             if PIPELINE_STAGE == "nn":
-                pipeline.create(Yolopv2NnProbe).build(neural_network.out)
+                probe = pipeline.create(Yolopv2NnProbe).build(neural_network.out)
+                probe.model_size = MODEL_SIZE
             else:
                 postprocess = pipeline.create(Yolopv2Postprocess).build(
                     camera_out,
@@ -164,6 +171,7 @@ with dai.Pipeline(device) as pipeline:
                     aligned_depth,
                 )
                 postprocess.set_source_size(*CAMERA_SIZE)
+                postprocess.model_size = MODEL_SIZE
                 postprocess.video_input = video_input
                 visualizer.addTopic(
                     "SpatialDetections",

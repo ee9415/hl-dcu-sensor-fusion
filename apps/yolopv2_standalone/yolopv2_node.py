@@ -89,6 +89,7 @@ class Yolopv2Preprocess(dai.node.HostNode):
 
     def __init__(self) -> None:
         super().__init__()
+        self.model_size = (320, 320)
         self.tensor_out = self.createOutput(
             possibleDatatypes=[
                 dai.Node.DatatypeHierarchy(dai.DatatypeEnum.NNData, True)
@@ -101,8 +102,8 @@ class Yolopv2Preprocess(dai.node.HostNode):
 
     def process(self, frame: dai.ImgFrame) -> None:
         bgr = frame.getCvFrame()
-        if bgr.shape != (320, 320, 3):
-            raise ValueError(f"Expected a 320x320 BGR frame, got {bgr.shape}")
+        if bgr.shape != (self.model_size[1], self.model_size[0], 3):
+            raise ValueError(f"Expected BGR frame for {self.model_size}, got {bgr.shape}")
 
         # The original YOLOPv2 ONNX input is RGB in the [0, 1] range.  RVC4
         # DLC tensors use NHWC at their external boundary even though the ONNX
@@ -133,6 +134,7 @@ class Yolopv2NnProbe(dai.node.HostNode):
 
     def __init__(self) -> None:
         super().__init__()
+        self.model_size = (320, 320)
         self._frames = 0
         self._started_at = time.monotonic()
         self._last_status_at = 0.0
@@ -188,6 +190,7 @@ class Yolopv2NnProbe(dai.node.HostNode):
                     candidate[self.TENSOR_NAMES[3]],
                     candidate[self.TENSOR_NAMES[4]],
                     (1920, 1080),
+                    self.model_size,
                 )
                 layout_comparison[label] = {
                     "detections": int(len(decoded)),
@@ -242,6 +245,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self.bev = self.createOutput(possibleDatatypes=img_frame_type)
         self.result = self.createOutput(possibleDatatypes=img_frame_type)
         self._source_size = (1920, 1080)
+        self.model_size = (320, 320)
         self._result_size = (960, 540)
         self._telemetry = TelemetryServer()
         self._confidence_threshold = 0.30
@@ -505,7 +509,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         measurements = []
         for x1, y1, x2, y2, confidence, label in decoded:
             normalized = map_letterboxed_box_to_source(
-                np.asarray((x1, y1, x2, y2)), self._source_size
+                np.asarray((x1, y1, x2, y2)), self._source_size, self.model_size
             )
             if normalized[2] <= normalized[0] or normalized[3] <= normalized[1]:
                 continue
@@ -556,6 +560,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
             self._tensor(nn_data, self.TENSOR_NAMES[3]),
             self._tensor(nn_data, self.TENSOR_NAMES[4]),
             self._source_size,
+            self.model_size,
         )
         boundary_started = time.monotonic()
         if processing_mode=='full':
@@ -643,7 +648,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 "boundary_candidates": self._boundary_tracker.last_candidate_count,
                 "detections": len(detection_messages),
                 "depth_valid_detections": len(spatial_messages),
-                "input_shape": [1, 3, 320, 320],
+                "input_shape": [1, 3, self.model_size[1], self.model_size[0]],
             }
             print(f"HEALTH {json.dumps(payload)}", flush=True)
             self._last_health_at = now

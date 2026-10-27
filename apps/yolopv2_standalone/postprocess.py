@@ -215,13 +215,15 @@ def non_max_suppression(
     ).astype(np.float32)
 
 
-def map_letterboxed_box_to_source(box: np.ndarray, source_size: tuple[int, int]) -> np.ndarray:
+def map_letterboxed_box_to_source(box: np.ndarray, source_size: tuple[int, int],
+                                   model_size: tuple[int, int] = (INPUT_SIZE, INPUT_SIZE)) -> np.ndarray:
     source_width, source_height = source_size
-    scale = min(INPUT_SIZE / source_width, INPUT_SIZE / source_height)
+    model_width, model_height = model_size
+    scale = min(model_width / source_width, model_height / source_height)
     resized_width = source_width * scale
     resized_height = source_height * scale
-    pad_x = (INPUT_SIZE - resized_width) / 2.0
-    pad_y = (INPUT_SIZE - resized_height) / 2.0
+    pad_x = (model_width - resized_width) / 2.0
+    pad_y = (model_height - resized_height) / 2.0
     mapped = box.astype(np.float32, copy=True)
     mapped[[0, 2]] = (mapped[[0, 2]] - pad_x) / resized_width
     mapped[[1, 3]] = (mapped[[1, 3]] - pad_y) / resized_height
@@ -243,6 +245,7 @@ def segmentation_masks(
     drivable: np.ndarray,
     lane: np.ndarray,
     source_size: tuple[int, int],
+    model_size: tuple[int, int] = (INPUT_SIZE, INPUT_SIZE),
 ) -> tuple[np.ndarray, np.ndarray]:
     drivable = _as_nchw_segmentation(drivable, 2)
     lane = _as_nchw_segmentation(lane, 1)
@@ -250,11 +253,14 @@ def segmentation_masks(
     lane_mask = (lane[0, 0] >= 0.5).astype(np.uint8) * 255
 
     source_width, source_height = source_size
-    scale = min(INPUT_SIZE / source_width, INPUT_SIZE / source_height)
+    model_width, model_height = model_size
+    if drivable_mask.shape != (model_height, model_width) or lane_mask.shape != (model_height, model_width):
+        raise ValueError('Segmentation output does not match model size')
+    scale = min(model_width / source_width, model_height / source_height)
     content_width = int(round(source_width * scale))
     content_height = int(round(source_height * scale))
-    left = (INPUT_SIZE - content_width) // 2
-    top = (INPUT_SIZE - content_height) // 2
+    left = (model_width - content_width) // 2
+    top = (model_height - content_height) // 2
     right = left + content_width
     bottom = top + content_height
     return drivable_mask[top:bottom, left:right], lane_mask[top:bottom, left:right]
