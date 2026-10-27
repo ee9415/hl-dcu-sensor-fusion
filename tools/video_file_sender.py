@@ -56,8 +56,8 @@ def fit_frame(bgr):
 class VideoFileSender:
     def __init__(self, ip, path, loop=True, fps=10, port=PORT, start_s=0., end_s=None):
         self.ip, self.path, self.port = ip, Path(path), port
-        if not math.isfinite(fps) or not 0 < fps <= 10:
-            raise ValueError('Transmission FPS must be in (0,10]')
+        if not math.isfinite(fps) or not 0 < fps <= 20:
+            raise ValueError('Transmission FPS must be in (0,20]')
         self.loop, self.fps = loop, fps
         self.start_s = parse_video_time(start_s)
         self.end_s = None if end_s is None else parse_video_time(end_s)
@@ -167,12 +167,18 @@ class VideoFileSender:
                     if self.stop.is_set():
                         self._set(state='전송 중지')
                         return
-                    exchange(dict(op='select', source='pc'))
-                    self._set(source_selected=True)
+                    selected = exchange(dict(op='select', source='pc'))
+                    device_fps = selected.get('input_fps_limit',10)
+                    if not isinstance(device_fps,(int,float)) or not math.isfinite(device_fps) or device_fps<=0:
+                        raise ValueError('Invalid device input FPS limit')
+                    send_fps = min(self.fps,source_fps,device_fps)
+                    self._set(source_selected=True, requested_fps=self.fps,
+                              source_fps=source_fps,device_fps=device_fps,effective_fps=send_fps)
                     started = time.monotonic()
                     deadline = started
                     index, media_epoch, sent = first, 0, 0
                     loop_count = 1
+                    last_sent_key = None
                     while not self.stop.is_set():
                         with self.lock:
                             request, self.pending_seek = self.pending_seek, None
@@ -218,6 +224,9 @@ class VideoFileSender:
                             index = first; media_epoch += 1
                             loop_count += 1
                             started = deadline = time.monotonic()
+                        if last_sent_key == (media_epoch,index):
+                            deadline = max(deadline+1/send_fps,time.monotonic())
+                            continue  # Never inflate processing FPS by replaying one source frame.
                         ok, encoded = cv2.imencode('.jpg', fit_frame(frame),
                                                    [cv2.IMWRITE_JPEG_QUALITY, 85])
                         if not ok:
@@ -226,13 +235,14 @@ class VideoFileSender:
                             media_time_s=index/source_fps, media_epoch=media_epoch,
                             file=self.path.name), encoded.tobytes())
                         sent += 1
+                        last_sent_key = (media_epoch,index)
                         self._set(state='일시정지' if self.paused.is_set() else '전송 중', sent=sent,
                                   acknowledged=response['received_frames'],
                                   consumed=response['consumed_frames'],
                                   media_time_s=index/source_fps, media_epoch=media_epoch,
                                   loop_count=loop_count,
                                   seek_applied=request[0] if request is not None else self.snapshot().get('seek_applied',0))
-                        deadline = max(deadline+1/self.fps, time.monotonic())
+                        deadline = max(deadline+1/send_fps, time.monotonic())
                     if not self.stop.is_set():
                         exchange(dict(op='stop'))
             self._set(state='전송 중지' if self.stop.is_set() else '재생 완료')

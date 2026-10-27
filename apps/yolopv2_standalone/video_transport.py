@@ -74,7 +74,10 @@ def jpeg_size(data):
 
 class VideoInputServer:
     """One publisher, one pending frame, and bounded per-frame provenance."""
-    def __init__(self, port=PORT, host='0.0.0.0'):
+    def __init__(self, port=PORT, host='0.0.0.0', input_fps=20):
+        if input_fps not in (10,15,20):
+            raise ValueError('Input FPS must be 10, 15 or 20')
+        self.input_fps = input_fps
         self.lock = threading.Lock()
         self.mode = 'camera'
         self.epoch = 0
@@ -160,6 +163,7 @@ class VideoInputServer:
 
     def _status(self):
         return dict(source=self.mode, source_epoch=self.epoch,
+                    input_fps_limit=self.input_fps,
                     publisher_connected=self.owner is not None,
                     received_frames=self.received, consumed_frames=self.consumed,
                     dropped_frames=self.dropped)

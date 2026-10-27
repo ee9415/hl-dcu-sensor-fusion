@@ -19,7 +19,9 @@ from video_input_node import VideoInputSelector
 CAMERA_SIZE = (1920, 1080)
 STEREO_SIZE = (640, 400)
 MODEL_SIZE = (320, 320)
-FPS = 10
+FPS = int(os.environ.get('OAK_INPUT_FPS', '20'))
+if FPS not in (10, 15, 20):
+    raise ValueError('OAK_INPUT_FPS must be 10, 15 or 20')
 MODEL_ARCHIVE = Path(os.environ.get(
     'YOLOPV2_MODEL_ARCHIVE',
     str(Path(__file__).parent / 'models' / 'yolopv2_person_320.rvc4.tar.xz'),
@@ -50,6 +52,7 @@ visualizer = (dai.RemoteConnection(httpPort=8082)
 device = dai.Device()
 print(f"Device: {device.getDeviceInfo()}", flush=True)
 print(f"Pipeline stage: {PIPELINE_STAGE}", flush=True)
+print(f'Camera/input clock limit: {FPS} FPS', flush=True)
 
 with dai.Pipeline(device) as pipeline:
     if PIPELINE_STAGE == "static_nn":
@@ -110,7 +113,7 @@ with dai.Pipeline(device) as pipeline:
 
     video_input = None
     if PIPELINE_STAGE == 'full':
-        video_input = VideoInputServer()
+        video_input = VideoInputServer(input_fps=FPS)
         source = pipeline.create(VideoInputSelector).build(camera_out, aligned_depth, video_input)
         camera_out, aligned_depth = source.video_out, source.depth_out
         print('PC video input: TCP 8558 (camera/PC source selection)', flush=True)

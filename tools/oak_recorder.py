@@ -156,6 +156,8 @@ class CaptureSource:
         self.connected = False
         self.started = False
         self.thread = None
+        self.record_started_at = 0.
+        self.record_written = 0
 
     def start(self) -> None:
         if self.started:
@@ -191,7 +193,7 @@ class CaptureSource:
                     self.latest_frame = frame
                     self.frames_received += 1
                     if self.writer is not None:
-                        self.writer.write(frame)
+                        self._write_recording_frame(frame,time.monotonic())
 
             capture.release()
             with self.lock:
@@ -201,6 +203,14 @@ class CaptureSource:
         with self.lock:
             frame = None if self.latest_frame is None else self.latest_frame.copy()
             return self.connected, frame
+
+    def _write_recording_frame(self, frame, now):
+        # Keep the existing 10-FPS recording timebase when live input is 15/20.
+        # These recording-only repeats never enter inference or telemetry.
+        target = int(max(0.,now-self.record_started_at)*DEFAULT_FPS)+1
+        for _ in range(min(50,max(0,target-self.record_written))):
+            self.writer.write(frame)
+            self.record_written += 1
 
     def start_recording(self, path: Path) -> bool:
         connected, frame = self.snapshot()
@@ -212,6 +222,8 @@ class CaptureSource:
         with self.lock:
             self.writer = writer
             self.temp_path = path
+            self.record_started_at = time.monotonic()
+            self.record_written = 0
         return True
 
     def stop_recording(self) -> Path | None:
@@ -518,6 +530,7 @@ class RecorderApp:
         self.input_loop = tk.BooleanVar(value=True)
         self.input_start = tk.StringVar(value='0')
         self.input_end = tk.StringVar(value='')
+        self.input_fps = tk.StringVar(value='10')
         ttk.Combobox(panel, textvariable=self.input_mode, state='readonly',
                      values=('카메라', 'PC 영상 파일'), width=15).grid(row=0,column=0,padx=(0,6))
         ttk.Entry(panel, textvariable=self.input_file, state='readonly').grid(
@@ -542,6 +555,10 @@ class RecorderApp:
         ttk.Label(segment,text='종료',style='App.TLabel').pack(side=tk.LEFT)
         self.source_end_entry = ttk.Entry(segment,textvariable=self.input_end,width=10)
         self.source_end_entry.pack(side=tk.LEFT,padx=5)
+        ttk.Label(segment,text='PC 전송 FPS',style='App.TLabel').pack(side=tk.LEFT,padx=(8,0))
+        self.source_fps_choice = ttk.Combobox(segment,textvariable=self.input_fps,state='readonly',
+                                             values=('10','15','20'),width=4)
+        self.source_fps_choice.pack(side=tk.LEFT,padx=5)
         ttk.Label(segment,text='초 또는 분:초 · 종료 공란: 영상 끝 · 변경 후 소스 적용',
                   style='App.TLabel').pack(side=tk.LEFT)
         progress = ttk.Frame(panel, style='Panel.TFrame')
@@ -562,7 +579,7 @@ class RecorderApp:
         self.source_progress_text = tk.StringVar(value='PC 영상 대기')
         ttk.Label(progress,textvariable=self.source_progress_text,style='App.TLabel',width=46).grid(
             row=0,column=2,padx=(8,0))
-        self.source_status = tk.StringVar(value='카메라 입력 · PC 영상 전송은 최대 10 FPS')
+        self.source_status = tk.StringVar(value='PC 전송 10·15·20 FPS 선택 · 원본/장치 상한 적용')
         ttk.Label(panel, textvariable=self.source_status, style='App.TLabel').grid(
             row=3,column=0,columnspan=7,sticky='w',pady=(4,0))
 
@@ -645,9 +662,13 @@ class RecorderApp:
             messagebox.showwarning('영상 소스', '전송할 영상 파일을 선택해 주세요.')
             return
         start_s, end_s = 0., None
+        fps = 20
         if mode != '카메라':
             try:
                 start_s = parse_video_time(self.input_start.get())
+                fps = int(self.input_fps.get())
+                if fps not in (10,15,20):
+                    raise ValueError('전송 FPS는 10, 15, 20 중 선택해 주세요')
                 end_s = parse_video_time(self.input_end.get()) if self.input_end.get().strip() else None
                 if end_s is not None and end_s <= start_s:
                     raise ValueError('종료 시간은 시작 시간보다 커야 합니다')
@@ -675,7 +696,7 @@ class RecorderApp:
                     select_camera(ip)
                     self.source_events.put(('camera', None))
                 else:
-                    sender = VideoFileSender(ip, path, loop=loop, start_s=start_s, end_s=end_s)
+                    sender = VideoFileSender(ip, path, loop=loop, fps=fps, start_s=start_s, end_s=end_s)
                     sender.start()
                     if self.source_closing.is_set():
                         sender.close()
@@ -721,6 +742,9 @@ class RecorderApp:
                 end = status.get('range_end_s')
                 detail += (f" · 구간 {status['range_start_s']:g}~"
                            f"{f'{end:g}초' if end is not None else '끝'} / 회차 {status.get('loop_count',1)}")
+            if status.get('effective_fps') is not None:
+                detail += (f"\n설정{status['requested_fps']:g}/전송상한{status['effective_fps']:g} FPS"
+                           f" (원본{status['source_fps']:g}·장치{status['device_fps']:g})")
             self.source_status.set(f"PC 영상 {status['state']} · {detail} · Depth/거리 없음")
             if status['state'] in ('오류', '전송 중지', '재생 완료'):
                 self.source_pause.configure(state=tk.DISABLED)

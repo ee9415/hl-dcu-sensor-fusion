@@ -22,6 +22,7 @@ def main():
     p.add_argument('--seconds',type=float,default=15)
     p.add_argument('--start',type=float,default=0.)
     p.add_argument('--end',type=float)
+    p.add_argument('--fps',type=float,default=10)
     args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True)
     frames=[];stop=threading.Event();errors=[]
     def read():
@@ -40,7 +41,7 @@ def main():
             if not stop.is_set():errors.append(str(exc))
     select_camera(args.device_ip)
     reader=threading.Thread(target=read,daemon=True);reader.start()
-    sender=VideoFileSender(args.device_ip,args.video,loop=True,start_s=args.start,end_s=args.end)
+    sender=VideoFileSender(args.device_ip,args.video,loop=True,fps=args.fps,start_s=args.start,end_s=args.end)
     logger=FrameCsvLogger(args.device_ip,args.output/'telemetry')
     def wait_for(condition,seconds=15):
         end=time.monotonic()+seconds
@@ -76,6 +77,7 @@ def main():
         fps=((len(continuous)-1)/(continuous[-1]['sent_monotonic_s']-continuous[0]['sent_monotonic_s'])
              if len(continuous)>1 else 0.)
         report=dict(pc_frames=len(pc),source_file=str(args.video),output_fps=fps,
+            requested_send_fps=args.fps,
             input_clock_fps=input_clock_fps,measurement_seconds=args.seconds,
             requested_start_s=args.start,requested_end_s=args.end,
             outside_range=sum(f['source_media_time_s']<args.start or

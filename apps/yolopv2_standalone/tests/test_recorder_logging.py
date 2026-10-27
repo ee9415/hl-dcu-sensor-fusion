@@ -6,10 +6,19 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[3]/'tools'))
-from oak_recorder import RecorderApp
+from oak_recorder import RecorderApp, CaptureSource
 
 
 class RecorderLoggingTests(unittest.TestCase):
+    def test_high_rate_recording_keeps_ten_fps_wall_time(self):
+        for input_fps in (10,15,20):
+            source=CaptureSource('test','test','')
+            source.writer=Mock();source.record_started_at=100.
+            for i in range(input_fps+1):
+                source._write_recording_frame(object(),100.+i/input_fps)
+            self.assertEqual(source.writer.write.call_count,11)
+            self.assertEqual(source.frames_received,0)  # Never creates inference frames.
+
     def app(self):
         app=RecorderApp.__new__(RecorderApp)
         app.device_ip='192.0.2.1';app.output_dir=Path('unused-recordings')

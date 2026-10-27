@@ -218,5 +218,38 @@ class TransportTests(unittest.TestCase):
             self.assertEqual(sender.snapshot()['state'],'재생 완료')
             with self.assertRaises(ValueError):sender.seek(.2)
 
+    def test_20fps_unique_source_and_native_rate_cap(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'artifacts') as folder:
+            received=[];original=self.hub.handle
+            def handle(token,header,payload):
+                result=original(token,header,payload)
+                if header.get('op')=='frame':received.append((header['media_epoch'],header['frame_index']))
+                return result
+            self.hub.handle=handle
+            sender=VideoFileSender('127.0.0.1',self.make_video(folder,fps=30,count=30),
+                                   loop=False,fps=20,port=self.port)
+            sender.start();sender.thread.join(5)
+            self.assertEqual(sender.snapshot()['state'],'재생 완료')
+            self.assertEqual(sender.snapshot()['effective_fps'],20)
+            self.assertTrue(15<=len(received)<=21,len(received))
+            self.assertEqual(len(received),len(set(received)))
+            received.clear()
+            sender=VideoFileSender('127.0.0.1',self.make_video(folder,fps=10,count=10),
+                                   loop=False,fps=20,port=self.port)
+            sender.start();sender.thread.join(5)
+            self.assertEqual(sender.snapshot()['effective_fps'],10)
+            self.assertEqual(len(received),len(set(received)))
+            self.assertLessEqual(len(received),10)
+
+    def test_requested_rate_respects_device_limit(self):
+        self.hub.input_fps=15
+        with tempfile.TemporaryDirectory(dir=ROOT/'artifacts') as folder:
+            sender=VideoFileSender('127.0.0.1',self.make_video(folder,fps=30,count=15),
+                                   loop=False,fps=20,port=self.port)
+            sender.start();sender.thread.join(5)
+            self.assertEqual(sender.snapshot()['effective_fps'],15)
+            self.assertEqual(sender.snapshot()['device_fps'],15)
+        with self.assertRaises(ValueError):VideoFileSender('127.0.0.1','unused',fps=21)
+
 
 if __name__=='__main__':unittest.main()

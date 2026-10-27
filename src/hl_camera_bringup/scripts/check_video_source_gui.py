@@ -36,6 +36,7 @@ def main():
             app.source_apply.configure(state='normal')
             app.input_mode.set('PC 영상 파일');app.input_file.set(str(path))
             app.input_start.set('0.5');app.input_end.set('0:01.5')
+            app.input_fps.set('20')
             app._apply_input_source()
             pump(lambda:app.active_input=='pc' and app.source_progress_value.get()>=60)
             high_progress=app.source_progress_value.get()
@@ -63,7 +64,7 @@ def main():
             completed_progress=app.source_progress_value.get()
             app.input_mode.set('카메라');app._apply_input_source()
             pump(lambda:hub.mode=='camera' and app.active_input=='camera')
-            widgets=[app.source_apply,app.source_pause,app.source_start_entry,app.source_end_entry,app.source_progress]
+            widgets=[app.source_apply,app.source_pause,app.source_start_entry,app.source_end_entry,app.source_progress,app.source_fps_choice]
             report=dict(pc_status=pc_status,camera_status=app.source_status.get(),
                 high_progress=high_progress,after_repeat_progress=loop_progress,paused_seek_s=1.4,
                 completed_progress=completed_progress,
