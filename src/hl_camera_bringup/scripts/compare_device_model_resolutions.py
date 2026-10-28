@@ -29,6 +29,8 @@ def main():
     p.add_argument('--seconds', type=int, default=25)
     p.add_argument('--fps', type=float, default=10.5)
     p.add_argument('--capture-only', action='store_true', help='Capture instrumented masks, not FPS')
+    p.add_argument('--starts', type=int, nargs='+', default=[60, 303])
+    p.add_argument('--order', type=int, nargs='+', choices=(320, 192), default=[320, 192, 192, 320])
     args = p.parse_args()
     if args.capture_only and (args.device_ip != '192.168.201.2' or
                               args.video.resolve() != Path(r'D:\project\halla_yolopv2\KakaoTalk_20261016_170026655.mp4').resolve()):
@@ -89,7 +91,7 @@ assert hashlib.sha256(model.read_bytes()).hexdigest()=={RECT_SHA!r}
 """)
     save()
     try:
-        for block, shape in enumerate((320, 192) if args.capture_only else (320, 192, 192, 320), 1):
+        for block, shape in enumerate((320, 192) if args.capture_only else args.order, 1):
             remote(f"""
 from pathlib import Path
 import hashlib
@@ -118,7 +120,7 @@ tmp=Path('/app/main.py.resolution_compare');tmp.write_text(source);tmp.replace('
                 manifest['runs'].append(dict(name=capture_dir.name, shape=shape, instrumented=True))
                 save()
                 continue
-            for start in (60, 303):
+            for start in args.starts:
                 name = f'block{block}_height{shape}_sec{start}'
                 run_dir = args.output/name
                 run_dir.mkdir(parents=True, exist_ok=True)

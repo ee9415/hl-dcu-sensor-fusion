@@ -1,5 +1,6 @@
 """Temporarily install resolution-aware code, compare, then restore device files."""
 import argparse
+import base64
 import json
 from pathlib import Path
 import subprocess
@@ -16,6 +17,9 @@ def main():
     p.add_argument('--seconds', type=int, default=25)
     p.add_argument('--fps', type=float, default=10.5)
     p.add_argument('--capture-only', action='store_true')
+    p.add_argument('--without-video', action='store_true', help='Temporarily suppress debug video')
+    p.add_argument('--starts', type=int, nargs='+', default=[60, 303])
+    p.add_argument('--order', type=int, nargs='+', choices=(320, 192), default=[320, 192, 192, 320])
     a = p.parse_args()
     if a.capture_only and (a.device_ip != '192.168.201.2' or
                            a.video.resolve() != Path(r'D:\project\halla_yolopv2\KakaoTalk_20261016_170026655.mp4').resolve()):
@@ -27,16 +31,40 @@ def main():
                              '--files', 'main.py', 'yolopv2_node.py', 'postprocess.py'],
                             capture_output=True, text=True, encoding='utf-8', check=True)
     info = json.loads(result.stdout.strip().splitlines()[-1])
-    state = dict(temporary_deployment=info, comparison_complete=False, restored=False)
+    state = dict(temporary_deployment=info, without_video=a.without_video, comparison_complete=False, restored=False)
     manifest = a.output/'outer_manifest.json'
     def save():
         manifest.write_text(json.dumps(state, indent=2), encoding='utf-8')
     save()
     print('Temporary resolution-aware files deployed; backup: '+info['backup'], flush=True)
     try:
+        if a.without_video:
+            if a.capture_only:
+                raise ValueError('Video suppression is not compatible with capture-only diagnostics')
+            patch = (ROOT/'src/hl_camera_bringup/scripts/temporary_no_video_patch.py').read_bytes()
+            payload = base64.b64encode(patch).decode()
+            code = f"""
+import base64
+from pathlib import Path
+scope={{}};exec(base64.b64decode({payload!r}),scope)
+main=Path('/app/main.py');node=Path('/app/yolopv2_node.py')
+changed_main=scope['patch_main'](main.read_text());changed_node=scope['patch_node'](node.read_text())
+for path,source in ((main,changed_main),(node,changed_node)):
+    temp=path.with_name(path.name+'.no_video');temp.write_text(source);temp.replace(path)
+print('NO_VIDEO_PATCHED')
+"""
+            encoded = base64.b64encode(code.encode()).decode()
+            cmd = ['C:/Program Files/oakctl/bin/oakctl.exe','app','exec','-d',a.device_ip,
+                   '00000000-0000-0000-0000-000000000000','--','python3.12','-c',
+                   f"import base64;exec(base64.b64decode('{encoded}'))"]
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', timeout=120)
+            if result.returncode or 'Traceback (most recent call last)' in result.stdout+result.stderr or 'NO_VIDEO_PATCHED' not in result.stdout:
+                raise RuntimeError(result.stdout+result.stderr)
+            print('Temporary debug video suppression applied', flush=True)
         cmd = [sys.executable, str(compare), '--device-ip', a.device_ip,
                '--video', str(a.video), '--output', str(a.output/'comparison'),
-               '--seconds', str(a.seconds), '--fps', str(a.fps)]
+               '--seconds', str(a.seconds), '--fps', str(a.fps),
+               '--starts', *[str(x) for x in a.starts], '--order', *[str(x) for x in a.order]]
         if a.capture_only:
             cmd.append('--capture-only')
         subprocess.run(cmd, check=True)
