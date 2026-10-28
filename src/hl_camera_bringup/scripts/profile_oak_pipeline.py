@@ -17,6 +17,9 @@ def main():
     p.add_argument('--video',required=True,type=Path)
     p.add_argument('--output',required=True,type=Path)
     p.add_argument('--seconds',type=int,default=20)
+    p.add_argument('--start',type=float,default=2.)
+    p.add_argument('--end',type=float,default=18.)
+    p.add_argument('--fps',type=float,default=10.)
     p.add_argument('--skip-normal',action='store_true')
     p.add_argument('--detail',action='store_true',help='Enable intrusive cProfile; FPS is not baseline')
     args=p.parse_args();root=Path(__file__).resolve().parents[3]
@@ -36,7 +39,8 @@ def main():
     def replay(name):
         r=subprocess.run(['wsl','-d','Ubuntu-22.04','--','python3',verifier,
             '--device-ip',args.device_ip,'--video',wslpath(args.video),'--output',wslpath(args.output/name),
-            '--seconds',str(args.seconds),'--start','2','--end','18'],
+            '--seconds',str(args.seconds),'--start',str(args.start),'--end',str(args.end),
+            '--fps',str(args.fps)],
             capture_output=True,text=True,encoding='utf-8',timeout=args.seconds+80)
         (args.output/(name+'_console.txt')).write_text(r.stdout+r.stderr)
         r.check_returncode()
@@ -79,14 +83,15 @@ for name in {files!r}:
             ('nms','        decoded = non_max_suppression(','        detection_messages = []'),
             ('object_depth','        for x1, y1, x2, y2, confidence, label in decoded:','        detections = dai.ImgDetections()'),
             ('segmentation','        drivable, lane = segmentation_masks(','        boundary_started = time.monotonic()'),
-            ('boundaries','        boundaries = self._boundary_tracker.update(','        boundary_finished = time.monotonic()'),
-            ('stop_line','        stop_line=self._stop_line_tracker.update(','        stop_finished=time.monotonic()'),
-            ('bev_render','        bev = render_boundary_bev(boundaries)','        bev_finished = time.monotonic()'),
+            ('boundaries','            boundaries = self._boundary_tracker.update(','            boundary_finished = time.monotonic()'),
+            ('stop_line','            stop_line=self._stop_line_tracker.update(','            stop_finished=time.monotonic()'),
+            ('bev_render','            bev = render_boundary_bev(boundaries)','            bev_finished = time.monotonic()'),
             ('result_render_send','        self.result.send(','        self._frames += 1\\n        now = time.monotonic()\\n        if now - self._last_health_at >= 5.0:'),
         ]
         for label,begin,end in phases:
-            s=edit(s,begin,"        _fps_"+label+" = pipeline_timing.begin('"+label+"', nn_data.getSequenceNum(), source.get('input_source')=='pc')\\n"+begin)
-            s=edit(s,end,'        pipeline_timing.finish(_fps_'+label+')\\n'+end)
+            indent=begin[:len(begin)-len(begin.lstrip())]
+            s=edit(s,begin,indent+"_fps_"+label+" = pipeline_timing.begin('"+label+"', nn_data.getSequenceNum(), source.get('input_source')=='pc')\\n"+begin)
+            s=edit(s,end,indent+'pipeline_timing.finish(_fps_'+label+')\\n'+end)
         s+='\\n        pipeline_timing.finish(_fps_post)\\n'
     elif name=='video_input_node.py':
         s=edit(s,'        frame, depth = camera, aligned_depth',"        _fps_selector = pipeline_timing.begin('selector', camera.getSequenceNum(), metadata['input_source']=='pc')\\n        frame, depth = camera, aligned_depth")
@@ -100,7 +105,8 @@ for name in {files!r}:
 for path,s in changes.items():path.write_text(s)
 for path in Path('/app').glob('pipeline_timing_*.json'):path.unlink()
 """
-    manifest=dict(backup=backup,files=files,seconds=args.seconds,detail=args.detail,restored=False)
+    manifest=dict(backup=backup,files=files,seconds=args.seconds,start=args.start,end=args.end,
+                  fps=args.fps,detail=args.detail,restored=False)
     (args.output/'manifest.json').write_text(json.dumps(manifest,indent=2))
     try:
         run(setup)
