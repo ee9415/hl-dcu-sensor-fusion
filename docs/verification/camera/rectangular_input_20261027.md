@@ -209,3 +209,37 @@ candidates, lamp-post rejection, narrow-pair rejection, and crosswalk/objects
 in stop-line detection passed. They test the current code and fixtures, not
 the experimental two-hit recovery rule. No tracker or device deployment was
 changed; repeated false-positive clips and dense reviewed labels remain needed.
+
+## 2026-10-28 sparse temporal reference and repeated false candidate
+
+`labels/draft_temporal_right_1818_1872.json` contains ten provisional right
+paint points in five device-input frames between 60.61 and 62.41 seconds.
+Frames are approximately 0.4–0.5 seconds apart, not a densely annotated
+sequence; points are visually estimated with local brightness as a guide,
+unreviewed, and subject to estimated 4 px uncertainty. No points were placed
+on vehicle-occluded or unclear segments. The tracker was instrumented during
+capture; the data cannot be used to measure normal FPS or claim an exact
+reappearance instant.
+
+At 60.61 s, the three marked-row errors were 60.57/64.79/76.85 px; at 61.01 s
+two were 44.71/53.41 px; at 61.51 s two were 32.46/38.20 px; at 62.01 s one
+was 26.50 px; and at 62.41 s two were 2.94/2.50 px. Points represent different
+visible rows in each frame, so this is not a continuous single-point trajectory.
+On a host replay of the same captured inputs, the two-hit experiment improved
+those five sample error lists to 60.57/64.79/76.85, 39.34/46.39, 27.3/32.1,
+20.6, and 1.8/1.2 px respectively. This limited sample does not validate
+the experimental rule or prove an exact recovery time.
+
+The two-hit experimental tracker passed the five pre-existing occlusion,
+crossing, pole, narrow-pair and stop-line tests; these do not cover every
+false-positive case. A deliberately synthetic fusion-only scenario injected
+the same wrong right candidate x=245 for three frames, while assuming the true
+right boundary was x=200 and supplying a consistent left candidate x=80.
+At the second frame the baseline was x=216 and the two-hit trial x=224; at
+the third frame both moved to x=245 and reported observed after current-pair
+reacquisition. `replay_repeated_false_candidate.py` reproduces this scenario.
+It demonstrates that plausible repeated candidate consistency alone cannot
+distinguish a real boundary from a persistent false detection; it does not
+establish how frequently this occurs in real video. Existing and experimental
+code require additional visual-evidence gating and real negative clips before
+deployment. No device source or tracker setting was changed in this step.

@@ -1,0 +1,14 @@
+{
+  "reference_status": "provisional_manual_estimate_not_reviewed",
+  "source": "KakaoTalk_20261016_170026655.mp4",
+  "coordinate_system": "320x180_image_pixels",
+  "estimated_point_uncertainty_px": 4,
+  "notes": "Five sparse samples from the captured device input, not a densely labelled continuous sequence. Right paint fragments estimated visually and with local brightness as a guide, then checked against the RGB frames. Faint and vehicle-occluded areas are not marked; no label is inferred through gaps. Parking-spot junctions are avoided. Requires independent review. Profiling was active during capture.",
+  "frames": [
+    {"source_frame_index": 1818, "source_media_epoch": 0, "right": [[218,100],[241,120],[267,140]]},
+    {"source_frame_index": 1830, "source_media_epoch": 0, "right": [[217,100],[263,140]]},
+    {"source_frame_index": 1845, "source_media_epoch": 0, "right": [[214,100],[241,120]]},
+    {"source_frame_index": 1860, "source_media_epoch": 0, "right": [[240,120]]},
+    {"source_frame_index": 1872, "source_media_epoch": 0, "right": [[237,120],[260,140]]}
+  ]
+}

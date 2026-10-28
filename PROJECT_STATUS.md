@@ -818,3 +818,11 @@ docs/verification/camera/rectangular_input_20261027.md.
 가로등·횡단보도 관련 검사 5개가 통과했다. 추적기는 변경하지 않았다.
 상세: docs/verification/camera/rectangular_input_20261027.md.
 
+## 2026-10-28 연속 구간 기준점과 반복 오검출 시험
+
+기록된 장치 입력의 5개 시점에 오른쪽 흰색선 임시 기준점 10개를 추가했다.
+표본 기준 큰 오차가 줄어드는 경향이 보였으나 정확한 복귀 시각은 미확인이다.
+반복 오검출을 가정한 합성 융합 실험에서 기존 및 후보 2회 시험안 모두 세 번째
+프레임에 잘못된 후보를 채택했다. 실영상 발생률은 미확인이며 장치 추적기는
+변경하지 않았다. 상세: docs/verification/camera/rectangular_input_20261027.md.
+
