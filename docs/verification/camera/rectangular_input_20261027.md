@@ -39,10 +39,46 @@ exposure-to-display measurements.
 - The visual comparison shows right inferred boundaries away from visible
   white paint in some frames for both models. Rectangular input has not been
   shown to correct this pre-existing tracking issue.
-- FP16 device tensor values have not yet been compared directly with the
-  corresponding ONNX outputs; live road-camera depth is also unverified.
+- Live road-camera depth is unverified.
 - Long-run monitor's source-index drop percentage must not be interpreted as
   packet loss for a 30 fps video intentionally sampled at 10 fps.
 - After the trial, device sources were restored byte-for-byte from
   `/app/deploy_backup_513f9d38e7`; camera input and basic-mode telemetry were
   observed after restart. The 320×192 archive remains stored separately.
+
+## 2026-10-28 device FP16 versus ONNX
+
+Temporarily ran static inference using identical BGR input, with the actual
+RGB conversion and FP16 division by 255 performed before comparing RVC4 FP16
+and ONNX FP32 outputs. Sources were backed up and byte-verified on restoration;
+the original 320×320 app was confirmed running after both road captures.
+This diagnostic is not a performance measurement.
+
+Two JPEG-encoded road frames at approximately 65 s and 73 s were tested. They
+are samples of the existing video, not camera exposures. For the 65 s frame,
+lane-mask intersection over union was 0.9809 (35 disagreeing pixels), road
+argmax differed at 128 pixels, and both outputs produced 10 detections after
+the existing NMS. For the 73 s frame, lane-mask IoU was 0.9628 (79 pixels),
+road argmax differed at 65 pixels, and ONNX produced 17 detections versus 16
+on the device. Matching depends on NMS and confidence thresholds; no ground
+truth was used. These examples do not establish acceptable accuracy or isolate
+the cause of numerical differences. Detection raw-head mean absolute differences
+for the first road frame were 0.246, 0.332 and 0.101, respectively.
+
+An additional artificial pattern had no positive lane pixels in either output
+and no detections; lane IoU is undefined for this empty union. The model has
+not passed a representative multi-scene or threshold-sensitive equivalence
+gate. Results are in ignored `artifacts/rectangular_model_20261027/`.
+
+The device telemetry from the prior 320×192 replay also helps narrow down the
+right-boundary discrepancy: around 60 s the right side was inferred; at 61 s
+it was `aligning`, with a regional observation on 11 rows, observation quality
+0.478 and 90th-percentile candidate-to-prior difference 69.57 pixels in
+320×180 coordinates. The reported residual after fusion was 61.95 pixels and
+the resulting confidence about 0.000016. By 62 s the residual had fallen to
+20.33 pixels; at 63 s the state was observed and residual 0.56 pixels. The
+fusion implementation caps the maximum update at 80 pixels per second. These
+data indicate a large mismatch and gradual alignment, but do not prove that
+the regional candidate itself was the correct white line: its pixels were not
+captured. Further frame-level evidence is needed before changing that cap or
+the candidate selection criteria.
