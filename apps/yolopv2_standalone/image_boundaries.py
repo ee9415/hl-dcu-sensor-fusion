@@ -493,6 +493,16 @@ class ImageBoundaryTracker:
         stable=visible&(self.fragment_hits[side]>=3)
         stats=self.detection_diagnostics[side]
         stats.update(temporal_visible=int(visible.sum()),temporal_stable=int(stable.sum()),temporal_used=False)
+        if observation is None and prior is not None:
+            # Only repeated, prior-aligned paint may make a local correction.
+            # Do not turn its unobserved extension into measured support.
+            if stable.sum() < 5 or np.ptp(self.rows[stable]) < 8:return None
+            measured=prior.copy()
+            measured[stable,0]+=current[stable]
+            measured[~stable,0]=np.nan
+            stats['temporal_used']=True
+            stats['temporal_fragment_only']=True
+            return measured,.45,stable.copy(),True
         if observation is None or prior is None or observation[1]>=.65:return observation
         measured,quality=observation[:2]
         support=observation[2].copy() if len(observation)>2 else np.isfinite(measured[:,0])
