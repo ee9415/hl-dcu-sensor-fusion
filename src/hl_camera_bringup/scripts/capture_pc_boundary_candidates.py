@@ -28,6 +28,8 @@ def main():
     parser.add_argument('--start', type=float, default=60.)
     parser.add_argument('--end', type=float, default=76.)
     parser.add_argument('--output', type=Path, default=OUT)
+    parser.add_argument('--fit-evidence', action='store_true',
+                        help='실제 피팅 점과 곡선 행을 진단 정보에 기록합니다')
     args = parser.parse_args()
     if args.start < 0 or args.end <= args.start:
         parser.error('영상 구간이 올바르지 않습니다')
@@ -44,8 +46,13 @@ def main():
     probe = probe.replace('    seen += 1\n', "    source = kwargs.pop('_capture_source', {})\n    if source.get('input_source') != 'pc':\n        return tracker.update(*args, **kwargs)\n    seen += 1\n")
     probe = probe.replace("    record = {'history_before':", "    import cv2\n    arrays[prefix+'_rgb'] = cv2.resize(kwargs['rgb'], (320,180))\n    record = {'source': source, 'rgb': {'array': prefix+'_rgb'}, 'history_before':")
     probe = probe.replace("('update','_detect','_complete','_warp','_fuse')", "('update','_detect','_complete','_warp','_fuse','_detect_full','_detect_legacy','_detect_regions')")
+    if args.fit_evidence:
+        marker = "    prefix = 'f%03d' % len(records)\n"
+        assert probe.count(marker) == 1
+        probe = probe.replace(marker, '    tracker.trace_fit_evidence = True\n' + marker, 1)
     assert 'COUNT = 25' in probe and "kwargs.pop('_capture_source'" in probe
-    manifest = {'backup': backup, 'capture': capture, 'restored': False}
+    manifest = {'backup': backup, 'capture': capture,
+                'fit_evidence': args.fit_evidence, 'restored': False}
     (out/'manifest.json').write_text(json.dumps(manifest, indent=2))
     installed = False
     try:

@@ -132,6 +132,9 @@ def road_motion(previous, current, allowed):
 
 
 class ImageBoundaryTracker:
+    # Opt-in diagnostics only; does not change detection, fusion, or drawing.
+    trace_fit_evidence = False
+
     def __init__(self, config=None):
         self.config=config or BoundaryConfig.load()  # Projection is display-only.
         self.rows=np.linspace(172,78,48)
@@ -782,6 +785,13 @@ class ImageBoundaryTracker:
             # Keep deterministic seed order for numerical ties.
             if best is None or rank>best[0]+1e-9:
                 best=(rank,np.column_stack((values,self.rows)),score)
+                if self.trace_fit_evidence:
+                    # These are the selected fit inliers, not every row on
+                    # the displayed/extended quadratic and not ground truth.
+                    stats['fit_observed_points'] = [
+                        [float(x), int(y)] for x,y in zip(xs[good],ys[good])
+                    ]
+                    stats['fit_curve_rows'] = [int(y) for y in self.rows[valid]]
         return None if best is None else best[1:]
 
     def update(self, road, lane, timestamp_s, rgb=None, detections=()):
