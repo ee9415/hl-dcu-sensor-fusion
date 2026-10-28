@@ -243,3 +243,32 @@ distinguish a real boundary from a persistent false detection; it does not
 establish how frequently this occurs in real video. Existing and experimental
 code require additional visual-evidence gating and real negative clips before
 deployment. No device source or tracker setting was changed in this step.
+
+## 2026-10-28 preliminary paint-support gate prototype
+
+`prototype_paint_support_gate.py` evaluates a local-pixel support condition
+only before the existing three-frame pair-history rebase. For each side it
+checks at least eight supported in-frame rows spanning at least 20 pixels,
+and requires 40% of sampled rows to have a paint-mask pixel within ±2 x and
+±1 y pixels. The threshold is an uncalibrated experimental choice. Gradual
+fusion is not gated. The experiment runs offline only and is not device code.
+
+On replay of the 25 captured input frames, ten calls lacked sufficient support
+on at least one side, but right-side results and the first observed frame
+(62.406 s) matched the baseline. In the three-frame synthetic repeated-false
+case without right paint, baseline right x moved 208→216→245 while the gate
+limited the immediate pair rebase to 208→216→224. This still drifts toward the
+wrong candidate via normal fusion. When the false candidate had matching
+paint, both moved 208→216→245: pixel presence cannot determine whether a
+painted line is a lane boundary. These are constructed examples, not measured
+real-world rates. In the sampled real frame at 61.01 s the lane segmentation
+also covers portions of the curb, so YOLOPv2 mask overlap alone is not a
+semantic guarantee either. The 25-frame data and one frame overlay are not
+enough to validate safety or general accuracy.
+
+Three prototype tests, including the deliberately demonstrated painted-false
+limitation, and the existing test suite passed (134 total). The prototype is
+not enabled in the tracker, has not been deployed, and has not been benchmarked
+for FPS on the device. Repeated painted parking/crosswalk/curb candidates,
+occlusions, and several labelled real scenes remain required before choosing a
+semantic/geometry policy or changing runtime behaviour.

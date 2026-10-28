@@ -826,3 +826,10 @@ docs/verification/camera/rectangular_input_20261027.md.
 프레임에 잘못된 후보를 채택했다. 실영상 발생률은 미확인이며 장치 추적기는
 변경하지 않았다. 상세: docs/verification/camera/rectangular_input_20261027.md.
 
+## 2026-10-28 경계 픽셀 근거 조건 시험
+
+반복 경계쌍 갱신 전에 주변 표식 픽셀을 확인하는 오프라인 시제품을 시험했다.
+표식이 없는 합성 오검출의 즉시 갱신은 제한했지만, 실제 표식이 있는 잘못된
+후보는 걸러내지 못했다. 장치 추적기에 적용하지 않았으며 속도 미측정이다.
+전체 134개 테스트 통과. 상세: docs/verification/camera/rectangular_input_20261027.md.
+
