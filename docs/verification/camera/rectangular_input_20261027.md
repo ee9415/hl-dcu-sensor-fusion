@@ -82,3 +82,39 @@ data indicate a large mismatch and gradual alignment, but do not prove that
 the regional candidate itself was the correct white line: its pixels were not
 captured. Further frame-level evidence is needed before changing that cap or
 the candidate selection criteria.
+
+## 2026-10-28 candidate-pixel trace
+
+The original 320×320 device model was instrumented temporarily and 25 PC
+input frames from 60.01–62.41 s were recorded with the candidate arrays,
+support, tracker history, paint mask and the device's RGB input. Instrumented
+replay is intrusive and must not be used for FPS evaluation. The device source
+was restored byte-for-byte and the original app restarted. The raw trace and
+overlay are ignored artifacts under `device_candidate_trace/`.
+
+At 60.01 s the right boundary was inferred. At 61.01 s a partial regional
+candidate was supported on 11 rows with quality 0.478. Its 90th-percentile
+separation from the prior was 73.79 pixels; after fusion the residual was
+66.16 pixels and confidence approximately 0.000008. At image row y=160 in
+the 320×180 tracker coordinates, candidate x=288.0, prior x=215.4, and
+output x=222.9. In the captured RGB overlay, supported candidate points at
+this time follow visible bright stripe fragments while the inferred boundary
+remains toward the road interior. This visual assessment has not been checked
+against labelled ground truth, and the fitted candidate also spans unsupported
+rows. By 62.41 s the state had returned to observed. Some intermediate frames
+had no candidate, prolonging alignment.
+
+The existing fusion limits the largest correction to 80 pixels per second;
+this and intermittent candidate support explain gradual convergence in this
+trace. A global increase would also allow false candidates to move the boundary
+faster. No tracker thresholds or device inference code were changed in this
+diagnosis. Any selective reacquisition change needs repeated-candidate,
+occlusion and false-positive regression tests and a fresh non-instrumented
+performance measurement.
+
+After restoring the original source, two uninstrumented 20-second PC replays
+of the same segment reported 9.00 and 9.92 output FPS at a 10 FPS requested
+input. Both functional checks passed, but neither establishes sustained
+10 FPS and the cause of the first run's slower output was not determined.
+One subsequent device-stat sample had no warnings; this does not exclude
+earlier throttling or other transient causes.
