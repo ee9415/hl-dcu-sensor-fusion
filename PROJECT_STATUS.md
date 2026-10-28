@@ -840,3 +840,11 @@ docs/verification/camera/rectangular_input_20261027.md.
 변동했다. 추적기 연결·배포·FPS 측정은 하지 않았다. 전체 138개 테스트 통과.
 상세: docs/verification/camera/rectangular_input_20261027.md.
 
+## 2026-10-28 주행 영역과 후보 위치 시험
+
+기록된 장치 후보 및 두 호스트 재생 구간에서 후보 안팎의 주행 영역 마스크를
+조사했다. 일부 이동 후보와 차이는 있었으나 실제 후보 주변도 양쪽 모두 주행
+가능인 경우가 많아 독립적인 거부 기준으로 사용할 수 없다. 전체 142개 테스트
+통과. 장치 추적기와 FPS는 변경·측정하지 않았다. 상세:
+docs/verification/camera/rectangular_input_20261027.md.
+
