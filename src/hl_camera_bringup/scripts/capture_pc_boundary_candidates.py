@@ -1,5 +1,6 @@
 """Temporarily capture PC-frame boundary candidates on the device and restore."""
 import base64
+import argparse
 import json
 import subprocess
 import time
@@ -23,7 +24,15 @@ def remote(code, timeout=120):
 
 
 def main():
-    OUT.mkdir(parents=True, exist_ok=True)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--start', type=float, default=60.)
+    parser.add_argument('--end', type=float, default=76.)
+    parser.add_argument('--output', type=Path, default=OUT)
+    args = parser.parse_args()
+    if args.start < 0 or args.end <= args.start:
+        parser.error('영상 구간이 올바르지 않습니다')
+    out = args.output.resolve()
+    out.mkdir(parents=True, exist_ok=True)
     name = 'boundary_trace_' + uuid.uuid4().hex[:10]
     backup = '/app/' + name + '_backup.py'
     capture = '/app/' + name + '.npz'
@@ -37,7 +46,7 @@ def main():
     probe = probe.replace("('update','_detect','_complete','_warp','_fuse')", "('update','_detect','_complete','_warp','_fuse','_detect_full','_detect_legacy','_detect_regions')")
     assert 'COUNT = 25' in probe and "kwargs.pop('_capture_source'" in probe
     manifest = {'backup': backup, 'capture': capture, 'restored': False}
-    (OUT/'manifest.json').write_text(json.dumps(manifest, indent=2))
+    (out/'manifest.json').write_text(json.dumps(manifest, indent=2))
     installed = False
     try:
         remote(f"from pathlib import Path;p=Path('/app/yolopv2_node.py');Path({backup!r}).write_bytes(p.read_bytes());print('BACKUP_OK')")
@@ -57,24 +66,25 @@ compile(s,str(p),'exec');p.write_text(s)
 print('PATCH_OK')''')
         subprocess.run(CMD + ['sv', 'restart', '/etc/service/backend'], check=True, capture_output=True, timeout=30)
         time.sleep(18)
-        output = '/mnt/d/git_hub/hl-dcu-sensor-fusion/artifacts/rectangular_model_20261027/device_candidate_trace/replay'
+        output = subprocess.check_output(['wsl', '-d', 'Ubuntu-22.04', '--',
+                                          'wslpath', '-a', (out/'replay').as_posix()], text=True).strip()
         p = subprocess.run(['wsl','-d','Ubuntu-22.04','--','python3',
              '/mnt/d/git_hub/hl-dcu-sensor-fusion/src/hl_camera_bringup/scripts/verify_pc_video_device.py',
              '--device-ip','192.168.201.2','--video','/mnt/d/project/halla_yolopv2/KakaoTalk_20261016_170026655.mp4',
-             '--output',output,'--seconds','20','--start','60','--end','76','--fps','10','--processing','full'],
+             '--output',output,'--seconds','20','--start',str(args.start),'--end',str(args.end),'--fps','10','--processing','full'],
              capture_output=True, text=True, timeout=120)
-        (OUT/'replay_console.txt').write_text(p.stdout+'\n'+p.stderr, encoding='utf8')
+        (out/'replay_console.txt').write_text(p.stdout+'\n'+p.stderr, encoding='utf8')
         if p.returncode:
             raise RuntimeError('PC replay failed: '+p.stderr)
         data = remote(f"from pathlib import Path;import base64;print('PAYLOAD='+base64.b64encode(Path({capture!r}).read_bytes()).decode())", timeout=180)
-        (OUT/'boundary_trace.npz').write_bytes(base64.b64decode(data.split('PAYLOAD=',1)[1].splitlines()[0].strip(), validate=True))
+        (out/'boundary_trace.npz').write_bytes(base64.b64decode(data.split('PAYLOAD=',1)[1].splitlines()[0].strip(), validate=True))
         print('Captured device trace', flush=True)
     finally:
         if installed:
             remote(f"from pathlib import Path;b=Path({backup!r});p=Path('/app/yolopv2_node.py');p.write_bytes(b.read_bytes());assert p.read_bytes()==b.read_bytes();print('RESTORED')")
             subprocess.run(CMD + ['sv','restart','/etc/service/backend'], check=True, capture_output=True, timeout=30)
             manifest['restored'] = True
-            (OUT/'manifest.json').write_text(json.dumps(manifest, indent=2))
+            (out/'manifest.json').write_text(json.dumps(manifest, indent=2))
             print('Original device source restored', flush=True)
 
 

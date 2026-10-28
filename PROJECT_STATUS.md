@@ -848,3 +848,11 @@ docs/verification/camera/rectangular_input_20261027.md.
 통과. 장치 추적기와 FPS는 변경·측정하지 않았다. 상세:
 docs/verification/camera/rectangular_input_20261027.md.
 
+## 2026-10-28 횡단보도 후보 관측 행 시험
+
+장치에서 횡단보도 주변 25프레임의 후보와 픽셀을 기록하고 원본 앱을 복구했다.
+일부 후보는 관측 행 정보를 반환하지 않아 곡선 연장과 현재 픽셀 지지를
+구분하기 어려웠다. 관측 행만 기존 융합에 넘기는 오프라인 시험은 기존 회귀
+검사 2개가 실패해 적용하지 않았다. 상세:
+docs/verification/camera/rectangular_input_20261027.md.
+
