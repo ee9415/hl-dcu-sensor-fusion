@@ -118,3 +118,34 @@ input. Both functional checks passed, but neither establishes sustained
 10 FPS and the cause of the first run's slower output was not determined.
 One subsequent device-stat sample had no warnings; this does not exclude
 earlier throttling or other transient causes.
+
+## 2026-10-28 multi-scene baseline and offline recovery experiment
+
+The 320×320 device model was measured on the same source video at 10 FPS
+requested input, 15 seconds per segment: 240–256 s (straight), 300–316 s
+(vehicles and crossing), and 360–376 s (curve). Output rates were 9.31,
+10.00 and 9.87 FPS respectively. These are single short runs, not a sustained
+throughput or general accuracy assessment. Six matching-source overlays are
+saved under ignored `artifacts/rectangular_model_20261027/multiscene/`.
+On the selected crossing frames, boundaries can depart from visible paint
+even when telemetry says `observed`; observation state is not ground truth.
+
+An offline ablation changed the maximum correction from 80 to 160 px/s
+unconditionally. In a 50-frame FP32 host replay at 60–65 s, right boundary
+frame-to-frame 90th-percentile displacement had a 95th percentile of 7.98 px
+before versus 15.64 px with the ablation. The observed state first appeared at
+62.1 versus 62.0 s. Thus faster movement can also create larger jumps.
+
+A separate experimental condition allowed 160 px/s only when a low-confidence
+side had at least two consecutive consistent candidates, sufficient support,
+and a plausible pair. On the exact 25 recorded device-input frames replayed
+offline with the original 320×320 masks, the right side first became observed
+at 62.406 s with the existing logic and 62.206 s experimentally. The 95th
+percentile of frame-to-frame 90th-percentile displacement increased from
+7.90 to 13.18 px. A three-candidate version produced no earlier recovery on
+the same capture. In a separate 50-frame FP32 host replay at 300–305 s the
+two-candidate condition did not activate and the right output was unchanged.
+That test does not establish safety against consistent false positives or
+occlusions. The experiments are not deployed and FPS was not measured under
+them; thresholds remain unchanged pending representative labelled clips,
+negative cases, and device A/B performance measurements.
