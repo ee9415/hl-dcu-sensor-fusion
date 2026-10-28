@@ -803,3 +803,10 @@ docs/verification/camera/rectangular_input_20261027.md.
 가림에 대한 근거가 부족하여 장치 추적 코드는 변경하지 않았다. 상세:
 docs/verification/camera/rectangular_input_20261027.md.
 
+## 2026-10-28 경계 기준점 초안
+
+직선·두 곡선 영상의 3프레임에 보이는 흰색선 기준점 19개를 임시 표시하고
+동일 프레임의 장치 결과와 비교했다. 문제 곡선 오른쪽 3점의 수평 오차는 약
+45~65픽셀이었다(320×180 좌표). 표시점은 독립 검토 전 초안이며 전체 정확도
+판정에 사용할 수 없다. 상세: docs/verification/camera/rectangular_input_20261027.md.
+

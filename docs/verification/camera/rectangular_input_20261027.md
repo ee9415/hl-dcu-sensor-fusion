@@ -149,3 +149,34 @@ That test does not establish safety against consistent false positives or
 occlusions. The experiments are not deployed and FPS was not measured under
 them; thresholds remain unchanged pending representative labelled clips,
 negative cases, and device A/B performance measurements.
+
+## 2026-10-28 provisional sparse paint references
+
+Three provisional manual reference files in `labels/` identify visible paint
+centres in 320×180 image coordinates. They are draft visual estimates made
+from three isolated frames of one video, with approximately 4 px estimated
+annotation uncertainty; they are not independently reviewed ground truth.
+Do not interpolate reference points through occlusion or use this sample for
+overall accuracy claims. For frames 7337 and 10940, references use the decoded
+original frame; for frame 1830 they use captured device input. Device transport
+can introduce small differences for the former frames.
+
+`evaluate_boundary_references.py` matches frame index and media epoch and
+measures horizontal distance only at marked rows; it reports missing curves
+instead of treating them as zero error, and does not extrapolate. On existing
+320×320 device telemetry, draft straight frame 7337 had 6 marked points with
+median/max absolute error 1.62/2.52 px; a second curve frame 10940 had 6 points
+with 0.83/2.34 px. Both values are within the estimated annotation uncertainty.
+On the previously captured difficult frame 1830, the three right-side points
+had absolute errors 44.71, 53.41 and 65.06 px. Four left-side points were also
+recorded separately; aggregate error is not a substitute for side-by-side
+evaluation.
+
+On a host replay of the same device-captured frame sequence, the two-hit
+experimental rule changed right-side errors from 44.71/53.41/65.06 px to
+39.34/46.39/57.42 px for frame 1830. This isolated improvement remains much
+larger than annotation uncertainty and does not validate the rule's safety or
+device FPS. The left side was intentionally omitted from that host replay's
+prediction export and must not be counted as a tracking failure. No tracker
+modification was deployed. 131 unit tests passed after adding three tests for
+the reference evaluator.

@@ -1,0 +1,12 @@
+{
+  "reference_status": "provisional_manual_estimate_not_reviewed",
+  "source": "KakaoTalk_20261016_170026655.mp4",
+  "coordinate_system": "320x180_image_pixels",
+  "estimated_point_uncertainty_px": 4,
+  "notes": "Visible paint centres only. Approximate manual picks on the decoded original video; device JPEG/NV12 processing may shift pixels. No reference is inferred across occlusion. Requires independent review.",
+  "frames": [
+    {"source_frame_index": 7337, "source_media_epoch": 0,
+     "left": [[95,120],[73,140],[51,160]],
+     "right": [[190,120],[214,140],[239,160]]}
+  ]
+}
