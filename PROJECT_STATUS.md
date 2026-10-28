@@ -833,3 +833,10 @@ docs/verification/camera/rectangular_input_20261027.md.
 후보는 걸러내지 못했다. 장치 추적기에 적용하지 않았으며 속도 미측정이다.
 전체 134개 테스트 통과. 상세: docs/verification/camera/rectangular_input_20261027.md.
 
+## 2026-10-28 후보 방향 지표 오프라인 시험
+
+후보 방향의 표식 연속성과 가로 방향 표식 지표를 시험했다. 단순 합성 가로선은
+구분됐지만 차선과 같은 모양의 주차선은 구별할 수 없고 실제 끊긴 후보의 값도
+변동했다. 추적기 연결·배포·FPS 측정은 하지 않았다. 전체 138개 테스트 통과.
+상세: docs/verification/camera/rectangular_input_20261027.md.
+

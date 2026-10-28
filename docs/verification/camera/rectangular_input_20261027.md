@@ -272,3 +272,24 @@ not enabled in the tracker, has not been deployed, and has not been benchmarked
 for FPS on the device. Repeated painted parking/crosswalk/curb candidates,
 occlusions, and several labelled real scenes remain required before choosing a
 semantic/geometry policy or changing runtime behaviour.
+
+## 2026-10-28 방향 기반 픽셀 지표 오프라인 시험
+
+`prototype_directional_evidence.py`는 현재 후보 곡선의 ±4행에서 후보 방향을
+따르는 표식 픽셀의 연속 비율과, 후보 양옆 ±4~8픽셀의 가로 방향 표식 비율을
+기록하는 실험용 코드다. 두 값은 영상 좌표의 형태 지표이며 차선 의미를
+판별하는 신뢰도나 추적기 조건이 아니다.
+
+가느다란 종방향 및 가로방향 선을 사용한 단순 합성 사례에서 종방향 연속
+비율은 각각 0.91과 0.00이었다. 그러나 차선과 기하학적으로 동일한 주차선은
+같은 0.91이므로 이 지표만으로는 의미를 구분할 수 없다. 실제 장치 입력의
+60.61~62.41초 기록 중 오른쪽 후보가 있었던 15프레임에서는 종방향 비율이
+약 0.20~0.63으로 변했다. 일부 프레임에서 보이는 선이 짧거나 끊겨 있어
+합성 사례의 높은 비율을 그대로 기준으로 삼으면 진짜 후보를 놓칠 수 있다.
+이 후보들이 모두 정답이라는 뜻은 아니며 전체 영상에 대한 통계도 아니다.
+
+지표와 합성 반례를 확인하는 4개 테스트를 추가했고 전체 138개가 통과했다.
+오프라인 진단이므로 장치 추적기에 연결하지 않았고 FPS도 측정하지 않았다.
+실제 주차선·횡단보도·차량 가림의 반복 사례에서 방향 지표와 검토된 위치
+기준을 비교하고, 필요한 경우 주행 영역 경계 및 시간 연속성 등 별도 맥락을
+조합해야 한다. 단순 방향 또는 색상만으로 차선을 확정하지 않는다.
