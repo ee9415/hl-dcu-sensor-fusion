@@ -180,3 +180,32 @@ device FPS. The left side was intentionally omitted from that host replay's
 prediction export and must not be counted as a tracking failure. No tracker
 modification was deployed. 131 unit tests passed after adding three tests for
 the reference evaluator.
+
+## 2026-10-28 provisional occlusion and crossing samples
+
+`labels/draft_occlusion_9140_9282.json` adds three sparse frames from the
+300–316 s device replay (9140, 9209 and 9282; approximately 304.70, 307.00
+and 309.43 s). Ten points were placed by visual estimate on visible paint,
+excluding occluded areas, crossing stripes and parking-line junctions. They
+are unreviewed, with estimated 4 px annotation uncertainty. They use decoded
+source video frames; JPEG/NV12 device input may differ slightly.
+
+All ten points matched a recorded output point at the same row; median/max
+horizontal error was 1.29/2.41 px, within the estimated annotation uncertainty.
+At those particular instants, the reported left/right states were `held/held`,
+`partial/partial`, and `observed/observed`. Three sparse snapshots do not
+measure exact reappearance or reacquisition time, do not score the occluded
+segments, and do not establish that the full drawn curves are correct.
+
+For the 300–316 s telemetry only, consecutive PC output samples separated by
+0.08–0.15 s had 154 comparable pairs at image row y=130. The 95th percentile
+of absolute horizontal displacement was 0.99 px left and 1.66 px right; maxima
+were 2.99 and 2.97 px respectively. These are image-space changes, include
+camera/scene movement and cannot alone diagnose a tracker jump. They exclude
+missing curves, pauses, and larger time gaps.
+
+The existing five negative/regression tests for long occlusion, crossed
+candidates, lamp-post rejection, narrow-pair rejection, and crosswalk/objects
+in stop-line detection passed. They test the current code and fixtures, not
+the experimental two-hit recovery rule. No tracker or device deployment was
+changed; repeated false-positive clips and dense reviewed labels remain needed.

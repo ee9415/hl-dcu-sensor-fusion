@@ -810,3 +810,11 @@ docs/verification/camera/rectangular_input_20261027.md.
 45~65픽셀이었다(320×180 좌표). 표시점은 독립 검토 전 초안이며 전체 정확도
 판정에 사용할 수 없다. 상세: docs/verification/camera/rectangular_input_20261027.md.
 
+## 2026-10-28 가림·횡단보도 기준점 초안
+
+차량과 횡단보도가 있는 3프레임에 보이는 흰색선의 임시 기준점 10개를
+추가하고 같은 장치 출력과 비교했다. 최대 수평 차이는 약 2.41픽셀이나
+가린 구간은 평가하지 않았고 표시점은 독립 검토 전이다. 기존 가림·교차·
+가로등·횡단보도 관련 검사 5개가 통과했다. 추적기는 변경하지 않았다.
+상세: docs/verification/camera/rectangular_input_20261027.md.
+

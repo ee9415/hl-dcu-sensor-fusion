@@ -1,0 +1,15 @@
+{
+  "reference_status": "provisional_manual_estimate_not_reviewed",
+  "source": "KakaoTalk_20261016_170026655.mp4",
+  "coordinate_system": "320x180_image_pixels",
+  "estimated_point_uncertainty_px": 4,
+  "notes": "Approximate visible-paint picks near vehicles and crossing, not independently reviewed. No labels were placed on vehicle-occluded areas, crossing stripes, or parking-line junctions. Decoded original frames may differ slightly from device JPEG/NV12 inputs. Three sparse samples do not by themselves establish exact reacquisition time.",
+  "frames": [
+    {"source_frame_index": 9140, "source_media_epoch": 0,
+     "left": [[131,120]], "right": [[180,120],[192,130]]},
+    {"source_frame_index": 9209, "source_media_epoch": 0,
+     "left": [[131,120]], "right": [[180,120],[192,130]]},
+    {"source_frame_index": 9282, "source_media_epoch": 0,
+     "left": [[125,120],[112,140]], "right": [[180,120],[205,140]]}
+  ]
+}
