@@ -43,6 +43,82 @@ class Frame:
 
 
 class BoundaryPipelineTests(unittest.TestCase):
+    def setUp(self):
+        # These assertions specify the legacy/off rendering and telemetry.
+        from virtual_guidance import GuidanceConfig
+        patcher = patch.object(GuidanceConfig, 'load', return_value=GuidanceConfig(enabled=False))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_guidance_enabled_publishes_separate_path_and_basic_bypasses_it(self):
+        from virtual_guidance import GuidanceConfig
+        node = sys.modules.get('yolopv2_node')
+        if node is None:
+            class Host:
+                def createOutput(self, **kwargs):
+                    return MagicMock()
+            dai=types.SimpleNamespace(node=types.SimpleNamespace(HostNode=Host,ThreadedHostNode=Host),
+                Node=MagicMock(),DatatypeEnum=MagicMock(),ImgFrame=Frame,NNData=Frame,
+                ImgDetection=Frame,ImgDetections=Frame,SpatialImgDetections=Frame,
+                LengthUnit=MagicMock(),Clock=types.SimpleNamespace(now=lambda:timedelta(seconds=10)))
+            with patch.dict(sys.modules,{'depthai':dai}):
+                node=importlib.import_module('yolopv2_node')
+        road = np.full((180,320),255,np.uint8)
+        with patch.object(node.GuidanceConfig,'load',return_value=GuidanceConfig(enabled=True)), \
+             patch.object(node,'TelemetryServer') as server, \
+             patch.object(node,'decode_heads'), \
+             patch.object(node,'non_max_suppression',return_value=[]), \
+             patch.object(node,'segmentation_masks',return_value=(road,np.zeros_like(road))):
+            processor=node.Yolopv2Postprocess()
+            processor._tensor=MagicMock()
+            processor.process(Frame(),Frame(),Frame())
+            payload=server.return_value.publish.call_args.args[0]
+            self.assertTrue(payload['guidance_valid'], payload['guidance_reason'])
+            self.assertEqual(payload['guidance_source'],'road')
+            self.assertFalse(payload['centerline_valid'])
+            self.assertIsNone(payload['coefficients'])
+            self.assertTrue(np.any(np.all(processor.result.send.call_args.args[0].data==(255,255,0),axis=2)))
+            processor.video_input=MagicMock()
+            processor.video_input.metadata.return_value=dict(input_source='camera',source_epoch=1,
+                processing_mode='full',processing_epoch=0,boundary_visible=True)
+            processor.process(Frame(),Frame(),Frame())
+            tracker=processor._boundary_tracker
+            guidance=processor._guidance
+            before=server.return_value.publish.call_args.args[0]
+            processor.video_input.metadata.return_value['boundary_visible']=False
+            processor.process(Frame(),Frame(),Frame())
+            hidden=processor.result.send.call_args.args[0].data
+            self.assertIs(processor._boundary_tracker,tracker)
+            self.assertIs(processor._guidance,guidance)
+            after=server.return_value.publish.call_args.args[0]
+            self.assertEqual(before['guidance_path_image'],after['guidance_path_image'])
+            self.assertFalse(after['boundary_visible'])
+            self.assertFalse(np.any(np.all(hidden==(0,150,255),axis=2)))
+            self.assertTrue(np.any(np.all(hidden==(255,255,0),axis=2)))
+            # Preview settings alter the RGB result only, not perception masks
+            # or the existing path/trackers. All callbacks use the same input.
+            preview_paths=[];mask_frames=[];selected=[]
+            processor._tensor=MagicMock(return_value=np.full((1,1,320,320),.7,np.float32))
+            for threshold in (.2,.9):
+                processor.video_input.metadata.return_value.update(lane_overlay_mode='lane_mask',lane_overlay_threshold=threshold)
+                processor.process(Frame(),Frame(),Frame())
+                p=server.return_value.publish.call_args.args[0]
+                preview_paths.append(p['guidance_path_image'])
+                mask_frames.append(processor.lane.send.call_args.args[0].data.copy())
+                selected.append(p['lane_preview_selected_pixels'])
+                self.assertIs(processor._boundary_tracker,tracker)
+                self.assertEqual(p['lane_perception_threshold'],.5)
+                self.assertIsNone(p['lane_overlay_error'])
+            self.assertEqual(preview_paths[0],preview_paths[1])
+            np.testing.assert_array_equal(mask_frames[0],mask_frames[1])
+            self.assertEqual(selected,[320*180,0])
+            processor.video_input=MagicMock()
+            processor.video_input.metadata.return_value=dict(input_source='camera',source_epoch=1,
+                processing_mode='basic',processing_epoch=1)
+            with patch.object(processor._guidance,'update',side_effect=AssertionError('guidance ran in basic')):
+                processor.process(Frame(),Frame(),Frame())
+            self.assertEqual(server.return_value.publish.call_args.args[0]['guidance_reason'],'basic_mode')
+
     def test_result_bev_and_telemetry_use_boundary_pair(self):
         class Host:
             def createOutput(self, **kwargs):
@@ -145,10 +221,13 @@ class BoundaryPipelineTests(unittest.TestCase):
             basic_tracker=processor._boundary_tracker
             payload=server.return_value.publish.call_args.args[0]
             self.assertEqual(payload['processing_mode'],'basic')
+            self.assertTrue(np.any(processor.bev.send.call_args.args[0].data[100:]))
             self.assertEqual(payload['boundary_state'],'disabled')
             self.assertEqual(payload['stop_line_state'],'disabled')
             self.assertFalse(payload['boundary_valid'])
-            self.assertTrue(np.any(np.all(processor.result.send.call_args.args[0].data==(240,248,36),axis=2)))
+            # Missing raw scores must retain the RGB/road overlay, never fake
+            # confidence by painting the binary mask a uniform cyan.
+            self.assertTrue(np.any(np.all(processor.result.send.call_args.args[0].data==(184,220,184),axis=2)))
             processor.video_input.metadata.return_value=dict(input_source='pc',source_epoch=2,
                 processing_mode='full',processing_epoch=2)
             processor.process(Frame(),Frame(),Frame())

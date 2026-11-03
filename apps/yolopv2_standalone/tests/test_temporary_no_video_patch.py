@@ -15,10 +15,12 @@ class NoVideoDiagnosticPatchTests(unittest.TestCase):
         main = patch.patch_main((ROOT/'apps/yolopv2_standalone/main.py').read_text(encoding='utf-8'))
         node = patch.patch_node((ROOT/'apps/yolopv2_standalone/yolopv2_node.py').read_text(encoding='utf-8'))
         for name in ('self._boundary_tracker.update(', 'segmentation_masks(', 'self.drivable.send(',
-                     'self.lane.send(', 'self._telemetry.publish(', 'self._stop_line_tracker.update('):
+                     'self.lane.send(', 'self._telemetry.publish(', 'self._stop_line_tracker.update(',
+                     'self._guidance.update('):
             self.assertIn(name, node)
         for name in ('self.result.send(', 'self.bev.send(', 'render_boundary_bev(boundaries)'):
             self.assertNotIn(name, node)
+        self.assertNotIn('self._top_view.render(', node)
         self.assertIn('postprocess.model_size = MODEL_SIZE', main)
         self.assertNotIn('StreamOutput).build(', main)
         compile(main, 'main.py', 'exec')

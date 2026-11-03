@@ -5,6 +5,7 @@ import math
 import socketserver
 import threading
 import time
+from lane_overlay import validate_preview
 
 PORT = 8558
 MAX_PACKET = 2 * 1024 * 1024
@@ -82,6 +83,11 @@ class VideoInputServer:
         self.mode = 'camera'
         self.processing_mode = 'basic'
         self.processing_epoch = 0
+        self.boundary_visible = True
+        self.boundary_display_epoch = 0
+        self.lane_overlay_mode = 'normal'
+        self.lane_overlay_threshold = .5
+        self.lane_overlay_epoch = 0
         self.epoch = 0
         self.owner = None
         self.latest = None
@@ -161,6 +167,22 @@ class VideoInputServer:
                 if mode != self.processing_mode:
                     self.processing_mode = mode
                     self.processing_epoch += 1
+            elif op == 'boundary_display':
+                visible=header.get('visible')
+                if type(visible) is not bool or payload:
+                    raise ValueError('Boundary visibility must be boolean')
+                if visible != self.boundary_visible:
+                    self.boundary_visible=visible
+                    self.boundary_display_epoch+=1
+            elif op == 'lane_overlay':
+                mode,threshold=header.get('mode'),header.get('threshold')
+                validate_preview(mode,threshold)
+                if payload:
+                    raise ValueError('Lane preview control has no image payload')
+                if (mode,threshold)!=(self.lane_overlay_mode,self.lane_overlay_threshold):
+                    self.lane_overlay_mode=mode
+                    self.lane_overlay_threshold=float(threshold)
+                    self.lane_overlay_epoch+=1
             elif op == 'stop':
                 if self.owner is token:
                     self.latest = None
@@ -172,11 +194,17 @@ class VideoInputServer:
 
     def _status(self):
         return dict(source=self.mode, source_epoch=self.epoch,
+                    **self._preview_metadata(),
+                    boundary_visible=self.boundary_visible,boundary_display_epoch=self.boundary_display_epoch,
                     processing_mode=self.processing_mode,processing_epoch=self.processing_epoch,
                     input_fps_limit=self.input_fps,
                     publisher_connected=self.owner is not None,
                     received_frames=self.received, consumed_frames=self.consumed,
                     dropped_frames=self.dropped)
+
+    def _preview_metadata(self):
+        return dict(lane_overlay_mode=self.lane_overlay_mode,lane_overlay_threshold=self.lane_overlay_threshold,
+                    lane_overlay_epoch=self.lane_overlay_epoch,lane_perception_threshold=.5)
 
     def release(self, token):
         with self.lock:
@@ -190,6 +218,8 @@ class VideoInputServer:
         with self.lock:
             if self.mode == 'camera':
                 return None, dict(input_source='camera', source_epoch=self.epoch,
+                                  **self._preview_metadata(),
+                                  boundary_visible=self.boundary_visible,boundary_display_epoch=self.boundary_display_epoch,
                                   processing_mode=self.processing_mode,processing_epoch=self.processing_epoch,
                                   source_frame_index=None, source_media_time_s=None)
             pending, self.latest = self.latest, None
@@ -197,6 +227,8 @@ class VideoInputServer:
                 return None, None
             self.consumed += 1
             return pending[0], dict(pending[1],processing_mode=self.processing_mode,
+                                    **self._preview_metadata(),
+                                    boundary_visible=self.boundary_visible,boundary_display_epoch=self.boundary_display_epoch,
                                     processing_epoch=self.processing_epoch)
 
     def remember(self, sequence, metadata):

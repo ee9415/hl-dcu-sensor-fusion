@@ -27,10 +27,19 @@ def patch_main(source):
 
 
 def patch_node(source):
-    source = replace_span(source,
-        '            bev = render_boundary_bev(boundaries)\n',
-        '        else:\n            empty=np.empty((0,2),float)\n',
-        '            bev_finished = time.monotonic()\n')
+    if '        # TOP video remains available in basic mode;' in source:
+        source = replace_span(source,
+            '        # TOP video remains available in basic mode;',
+            '        capture_s = preview.getTimestamp().total_seconds()\n',
+            '        bev_finished = time.monotonic()\n')
+    else:
+        marker = ('            bev = (render_boundary_bev(boundaries) if self._boundary_visible else\n'
+              if '            bev = (render_boundary_bev(boundaries) if self._boundary_visible else\n' in source
+              else '            bev = render_boundary_bev(boundaries)\n')
+        source = replace_span(source,
+            marker,
+            '        else:\n            empty=np.empty((0,2),float)\n',
+            '            bev_finished = time.monotonic()\n')
     source = replace_span(source,
         '        self.bev.send(self._bev_frame(bev, nn_data))\n',
         '        self._frames += 1\n        now = time.monotonic()\n        if now - self._last_health_at >= 5.0:\n',

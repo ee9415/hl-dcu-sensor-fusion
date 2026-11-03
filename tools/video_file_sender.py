@@ -52,6 +52,31 @@ def set_processing_mode(ip, mode, port=PORT):
         return response
 
 
+def set_boundary_display(ip, visible, port=PORT):
+    if type(visible) is not bool:
+        raise ValueError('Boundary visibility must be boolean')
+    with socket.create_connection((ip,port),timeout=3) as connection:
+        send_message(connection,dict(op='boundary_display',visible=visible))
+        with connection.makefile('rb') as stream:
+            response,_=read_message(stream)
+        if not response.get('ok') or response.get('boundary_visible') is not visible:
+            raise RuntimeError(response.get('error','Boundary display was not applied'))
+        return response
+
+
+def set_lane_overlay(ip,mode,threshold,port=PORT):
+    from lane_overlay import validate_preview
+    validate_preview(mode,threshold)
+    with socket.create_connection((ip,port),timeout=3) as connection:
+        send_message(connection,dict(op='lane_overlay',mode=mode,threshold=threshold))
+        with connection.makefile('rb') as stream:
+            response,_=read_message(stream)
+        if (not response.get('ok') or response.get('lane_overlay_mode')!=mode or
+                response.get('lane_overlay_threshold')!=threshold):
+            raise RuntimeError(response.get('error','Lane preview was not applied'))
+        return response
+
+
 def fit_frame(bgr):
     """Preserve aspect ratio inside a 16:9 canvas before JPEG transmission."""
     height, width = bgr.shape[:2]

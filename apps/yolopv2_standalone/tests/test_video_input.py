@@ -15,7 +15,7 @@ from video_transport import (VideoInputServer, jpeg_size, read_message, send_mes
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT/'tools'))
-from video_file_sender import VideoFileSender, fit_frame, select_camera, parse_video_time, set_processing_mode
+from video_file_sender import VideoFileSender, fit_frame, select_camera, parse_video_time, set_processing_mode, set_boundary_display, set_lane_overlay
 
 
 def jpeg(value=100):
@@ -78,6 +78,28 @@ class TransportTests(unittest.TestCase):
         response=select_camera('127.0.0.1',self.port)
         self.assertEqual(response['source'],'camera')
 
+    def test_boundary_display_is_live_and_does_not_reset_input_or_processing(self):
+        publisher=object()
+        self.command(publisher,'select',source='pc')
+        self.command(publisher,'processing',mode='full')
+        before=self.command(publisher,'frame',frame_index=8,media_time_s=.8,media_epoch=0)
+        reply=set_boundary_display('127.0.0.1',False,self.port)
+        self.assertFalse(reply['boundary_visible'])
+        self.assertEqual(reply['source_epoch'],before['source_epoch'])
+        self.assertEqual(reply['processing_epoch'],before['processing_epoch'])
+        self.assertEqual(reply['processing_mode'],'full')
+        payload,meta=self.hub.take()
+        self.assertIsNotNone(payload)
+        self.assertEqual(meta['source_frame_index'],8)
+        self.assertFalse(meta['boundary_visible'])
+        self.hub.remember(1,meta)
+        set_boundary_display('127.0.0.1',True,self.port)
+        self.assertFalse(self.hub.metadata(1)['boundary_visible'])
+        self.command(object(),'select',source='camera')
+        self.assertTrue(self.hub.take()[1]['boundary_visible'])
+        for bad in (1,'false',None):
+            with self.assertRaises(ValueError):self.command(object(),'boundary_display',visible=bad)
+
     def make_video(self, folder, fps=30, count=30):
         path=Path(folder)/'input.avi'
         writer=cv2.VideoWriter(str(path),cv2.VideoWriter_fourcc(*'MJPG'),fps,(320,180))
@@ -85,6 +107,27 @@ class TransportTests(unittest.TestCase):
         for i in range(count):writer.write(np.full((180,320,3),40+i,np.uint8))
         writer.release()
         return path
+
+    def test_lane_preview_changes_no_input_or_perception_state(self):
+        token=object();self.command(token,'select',source='pc')
+        self.command(token,'processing',mode='full')
+        before=self.command(token,'frame',frame_index=12,media_time_s=1.2,media_epoch=0)
+        for mode,threshold in (('lane_mask',.2),('lane_mask',.8),('lane_score',.5),
+                               ('raw_rgb',.5),('lane_bands',.05),('lane_bands_rgb',.05),
+                               ('lane_compare',.05),('normal',.5)):
+            reply=set_lane_overlay('127.0.0.1',mode,threshold,self.port)
+            self.assertEqual(reply['source_epoch'],before['source_epoch'])
+            self.assertEqual(reply['processing_epoch'],before['processing_epoch'])
+            self.assertEqual(reply['lane_perception_threshold'],.5)
+            self.assertEqual(reply['lane_overlay_mode'],mode)
+            self.assertEqual(reply['lane_overlay_threshold'],threshold)
+        payload,meta=self.hub.take()
+        self.assertIsNotNone(payload)
+        self.assertEqual(meta['source_frame_index'],12)
+        self.assertEqual(meta['lane_overlay_mode'],'normal')
+        self.assertEqual(meta['lane_perception_threshold'],.5)
+        for mode,threshold in (('bad',.5),('lane_mask',False),('lane_score',2)):
+            with self.assertRaises(ValueError):self.command(token,'lane_overlay',mode=mode,threshold=threshold)
 
     def test_real_file_sender_is_paced_skips_frames_and_finishes(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'artifacts') as folder:
