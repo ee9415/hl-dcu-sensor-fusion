@@ -1,0 +1,36 @@
+"""Persist applied video input controls without starting a publisher."""
+import json
+import os
+from pathlib import Path
+import tempfile
+import settings_store
+
+
+def validate(data):
+    if not isinstance(data, dict) or data.get('mode') not in ('카메라', 'PC 영상 파일'):
+        raise ValueError('잘못된 영상 입력 설정')
+    for field in ('file', 'start', 'end'):
+        if not isinstance(data.get(field), str):
+            raise ValueError('잘못된 영상 입력 설정: ' + field)
+    if type(data.get('loop')) is not bool or type(data.get('fps')) is not int or data['fps'] not in (10,15,20):
+        raise ValueError('잘못된 반복 또는 FPS 설정')
+    from video_file_sender import parse_video_time
+    start=parse_video_time(data['start'])
+    end=parse_video_time(data['end']) if data['end'].strip() else None
+    if end is not None and end<=start:
+        raise ValueError('종료 시간은 시작 시간보다 커야 합니다')
+    return {key:data[key] for key in ('mode','file','loop','start','end','fps')}
+
+
+def load(path):
+    path=Path(path)
+    if not path.exists():return None
+    data=settings_store.read(path)
+    value=data.get('video_input')
+    if value is None:return None
+    return validate(value)
+
+
+def save(path,data):
+    data=validate(data)
+    settings_store.update(path,{'video_input':data})
