@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "confidence": 0.55,
+  "confirm_frames": 3,
+  "target_y": 0.5,
+  "fallback_y": 0.75,
+  "start_x": 0.5,
+  "start_y": 0.995,
+  "boundary_rate": 40.0,
+  "path_rate": 40.0,
+  "smoothing_seconds": 0.25,
+  "road_margin": 3.0,
+  "initial_width_fraction": 0.8
+}
