@@ -2,6 +2,9 @@
 import sys
 import unittest
 import tempfile
+import time
+import threading
+import numpy as np
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -10,6 +13,41 @@ from oak_recorder import RecorderApp, CaptureSource
 
 
 class RecorderLoggingTests(unittest.TestCase):
+    def test_owner_catchup_write_does_not_block_shared_frame_snapshot(self):
+        source=CaptureSource('test','test','')
+        source.connected=True;source.latest_frame=np.zeros((48,64,3),np.uint8)
+        source.last_frame_at=time.monotonic()
+        writing=threading.Event()
+        def slow(frame):writing.set();time.sleep(.03)
+        source.writer=Mock();source.writer.write.side_effect=slow
+        now=time.monotonic();source.record_started_at=now-2.9
+        capture=Mock();capture.isOpened.return_value=True
+        pixels=source.latest_frame
+        capture.read.return_value=(True,pixels)
+        with patch('oak_recorder.cv2.VideoCapture',return_value=capture):
+            source.start()
+            try:
+                self.assertTrue(writing.wait(1))
+                began=time.monotonic();connected,frame,_,_=source.record_snapshot();elapsed=time.monotonic()-began
+                self.assertTrue(connected);self.assertIsNotNone(frame)
+                self.assertLess(elapsed,.05)
+                self.assertTrue(source.thread.is_alive())
+            finally:source.close()
+
+    def test_short_shared_receiver_reconnect_is_a_source_change(self):
+        from shared_rgb_recorder import SharedRgbRecorder
+        source=CaptureSource('test','test','')
+        source.connected=True;source.latest_frame=np.zeros((48,64,3),np.uint8)
+        source.last_frame_at=time.monotonic()
+        with tempfile.TemporaryDirectory() as folder:
+            record=SharedRgbRecorder(source,Path(folder)/'session','test',guard=lambda ip:{})
+            record.start()
+            deadline=time.monotonic()+2
+            while record.snapshot()['frames']<2 and time.monotonic()<deadline:time.sleep(.01)
+            with source.lock:source.reconnects+=1
+            record.thread.join(2)
+            self.assertEqual(record.snapshot()['error_kind'],'source_changed')
+
     def test_high_rate_recording_keeps_ten_fps_wall_time(self):
         for input_fps in (10,15,20):
             source=CaptureSource('test','test','')
@@ -26,6 +64,7 @@ class RecorderLoggingTests(unittest.TestCase):
         app.rgb_url_override=app.result_url_override=app.bev_url_override=None
         app.sources={key:Mock(label=key) for key in ('rgb','yolopv2','bev','depth')}
         for source in app.sources.values():
+            source.record_error=''
             source.snapshot.return_value=(True,object())
             source.start_recording.return_value=True
             source.stop_recording.return_value=None
