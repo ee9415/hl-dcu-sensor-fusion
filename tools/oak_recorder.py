@@ -24,10 +24,12 @@ import cv2
 from PIL import Image, ImageTk
 from frame_csv_logger import FrameCsvLogger
 from six_camera_tab import SixCameraTab
+import oak4_rgb_source
 import oak_app_control
 import video_input_settings
 import settings_store
-from video_file_sender import VideoFileSender, select_camera, parse_video_time, set_processing_mode, set_boundary_display, set_lane_overlay
+from console_log import action, event as log_event, state_event, register_secret, install_dialog_logging, progress_task
+from video_file_sender import VideoFileSender, select_camera, parse_video_time, set_processing_mode, set_boundary_display, set_contour_display, set_lane_overlay
 
 RESAMPLE_LANCZOS = getattr(Image, "Resampling", Image).LANCZOS
 
@@ -44,7 +46,6 @@ if not IS_WINDOWS and not OAKCTL_PATH.exists():
     windows_cli = Path('/mnt/c/Program Files/oakctl/bin/oakctl.exe')
     if windows_cli.exists():
         OAKCTL_PATH = windows_cli
-OAK_APP_PATH = Path(__file__).resolve().parents[1] / "apps" / "yolopv2_standalone"
 DEFAULT_FPS = 10.0
 PREVIEW_SIZE = (480, 270)
 CREDENTIAL_FILE = settings_store.DEFAULT_PATH
@@ -99,6 +100,7 @@ def _crypt_unprotect(encoded: str) -> str:
 
 
 def save_password(device_ip: str, password: str, path=None) -> None:
+    register_secret(password)
     credential_path=Path(path) if path is not None else CREDENTIAL_FILE
     credentials = settings_store.read(credential_path).get('credentials', {})
     if not isinstance(credentials,dict):raise ValueError('잘못된 암호화 비밀번호 설정')
@@ -112,7 +114,9 @@ def load_password(device_ip: str, path=None) -> str:
         if not isinstance(credentials, dict):
             return ""
         encrypted = credentials.get(device_ip)
-        return _crypt_unprotect(encrypted) if encrypted else ""
+        password = _crypt_unprotect(encrypted) if encrypted else ""
+        register_secret(password)
+        return password
     except (OSError, ValueError, TypeError, subprocess.SubprocessError):
         return ""
 
@@ -177,9 +181,14 @@ class CaptureSource:
                 cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000,
             ])
             capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            if self.stop_event.is_set():
+                capture.release()
+                break
             if not capture.isOpened():
+                state_event(self, 'connection', False, f'{self.label} · 영상 수신 연결 실패', 'WARN')
                 with self.lock:
                     self.connected = False
+                capture.release()
                 self.stop_event.wait(1.0)
                 continue
 
@@ -188,9 +197,10 @@ class CaptureSource:
                 self.reconnects = self.connections
                 self.connections += 1
                 self.latest_frame = None
+            state_event(self, 'connection', True, f'{self.label} · 영상 수신 연결됨')
             while not self.stop_event.is_set():
                 ok, frame = capture.read()
-                if not ok:
+                if not ok or self.stop_event.is_set():
                     break
                 with self.lock:
                     self.latest_frame = frame
@@ -201,6 +211,8 @@ class CaptureSource:
                     if not self.record_error:self.record_error=str(exc)
 
             capture.release()
+            if not self.stop_event.is_set():
+                state_event(self, 'connection', False, f'{self.label} · 영상 수신 끊김', 'WARN')
             with self.lock:
                 self.connected = False
 
@@ -283,6 +295,7 @@ class RecorderApp:
         camera_settings_path=None,
         use_saved_connection=False,
     ) -> None:
+        install_dialog_logging(messagebox)
         self.root = root
         self.device_ip = device_ip
         self.device_serial = device_serial
@@ -302,6 +315,8 @@ class RecorderApp:
         self.confirmed_full_processing = False
         self.boundary_display_pending = False
         self.confirmed_boundary_visible = True
+        self.contour_display_pending = False
+        self.confirmed_contour_visible = False
         self.lane_preview_pending = False
         self.confirmed_lane_preview = ('normal',.5)
         self.source_closing = threading.Event()
@@ -320,6 +335,7 @@ class RecorderApp:
         self.recording_stamp = ""
         self.recording = False
         self.connect_requested = False
+        self.connection_launch_pending = False
         self.video_wait_started_at = None
         self.video_retry_available = False
         self.app_action_busy = False
@@ -664,15 +680,23 @@ class RecorderApp:
         ttk.Label(panel,textvariable=self.processing_status,style='App.TLabel').grid(
             row=4,column=3,columnspan=4,sticky='w')
         self.boundary_visible=tk.BooleanVar(value=True)
-        self.boundary_display_check=ttk.Checkbutton(panel,text='차선·가상 경계선 표시',
+        self.boundary_display_check=ttk.Checkbutton(panel,text='차선 곡선·가상선 표시',
             variable=self.boundary_visible,command=self._apply_boundary_display,state=tk.DISABLED,
             style='App.TCheckbutton')
         self.boundary_display_check.grid(row=5,column=0,columnspan=3,sticky='w',pady=(4,0))
         self.boundary_display_status=tk.StringVar(value='표시만 변경 · 경계 계산·추종선 유지')
         ttk.Label(panel,textvariable=self.boundary_display_status,style='App.TLabel').grid(
             row=5,column=3,columnspan=4,sticky='w')
+        self.contour_visible=tk.BooleanVar(value=False)
+        self.contour_display_check=ttk.Checkbutton(panel,text='컨투어 표시 (노란 테두리)',
+            variable=self.contour_visible,command=self._apply_contour_display,state=tk.DISABLED,
+            style='App.TCheckbutton')
+        self.contour_display_check.grid(row=6,column=0,columnspan=3,sticky='w',pady=(4,0))
+        self.contour_display_status=tk.StringVar(value='컨투어 숨김 · 스켈레톤 계산 유지')
+        ttk.Label(panel,textvariable=self.contour_display_status,style='App.TLabel').grid(
+            row=6,column=3,columnspan=4,sticky='w')
         lane_controls=ttk.Frame(panel,style='Panel.TFrame')
-        lane_controls.grid(row=6,column=0,columnspan=7,sticky='w',pady=(4,0))
+        lane_controls.grid(row=7,column=0,columnspan=7,sticky='w',pady=(4,0))
         ttk.Label(lane_controls,text='YOLO 결과 화면',style='App.TLabel').pack(side=tk.LEFT)
         self.lane_preview_modes={'일반 인식 결과':'normal','원본 RGB':'raw_rgb',
             '점수 구간색 (검정 배경)':'lane_bands','원본 + 구간색 겹침':'lane_bands_rgb',
@@ -696,7 +720,7 @@ class RecorderApp:
         self.lane_preview_apply.pack(side=tk.LEFT,padx=5)
         self.lane_preview_status=tk.StringVar(value='미리보기 전용 · 차선 마스크 픽셀별 점수색 · 인식용 임계값 0.50 유지')
         ttk.Label(panel,textvariable=self.lane_preview_status,style='App.TLabel').grid(
-            row=7,column=0,columnspan=7,sticky='w')
+            row=8,column=0,columnspan=7,sticky='w')
         progress = ttk.LabelFrame(controls, text='영상 재생',
                                   style='Control.TLabelframe', padding=8)
         progress.grid(row=0,column=0,sticky='ew',pady=(4,0))
@@ -761,6 +785,7 @@ class RecorderApp:
             data=settings_store.preferences(dict(
                 display=dict(full_processing=self.confirmed_full_processing,
                     boundary_visible=self.confirmed_boundary_visible,
+                    contour_visible=self.confirmed_contour_visible,
                     lane_mode=self.confirmed_lane_preview[0],threshold=self.confirmed_lane_preview[1]),
                 selected={key:var.get() for key,var in self.selected.items()},
                 recording={key:getattr(six,key).get() for key in
@@ -780,6 +805,8 @@ class RecorderApp:
             self.full_processing.set(display['full_processing'])
             self.confirmed_boundary_visible=display['boundary_visible']
             self.boundary_visible.set(display['boundary_visible'])
+            self.confirmed_contour_visible=display.get('contour_visible',False)
+            self.contour_visible.set(self.confirmed_contour_visible)
             self.confirmed_lane_preview=(display['lane_mode'],display['threshold'])
             self.lane_preview_view.set(next(k for k,v in self.lane_preview_modes.items() if v==display['lane_mode']))
             self.lane_preview_threshold.set(display['threshold'])
@@ -802,6 +829,7 @@ class RecorderApp:
         self.settings_windows[key] = window
         return window
 
+    @action(lambda self, key: f'인식·검증 설정 열기 · {key}')
     def _show_settings(self, key):
         for other_key, other in self.settings_windows.items():
             if other_key != key:
@@ -821,6 +849,7 @@ class RecorderApp:
         minutes, rest = divmod(tenths,600)
         return f'{minutes:02d}:{rest//10:02d}.{rest%10}'
 
+    @action('후처리 모드 적용 요청')
     def _apply_processing_mode(self):
         if self.processing_pending or not self.connect_requested:
             return
@@ -837,6 +866,24 @@ class RecorderApp:
                 self.processing_events.put(('error',str(exc)))
         threading.Thread(target=change,daemon=True,name='processing-control').start()
 
+    @action('컨투어 표시 변경 요청')
+    def _apply_contour_display(self):
+        if self.contour_display_pending or not self.connect_requested:
+            return
+        desired=bool(self.contour_visible.get())
+        self.contour_display_pending=True
+        self.contour_display_check.configure(state=tk.DISABLED)
+        self.contour_display_status.set('컨투어 표시 적용 중...')
+        ip=self.device_ip
+        def change():
+            try:
+                set_contour_display(ip,desired)
+                self.processing_events.put(('contour_ok',desired))
+            except (OSError,ValueError,RuntimeError,EOFError) as exc:
+                self.processing_events.put(('contour_error',str(exc)))
+        threading.Thread(target=change,daemon=True,name='contour-display-control').start()
+
+    @action('경계선 표시 변경 요청')
     def _apply_boundary_display(self):
         if self.boundary_display_pending or not self.connect_requested:
             return
@@ -853,6 +900,7 @@ class RecorderApp:
                 self.processing_events.put(('boundary_error',str(exc)))
         threading.Thread(target=change,daemon=True,name='boundary-display-control').start()
 
+    @action('차선 미리보기 설정 적용 요청')
     def _apply_lane_preview(self,event=None):
         if self.lane_preview_pending or not self.connect_requested:
             return
@@ -932,6 +980,7 @@ class RecorderApp:
         self.source_progress_text.set(f'{self._video_clock(current)} / {end_text} · '
                                       f'{ratio:.0%} · {status.get("loop_count",1)}회차')
 
+    @action('영상 파일 선택')
     def _choose_input_file(self):
         if self.recording:
             messagebox.showwarning('영상 소스', '녹화를 멈춘 뒤 영상 소스를 변경해 주세요.')
@@ -942,6 +991,7 @@ class RecorderApp:
             self.input_file.set(path)
             self.input_mode.set('PC 영상 파일')
 
+    @action('영상 입력 소스 적용 요청')
     def _apply_input_source(self):
         if hasattr(self, 'six_camera_tab') and self.six_camera_tab.is_cam01_recording:
             messagebox.showwarning('영상 소스', '6대 녹화 탭의 녹화를 정지한 뒤 소스를 변경해 주세요.')
@@ -989,6 +1039,7 @@ class RecorderApp:
         self.source_start_button.configure(state=tk.DISABLED)
         self._switch_input_source(self.applied_input_settings)
 
+    @action('PC 영상 전송 시작 요청')
     def _start_input_transfer(self):
         if hasattr(self, 'six_camera_tab') and self.six_camera_tab.is_cam01_recording:
             messagebox.showwarning('영상 소스', '6대 녹화 탭의 녹화를 정지한 뒤 소스를 변경해 주세요.')
@@ -1043,10 +1094,12 @@ class RecorderApp:
                 self.source_events.put(('error', str(exc)))
         threading.Thread(target=change, daemon=True, name='source-control').start()
 
+    @action('PC 영상 일시정지·재개 요청')
     def _pause_input(self):
         if self.file_sender:
             self.file_sender.toggle_pause()
 
+    @action('PC 영상 전송 정지 요청')
     def _stop_input(self):
         if self.file_sender:
             self.file_sender.close(timeout=.1)
@@ -1076,6 +1129,18 @@ class RecorderApp:
                     self.lane_preview_view.set(next(k for k,v in self.lane_preview_modes.items() if v==mode))
                     self.lane_preview_threshold.set(threshold)
                     self.lane_preview_status.set(f'미리보기 적용 실패: {data}')
+                continue
+            if event in ('contour_ok','contour_error'):
+                self.contour_display_pending=False
+                self.contour_display_check.configure(state=tk.NORMAL)
+                if event=='contour_ok':
+                    self.confirmed_contour_visible=data
+                    self.contour_visible.set(data)
+                    self.contour_display_status.set('컨투어 표시 켜짐' if data else '컨투어 숨김 · 계산 유지')
+                    self._save_preferences()
+                else:
+                    self.contour_visible.set(self.confirmed_contour_visible)
+                    self.contour_display_status.set(f'표시 적용 실패: {data}')
                 continue
             if event in ('boundary_ok','boundary_error'):
                 self.boundary_display_pending=False
@@ -1177,6 +1242,7 @@ class RecorderApp:
     def _selected_keys(self) -> list[str]:
         return [key for key, selected in self.selected.items() if selected.get()]
 
+    @action('인식·검증 연결 설정 저장 요청')
     def save_connection_settings(self) -> None:
         ip = self.ip_text.get().strip()
         try:
@@ -1199,14 +1265,24 @@ class RecorderApp:
     def _poll_camera_app(self):
         if self.source_closing.is_set():
             return
-        if self.ip_text.get().strip():
+        raw = self.six_camera_tab.extra_sources.get(0)
+        receiving = (self.connect_requested or any(s.started for s in self.sources.values())
+                     or (raw is not None and not raw.stop_event.is_set()))
+        if self.ip_text.get().strip() and receiving and not (raw and raw.preparing):
             self._camera_app_action('poll')
         self.root.after(5000, self._poll_camera_app)
 
+    @action(lambda self, action: None if action == 'poll' else f'카메라 앱 명령 · {action}')
     def _camera_app_action(self, action):
+        raw = self.six_camera_tab.extra_sources.get(0)
+        if action == 'stop' and raw and raw.preparing:
+            messagebox.showwarning('카메라 앱', '순수 RGB 연결 준비가 끝난 뒤 장치 명령을 실행해 주세요.')
+            return
         if self.app_action_busy or getattr(self, 'connection_launch_pending', False):
             if action != 'poll':
                 messagebox.showinfo('카메라 앱', '카메라 명령을 처리 중입니다. 잠시 기다려 주세요.')
+            return
+        if action == 'start' and not self.six_camera_tab.release_cam01_for_perception():
             return
         ip = self.ip_text.get().strip()
         if not ip:
@@ -1230,12 +1306,15 @@ class RecorderApp:
                 except (OSError, subprocess.SubprocessError):
                     messagebox.showwarning('비밀번호 저장', '암호화 저장에 실패했습니다. 이번 실행에만 사용합니다.')
         self.app_action_busy = True
+        if action == 'stop':
+            self._stop_perception_receivers('앱 중지 요청 · 영상 재접속 중단')
         self.app_state_text.set('상태 확인 중' if action in ('status', 'poll') else '명령 처리 중')
         self.app_led.configure(fg='#8da0af')
+        @progress_task(None if action == 'poll' else f'카메라 앱 명령 · {action}')
         def control():
             result = dict(ip=ip, action=action)
             try:
-                current = oak_app_control.status(OAKCTL_PATH, ip, password)
+                current = oak_app_control.status(OAKCTL_PATH, ip, password, installed_only=True)
                 message = '앱이 실행 중입니다.' if current['state'] == 'running' else '앱이 멈춰 있습니다.'
                 if action == 'start':
                     if current['state'] == 'running':
@@ -1243,26 +1322,33 @@ class RecorderApp:
                     else:
                         if not self._prepare_connection(ip, password, force_run=True):
                             raise RuntimeError('카메라 앱 실행 또는 영상 포트 확인에 실패했습니다.')
-                        current = oak_app_control.status(OAKCTL_PATH, ip, password)
+                        current = oak_app_control.status(OAKCTL_PATH, ip, password, installed_only=True)
                         if current['state'] != 'running':
                             raise RuntimeError('카메라 앱이 실행 상태가 아닙니다.')
                         message = '카메라 앱을 실행했습니다.'
                 elif action == 'stop':
                     if current['state'] == 'running':
                         oak_app_control.stop(OAKCTL_PATH, ip, current['app_id'], password)
-                        current = oak_app_control.status(OAKCTL_PATH, ip, password)
+                        current = oak_app_control.status(OAKCTL_PATH, ip, password, installed_only=True)
                         if current['state'] != 'stopped':
                             raise RuntimeError('카메라 앱 중지가 아직 확인되지 않았습니다.')
                     message = '카메라 앱이 멈춰 있습니다.'
                 result.update(state=current['state'], message=message)
+                if (action in ('poll', 'status') and raw and not raw.preparing
+                        and not raw.stop_event.is_set()):
+                    result['raw_state'] = oak_app_control.status(OAKCTL_PATH, raw.ip, password,
+                        identifier=oak4_rgb_source.IDENTIFIER, installed_only=True)['state']
             except Exception:
                 result.update(state='unknown', error='카메라 앱 상태 또는 명령을 확인하지 못했습니다. IP·비밀번호·네트워크를 확인해 주세요.')
             self.connection_events.put(('app_result', result))
         threading.Thread(target=control, daemon=True, name='camera-app-control').start()
 
+    @action('인식·검증 영상 연결 요청')
     def connect_video(self) -> None:
         if self.app_action_busy:
             self.status_text.set('카메라 앱 명령을 처리 중입니다.')
+            return
+        if not self.six_camera_tab.release_cam01_for_perception():
             return
         if self.connect_requested and not self.video_retry_available:
             self.status_text.set('카메라 앱 연결이 진행 중이거나 이미 연결되어 있습니다.')
@@ -1313,6 +1399,7 @@ class RecorderApp:
             name="oak-app-launcher",
         ).start()
 
+    @action('인식·검증 IP 자동검색')
     def discover_ip(self) -> None:
         self.status_text.set("OAK IP 검색 중...")
         discovered_ip = self._discover_device_ip()
@@ -1334,52 +1421,12 @@ class RecorderApp:
                 return False
         return True
 
+    @progress_task('인식·검증 앱 연결 준비')
     def _prepare_connection(self, ip: str, password: str, force_run=False) -> bool:
-        if not force_run and self._rtsp_ports_open(ip):
-            self.connection_events.put(("ready", ip))
-            return True
-        if not OAKCTL_PATH.exists():
-            self.connection_events.put(("error", f"oakctl을 찾을 수 없습니다: {OAKCTL_PATH}"))
-            return False
-
-        command = [str(OAKCTL_PATH)]
-        if password:
-            command.extend(["--password", password])
-        app_source = str(OAK_APP_PATH)
-        if not IS_WINDOWS and OAKCTL_PATH.suffix.lower() == '.exe':
-            try:
-                app_source = subprocess.check_output(
-                    ['wslpath', '-w', app_source], text=True, timeout=5).strip()
-            except (OSError, subprocess.SubprocessError) as exc:
-                self.connection_events.put(('error', f'WSL 경로 변환 실패: {exc}'))
-                return False
-        command.extend(
-            [
-                "app",
-                "run",
-                app_source,
-                "--detach",
-                "-d",
-                ip,
-            ]
-        )
         try:
-            completed = subprocess.run(
-                command,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=900,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            )
-        except (OSError, subprocess.SubprocessError) as exc:
-            self.connection_events.put(("error", 'OAK 앱 실행 명령에 실패했습니다. 연결·인증을 확인해 주세요.'))
-            return False
-        if completed.returncode != 0:
-            detail = (completed.stderr or completed.stdout or "OAK 앱 실행 실패").strip()
-            self.connection_events.put(("error", detail[-1000:]))
+            oak_app_control.start_installed(OAKCTL_PATH, ip, oak_app_control.IDENTIFIER, password)
+        except RuntimeError as exc:
+            self.connection_events.put(('error', str(exc)))
             return False
 
         deadline = time.monotonic() + 60.0
@@ -1396,6 +1443,44 @@ class RecorderApp:
             )
         )
         return False
+
+    def make_raw_rgb_source(self, ip, mxid, settings_path):
+        return oak4_rgb_source.Oak4RgbSource(ip, mxid, CaptureSource, OAKCTL_PATH,
+            self.password_text.get() or load_password(ip, settings_path))
+
+    def release_perception_for_rgb(self):
+        if (self.recording or self.source_change_pending or self.app_action_busy or self.connection_launch_pending
+                or self.processing_pending or self.boundary_display_pending
+                or self.contour_display_pending or self.lane_preview_pending):
+            messagebox.showwarning('순수 RGB 연결', '인식·검증의 녹화·장치 명령·영상 전환이 끝난 뒤 연결해 주세요.')
+            return False
+        self._stop_perception_receivers('6대 녹화용 순수 RGB로 전환 · 인식·검증 영상 연결을 누르면 AI 모드로 복귀합니다.')
+        return True
+
+    def _stop_perception_receivers(self, reason):
+        if self.recording:
+            self.stop_recording()
+        if self.file_sender:
+            sender = self.file_sender
+            sender.close(timeout=0)
+            self.file_sender = None
+            threading.Thread(target=sender.close, daemon=True).start()
+        previous = list(self.sources.values())
+        for source in previous:
+            source.stop_event.set()
+        self.sources = {s.key: CaptureSource(s.key, s.label, s.url) for s in previous}
+        def cleanup():
+            for source in previous:
+                source.close()
+        threading.Thread(target=cleanup, daemon=True, name='perception-receivers-stop').start()
+        self.connect_requested = False
+        self.video_retry_available = False
+        self.connect_button.configure(text='영상 연결', state=tk.NORMAL)
+        self.start_button.configure(state=tk.DISABLED)
+        for widget in (self.ip_entry, self.password_entry, self.discover_button):
+            widget.configure(state=tk.NORMAL)
+        self.status_text.set(reason)
+        log_event(reason)
 
     def _begin_receivers(self, ip: str) -> None:
         self.video_wait_started_at = time.monotonic()
@@ -1419,6 +1504,9 @@ class RecorderApp:
         if hasattr(self,'boundary_display_check'):
             self.boundary_display_check.configure(state=tk.NORMAL)
             self._apply_boundary_display()
+        if hasattr(self,'contour_display_check'):
+            self.contour_display_check.configure(state=tk.NORMAL)
+            self._apply_contour_display()
         if hasattr(self,'lane_preview_apply'):
             self.lane_preview_apply.configure(state=tk.NORMAL)
             self._apply_lane_preview()
@@ -1436,6 +1524,14 @@ class RecorderApp:
                     self.app_state_text.set('상태 미확인')
                     continue
                 state = detail['state']
+                raw = self.six_camera_tab.extra_sources.get(0)
+                if raw and detail.get('raw_state') == 'stopped' and not raw.stop_event.is_set():
+                    raw.error = 'RGB 앱 중지 확인 · 영상 재접속 중단 · 연결 버튼으로 재개'
+                    raw.close(timeout=0)
+                    log_event(raw.error)
+                if (state == 'stopped' and not self.connection_launch_pending
+                        and (self.connect_requested or any(s.started for s in self.sources.values()))):
+                    self._stop_perception_receivers('앱 중지 확인 · 영상 재접속 중단 · 연결 버튼으로 재개')
                 self.app_led.configure(fg={'running':'#27cf73', 'stopped':'#ed5353'}.get(state, '#8da0af'))
                 self.app_state_text.set({'running':'앱 실행 중', 'stopped':'앱 멈춤'}.get(state, '상태 확인 불가'))
                 if detail['action'] != 'poll':
@@ -1457,12 +1553,14 @@ class RecorderApp:
                 messagebox.showinfo('카메라 상태 확인', detail)
                 continue
             if event == "ready":
+                log_event(f'인식·검증 앱 준비 완료 · {detail}')
                 self.connection_launch_pending = False
                 self.device_ip = detail
                 self.connect_requested = True
                 self._begin_receivers(detail)
                 continue
 
+            self._stop_perception_receivers('앱 연결 실패 · 영상 재접속 중단 · 연결 버튼으로 재개')
             self.connect_requested = False
             self.connection_launch_pending = False
             self.connect_button.configure(text="영상 연결", state=tk.NORMAL)
@@ -1619,6 +1717,7 @@ class RecorderApp:
         self.unsaved_paths.clear()
         return True
 
+    @action('인식·검증 녹화 시작 요청')
     def start_recording(self) -> None:
         if self.recording:
             return
@@ -1672,6 +1771,7 @@ class RecorderApp:
         labels = " + ".join(self.sources[key].label for key in started)
         self.status_text.set(f"녹화 중 ● {labels}")
 
+    @action('인식·검증 녹화 정지 요청')
     def stop_recording(self) -> None:
         if not self.recording:
             return
@@ -1713,6 +1813,7 @@ class RecorderApp:
         if recording_errors:
             self.status_text.set('녹화 쓰기/마무리 오류 · '+' / '.join(recording_errors))
 
+    @action('인식·검증 녹화 저장 요청')
     def save_recording(self) -> None:
         if self.recording:
             self.stop_recording()
@@ -1756,6 +1857,7 @@ class RecorderApp:
         saved = ", ".join(str(path) for path in destinations.values())
         self.status_text.set(f"저장 완료: {saved}")
 
+    @action('멀티뷰 종료 요청')
     def _close(self) -> None:
         if self.recording:
             self.stop_recording()
@@ -1794,7 +1896,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rgb-url", help="override the RGB RTSP URL")
     parser.add_argument("--result-url", help="override the YOLOPv2 RTSP URL")
     parser.add_argument("--bev-url", help="override the virtual boundary BEV RTSP URL")
-    parser.add_argument("--auto-connect", action="store_true", help="connect after opening the window")
+    parser.add_argument("--auto-connect", action="store_true",
+                        help="legacy option; ignored (camera apps start manually)")
     parser.add_argument('--camera-settings',type=Path,help='camera registration JSON path')
     parser.add_argument(
         "--output-dir",
@@ -1821,7 +1924,8 @@ def main() -> None:
             arg.startswith(('--device-ip=','--device-serial=')) for arg in sys.argv[1:]),
     )
     if args.auto_connect:
-        root.after(200, app.connect_video)
+        log_event('--auto-connect 무시 · 카메라 앱은 버튼으로 직접 시작합니다.', 'WARN')
+    log_event('멀티뷰 실행 · 카메라 앱 자동 실행 없음 · 사용자 시작 대기')
     root.mainloop()
 
 

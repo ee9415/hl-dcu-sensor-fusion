@@ -10,6 +10,29 @@ import oak_app_control as control
 
 
 class AppControlTests(unittest.TestCase):
+    def test_switch_starts_installed_app_and_disables_autostart(self):
+        apps = [dict(identifier=control.IDENTIFIER, app_id='ai', status='running'),
+                dict(identifier=control.RGB_IDENTIFIER, app_id='rgb', status='stopped'),
+                dict(identifier='unrelated', app_id='other', status='running')]
+        with (patch.object(control, 'list_apps', return_value=apps),
+              patch.object(control, 'command') as command):
+            self.assertEqual(control.start_installed('cli', 'ip', control.RGB_IDENTIFIER), 'rgb')
+            self.assertEqual([c.args[2] for c in command.call_args_list],
+                             [['stop', 'ai'], ['start', 'rgb', '--enable', 'false']])
+
+    def test_development_app_is_not_accepted_as_installed(self):
+        apps = [dict(identifier=control.RGB_IDENTIFIER, app_id=control.DEVELOPMENT_ID, status='running')]
+        with (patch.object(control, 'list_apps', return_value=apps), patch.object(control, 'command') as command):
+            with self.assertRaisesRegex(RuntimeError, '먼저 설치'):
+                control.start_installed('cli', 'ip', control.RGB_IDENTIFIER)
+            command.assert_not_called()
+
+    def test_installed_app_takes_priority_over_development_app(self):
+        apps = [dict(identifier=control.IDENTIFIER, app_id=control.DEVELOPMENT_ID, status='running'),
+                dict(identifier=control.IDENTIFIER, app_id='installed', status='stopped')]
+        with patch.object(control, 'command', return_value=json.dumps(apps)):
+            self.assertEqual(control.status('cli', 'ip')['app_id'], 'installed')
+
     def query(self, status):
         payload = [dict(identifier=control.IDENTIFIER, app_id='target-id', status=status),
                    dict(identifier='other-app', app_id='other', status='running')]
@@ -21,6 +44,9 @@ class AppControlTests(unittest.TestCase):
 
     def test_stopped(self):
         self.assertEqual(self.query('stopped')['state'], 'stopped')
+
+    def test_installed_ready_app_is_not_reported_as_running(self):
+        self.assertEqual(self.query('ready')['state'], 'stopped')
 
     def test_missing(self):
         with patch.object(control, 'command', return_value='[]'):

@@ -11,10 +11,11 @@ from tkinter import filedialog, messagebox, ttk
 import uuid
 import cv2
 from PIL import Image, ImageTk
-from shared_rgb_recorder import RecordingGroup, camera_input_status
+from shared_rgb_recorder import RecordingGroup
 from oakd_rgb_source import OakdRgbSource
 from camera_discovery import discover_cameras
 import camera_settings
+from console_log import action, state_event
 
 
 class SixCameraTab:
@@ -55,7 +56,7 @@ class SixCameraTab:
         header.grid(row=0, column=0, sticky='ew')
         header.columnconfigure(0, weight=1)
         ttk.Label(header, text='6대 카메라 녹화', style='Title.TLabel').grid(row=0, column=0, sticky='w')
-        ttk.Label(header, text='1번 OAK4 공유 · 2~6번 OAK-D / 가상 영상 · 하드웨어 동기화 없음',
+        ttk.Label(header, text='1번 OAK4 순수 RGB · 2~6번 OAK-D / 가상 영상 · AI 처리 없음 · 하드웨어 동기화 없음',
                   style='Subtitle.TLabel').grid(row=1, column=0, sticky='w', pady=(4, 0))
         menu = ttk.Frame(header, style='Header.TFrame')
         menu.grid(row=2, column=0, sticky='w', pady=(10, 0))
@@ -101,8 +102,8 @@ class SixCameraTab:
             buttons.grid(row=4, column=0, sticky='w', pady=(4,0))
             camera['connect'] = ttk.Button(buttons, text='연결', command=lambda i=index:self.connect_camera(i))
             camera['connect'].pack(side=tk.LEFT, padx=(0,4))
-            camera['disconnect'] = ttk.Button(buttons, text='공유 수신' if index==0 else '해제',
-                state=tk.DISABLED if index==0 else tk.NORMAL,
+            camera['disconnect'] = ttk.Button(buttons, text='해제',
+                state=tk.NORMAL,
                 command=lambda i=index:self.disconnect_camera(i))
             camera['disconnect'].pack(side=tk.LEFT)
             self.cameras.append(camera)
@@ -151,7 +152,7 @@ class SixCameraTab:
             ttk.Entry(fields, textvariable=camera['ip'], width=19).grid(row=row, column=2, sticky='ew', padx=6, pady=6)
             ttk.Entry(fields, textvariable=camera['serial'], width=25).grid(row=row, column=3, sticky='ew', padx=6, pady=6)
             if row==1:
-                ttk.Label(fields,text='OAK4 공유',style='App.TLabel').grid(row=row,column=4,padx=6)
+                ttk.Label(fields,text='OAK4 순수 RGB',style='App.TLabel').grid(row=row,column=4,padx=6)
             else:
                 ttk.Combobox(fields,textvariable=camera['kind'],values=('실제 OAK-D','가상 영상'),
                              state='readonly',width=12).grid(row=row,column=4,padx=6)
@@ -217,6 +218,7 @@ class SixCameraTab:
         except (OSError,ValueError,TypeError) as exc:
             self.settings_status.set('설정 불러오기 실패 · 기존 파일 유지: '+str(exc))
 
+    @action(lambda self, notify=True: '카메라 정보 저장 요청' if notify else None)
     def save_camera_settings(self,notify=True):
         try:
             data=self._camera_settings()
@@ -234,6 +236,7 @@ class SixCameraTab:
             if notify:messagebox.showerror('카메라 설정 저장',str(exc),parent=self.windows.get('devices'))
             return False
 
+    @action('카메라 정보 초기화 요청')
     def reset_camera_settings(self):
         if self.is_recording or (self.owner and self.owner.recording):
             messagebox.showwarning('카메라 정보 초기화','녹화를 정지한 뒤 초기화해 주세요.')
@@ -252,6 +255,7 @@ class SixCameraTab:
         self._refresh()
         self.settings_status.set('저장된 카메라 정보 초기화 완료 · 새 연결/녹화 전에 다시 설정해 주세요.')
 
+    @action('카메라 검색 요청')
     def find_cameras(self):
         if self.discovery_pending or not self.owner:
             return
@@ -285,6 +289,7 @@ class SixCameraTab:
             device=self.discovered_devices[int(selection[0])]
             self.discovery_target.set('CAM01' if device['family']=='oak4' else 'CAM02')
 
+    @action('검색한 카메라 설정 적용')
     def apply_discovered(self):
         selection=self.discovery_table.selection()
         if not selection or self.is_recording:
@@ -346,6 +351,7 @@ class SixCameraTab:
         if path:
             self.oakd_python.set(path)
 
+    @action(lambda self, key: f'6대 카메라 설정 확인 · {key}')
     def _confirm(self, key):
         if key=='devices' and not self.save_camera_settings():return
         if key=='recording' and self.owner is not None:
@@ -370,11 +376,13 @@ class SixCameraTab:
     def is_cam01_recording(self):
         return self.recorder is not None and self.recorder.active
 
+    @action('선택 카메라 연결 요청')
     def connect_selected(self):
         for index,camera in enumerate(self.cameras):
             if camera['selected'].get():
                 self.connect_camera(index)
 
+    @action(lambda self, index: f'CAM{index+1:02d} 연결 요청')
     def connect_camera(self, index):
         if self.is_recording:
             return
@@ -408,15 +416,17 @@ class SixCameraTab:
                 messagebox.showwarning('카메라 연결','이전 수신기를 종료 중입니다. 잠시 후 다시 연결해 주세요.')
                 return
         source = OakdRgbSource(camera['name'],ip,mxid,
-            python=sys.executable if virtual else self.oakd_python.get().strip(),virtual=virtual)
+            python=sys.executable if virtual else self.oakd_python.get().strip(),virtual=virtual,
+            fps=int(self.fps.get()))
         source.diagnostic_path=(Path(__file__).resolve().parents[1]/'artifacts/connection_logs'/
             f'{camera["name"]}_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:6]}.jsonl')
         self.extra_sources[index] = source
         self.save_camera_settings(notify=False)
         source.start()
 
+    @action(lambda self, index: f'CAM{index+1:02d} 연결 해제 요청')
     def disconnect_camera(self, index):
-        if index and not self.is_recording and index in self.extra_sources:
+        if not self.is_recording and index in self.extra_sources:
             source = self.extra_sources[index]
             if source.close(timeout=2):
                 del self.extra_sources[index]
@@ -428,14 +438,40 @@ class SixCameraTab:
         if not ip:
             messagebox.showwarning('1번 연결', '카메라 설정에서 1번 IP를 입력해 주세요.')
             return
-        if self.owner.connect_requested:
-            if ip != self.owner.device_ip:
-                messagebox.showwarning('1번 연결', '이미 연결된 인식·검증 장치와 IP가 다릅니다. 동일한 1번 장치를 사용해 주세요.')
+        if (self.owner.recording or self.owner.source_change_pending
+                or self.owner.app_action_busy or self.owner.connection_launch_pending):
+            messagebox.showwarning('1번 연결', '인식·검증의 녹화·장치 명령·영상 전환이 끝난 뒤 연결해 주세요.')
             return
-        self.owner.ip_text.set(ip)
-        self.owner.device_serial = self.cameras[0]['serial'].get().strip()
-        self.owner.connect_video()
+        if 0 in self.extra_sources:
+            old = self.extra_sources[0]
+            if old.ip == ip and (old.preparing or old.snapshot()[0]):
+                return
+            if not old.close(timeout=2):
+                messagebox.showwarning('1번 연결', '이전 RGB 수신기를 종료 중입니다. 잠시 후 연결해 주세요.')
+                return
+        # Stop PC publishing and AI receivers before transferring camera ownership.
+        if not self.owner.release_perception_for_rgb():
+            return
+        source = self.owner.make_raw_rgb_source(ip, self.cameras[0]['serial'].get().strip(), self.settings_path)
+        self.extra_sources[0] = source
+        self.save_camera_settings(notify=False)
+        source.start()
 
+    def release_cam01_for_perception(self):
+        source = self.extra_sources.get(0)
+        if source is None:
+            return True
+        if self.is_cam01_recording:
+            messagebox.showwarning('인식·검증 연결', 'CAM01 녹화를 정지한 뒤 인식·검증에 연결해 주세요.')
+            return False
+        if source.preparing:
+            messagebox.showwarning('인식·검증 연결', 'CAM01 RGB 연결 준비가 끝난 뒤 인식·검증에 연결해 주세요.')
+            return False
+        source.close(timeout=0)
+        del self.extra_sources[0]
+        return True
+
+    @action('6대 카메라 선택 녹화 시작 요청')
     def start_recording(self):
         if not self.owner or self.is_recording:
             return
@@ -443,23 +479,21 @@ class SixCameraTab:
         if not selected:
             messagebox.showwarning('녹화 시작', '녹화할 카메라를 선택해 주세요.')
             return
-        if self.owner.source_change_pending:
+        if 0 in selected and self.owner.source_change_pending:
             messagebox.showwarning('녹화 시작', '영상 소스 전환이 끝난 뒤 녹화를 시작해 주세요.')
             return
-        if 0 in selected and self.cameras[0]['ip'].get().strip() != self.owner.device_ip:
+        if (0 in selected and 0 in self.extra_sources
+                and self.cameras[0]['ip'].get().strip() != self.extra_sources[0].ip):
             messagebox.showwarning('녹화 시작', '1번 설정 IP와 현재 연결 장치가 다릅니다. 카메라 설정을 확인해 주세요.')
             return
         try:
             specs = []
             for index in selected:
                 camera = self.cameras[index]
-                if index == 0:
-                    source,guard,kind,ip = self.owner.sources['rgb'],camera_input_status,'camera',self.owner.device_ip
-                else:
-                    if index not in self.extra_sources:
-                        raise ValueError(camera['name']+'을 먼저 연결해 주세요.')
-                    source = self.extra_sources[index]
-                    guard,kind,ip = source.guard,'virtual' if source.virtual else 'camera',source.ip
+                if index not in self.extra_sources:
+                    raise ValueError(camera['name']+'을 먼저 연결해 주세요.')
+                source = self.extra_sources[index]
+                guard,kind,ip = source.guard,'virtual' if source.virtual else 'camera',source.ip
                 specs.append(dict(camera=camera['name'],model=camera['model'],source=source,
                                   guard=guard,input_kind=kind,ip=ip))
             name = self.session_name.get().strip()
@@ -481,6 +515,7 @@ class SixCameraTab:
             if self.group:self.recorder=self.group.recorders.get('CAM01')
             messagebox.showerror('녹화 시작', str(exc))
 
+    @action('6대 카메라 녹화 정지 요청')
     def stop_recording(self):
         if self.group:
             self.group.stop()
@@ -490,10 +525,8 @@ class SixCameraTab:
             return
         self._drain_discovery()
         self.assign_button.configure(state=tk.DISABLED if self.is_recording else tk.NORMAL)
-        if connected is None:
-            connected, frame = self.owner.sources['rgb'].snapshot()
         states = self.group.poll() if self.group else {}
-        inputs = {0:(connected,frame)}
+        inputs = {}
         for index,source in self.extra_sources.items():
             inputs[index] = source.snapshot()
         count = 0
@@ -502,20 +535,30 @@ class SixCameraTab:
             count += int(ok)
             preview = camera['preview']
             self._render_preview(preview,ok,pixels)
-            if index == 0:
-                text = f'{self.owner.device_ip} · '+('연결됨' if ok else '연결 대기')
-            elif index in self.extra_sources:
+            if index in self.extra_sources:
                 info = self.extra_sources[index].info()
+                error = info.get('error', '')
+                state_event(self, ('camera', index), (id(self.extra_sources[index]), ok, error),
+                    f'{camera["name"]} · '+('연결됨' if ok else '연결 대기')+(f' · {error}' if error else ''),
+                    'ERROR' if error else 'INFO')
                 text = ('[가상] ' if info['virtual'] else '[실제] ')+('연결됨' if ok else '연결 대기')
                 if info['error']:
                     text += ' · '+info['error'][:100]
                 text += f' · 재접속 {info["reconnects"]}'
+                if index == 0:
+                    text += (' · '+info.get('prepare_status', 'RGB 준비 중') if info['preparing']
+                             else f' · 수신 {info["receive_fps"]:.1f} FPS · AI 없음')
             else:
                 address = camera['ip'].get().strip() or camera['serial'].get().strip() or '장치 미설정'
                 text = camera['kind'].get()+' · '+address+' · 미연결'
             if camera['name'] in states:
                 state=states[camera['name']]
+                state_event(self, ('recording', index), (id(self.group), state['state'], state.get('error', '')),
+                    f'{camera["name"]} 녹화 · {state["state"]}'+(f' · {state["error"]}' if state.get('error') else ''),
+                    'ERROR' if state.get('error') else 'INFO')
                 text += f' · {state["state"]} {state["frames"]}F'
+                text += (f' · 수신 {state["receive_fps"]:.1f}/저장 {state["saved_fps"]:.1f} FPS'
+                         f' · 중복 {state["repeated_frames"]}/건너뜀 {state["skipped_source_frames"]}')
                 if not state.get('source_verified',True):text+=' · 소스 확인 재시도'
             camera['status'].set(text)
         active = self.is_recording
@@ -527,7 +570,7 @@ class SixCameraTab:
         for index,camera in enumerate(self.cameras):
             camera['check'].configure(state=tk.DISABLED if active else tk.NORMAL)
             camera['connect'].configure(state=tk.DISABLED if active else tk.NORMAL)
-            camera['disconnect'].configure(state=tk.DISABLED if active or index==0 else tk.NORMAL)
+            camera['disconnect'].configure(state=tk.DISABLED if active else tk.NORMAL)
         self.selection_status.set(f'연결 {count}/6대 · 녹화 선택 {len(selected)}/6대'
                                  + (' · 녹화 중' if active else ''))
         if self.group:
@@ -550,6 +593,7 @@ class SixCameraTab:
             return False
         return all([source.close(timeout=3) for source in self.extra_sources.values()])
 
+    @action(lambda self, key: f'6대 카메라 설정 열기 · {key}')
     def show_settings(self, key):
         for other in self.windows.values():
             other.withdraw()

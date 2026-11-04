@@ -41,6 +41,7 @@ class SharedRgbRecorder:
         self.stop_event = threading.Event()
         self.lock = threading.Lock()
         self.status = dict(state='대기', frames=0, repeated_frames=0, error='',
+                           skipped_source_frames=0, received_frames=0, receive_fps=0., saved_fps=0.,
                            path=str(self.session/filename), error_kind='',
                            max_guard_ms=0., max_snapshot_ms=0., max_resize_ms=0.,
                            max_write_ms=0., max_schedule_lag_ms=0., guard_checks=0,
@@ -216,6 +217,7 @@ class SharedRgbRecorder:
             if hasattr(self.source,'info'):self.receiver_epoch=self.source.info().get('reconnects')
             phase='source_receive'
             connected, frame, sequence, received_at = self.source.record_snapshot()
+            initial_sequence = sequence
             if not connected or frame is None or time.monotonic()-received_at > 3:
                 raise RuntimeError(self.camera+' RGB 영상이 연결되지 않았거나 오래된 영상입니다.')
             size = self.size or (frame.shape[1], frame.shape[0])
@@ -271,6 +273,12 @@ class SharedRgbRecorder:
                 with self.lock:
                     self.status['frames'] += 1
                     self.status['repeated_frames'] += int(last_sequence == sequence)
+                    if last_sequence is not None:
+                        self.status['skipped_source_frames'] += max(0, sequence-last_sequence-1)
+                    elapsed = max(.001, time.monotonic()-started)
+                    self.status['received_frames'] = max(0, sequence-initial_sequence)
+                    self.status['receive_fps'] = round(self.status['received_frames']/elapsed, 2)
+                    self.status['saved_fps'] = round(self.status['frames']/elapsed, 2)
                 last_sequence = sequence
                 deadline += 1/self.fps
                 lag=max(0.,time.monotonic()-deadline)
@@ -292,6 +300,11 @@ class SharedRgbRecorder:
             self._fail(exc.kind if isinstance(exc,RecorderFault) else phase,str(exc))
         finally:
             ended_at=time.monotonic()
+            if started is not None:
+                with self.lock:
+                    elapsed = max(.001, ended_at-started)
+                    self.status['receive_fps'] = round(self.status['received_frames']/elapsed, 2)
+                    self.status['saved_fps'] = round(self.status['frames']/elapsed, 2)
             monitor_done.set()
             with self.lock:
                 if self.guard_unverified_at is not None:
