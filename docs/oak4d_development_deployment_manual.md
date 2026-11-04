@@ -174,7 +174,7 @@ git diff --check
 ### 5.5 멀티뷰와 CSV 확인
 
 ```bat
-wsl.exe -d Ubuntu-22.04 -- python3 /mnt/d/git_hub/hl-dcu-sensor-fusion/tools/oak_recorder.py --device-ip 192.168.0.4 --auto-connect
+wsl.exe -d Ubuntu-22.04 -- python3 /mnt/d/git_hub/hl-dcu-sensor-fusion/tools/oak_recorder.py --device-ip 192.168.0.4
 ```
 
 이 명령은 새 CMD 창에서 실행해도 된다. 멀티뷰 사용 중 해당 CMD는 닫지 않는다.
