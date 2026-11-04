@@ -3,3 +3,7 @@ __pycache__/
 models/yolopv2_320.dlc
 models/buildinfo.json
 models/config.json
+models/yolopv2_320.rvc4.tar.xz
+tests/
+README.md
+inspect_lane_contours.py

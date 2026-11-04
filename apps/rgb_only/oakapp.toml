@@ -1,0 +1,19 @@
+identifier = "com.qsentech.oak4-rgb-only"
+app_version = "0.1.2"
+entrypoint = ["python3.12", "-u", "/app/main.py"]
+assign_frontend_port = false
+
+prepare_container = [
+    { type = "COPY", source = "./requirements.txt", target = "./requirements.txt" },
+    { type = "COPY", source = "./install-runtime.sh", target = "./install-runtime.sh" },
+    { type = "RUN", command = "sh /app/install-runtime.sh" },
+]
+
+[base_image]
+api_url = "https://registry-1.docker.io"
+service = "registry.docker.io"
+oauth_url = "https://auth.docker.io/token"
+auth_type = "repository"
+auth_name = "library/python"
+image_name = "library/python"
+image_tag = "3.12.11-slim-bookworm"
