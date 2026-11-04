@@ -43,6 +43,51 @@ class Frame:
 
 
 class BoundaryPipelineTests(unittest.TestCase):
+    def test_temporal_overlay_survives_display_changes_and_resets_on_source_epoch(self):
+        class Host:
+            def createOutput(self, **kwargs):
+                return MagicMock()
+        dai = types.SimpleNamespace(node=types.SimpleNamespace(HostNode=Host,ThreadedHostNode=Host),
+            Node=MagicMock(),DatatypeEnum=MagicMock(),ImgFrame=Frame,NNData=Frame,
+            ImgDetection=Frame,ImgDetections=Frame,SpatialImgDetections=Frame,
+            LengthUnit=MagicMock(),Clock=types.SimpleNamespace(now=lambda:timedelta(seconds=10)))
+        with patch.dict(sys.modules,{'depthai':dai}):
+            node = importlib.import_module('yolopv2_node')
+        road = np.full((180,320),255,np.uint8)
+        lane = np.zeros_like(road)
+        for y in range(82,176):
+            for x in (int(160-(y-65)*.9),int(160+(y-65)*.9)):
+                lane[y,x-1:x+2] = 255
+        with (patch.object(node,'TelemetryServer') as server,
+              patch.object(node,'decode_heads'),
+              patch.object(node,'non_max_suppression',return_value=[]),
+              patch.object(node,'segmentation_masks',return_value=(road,lane))):
+            processor = node.Yolopv2Postprocess()
+            processor._tensor = MagicMock()
+            processor.video_input = MagicMock()
+            metadata = dict(input_source='pc',source_epoch=1,processing_mode='full',processing_epoch=0)
+            processor.video_input.metadata.return_value = metadata
+            for i in range(10):
+                frame = Frame();frame.timestamp = timedelta(seconds=10+i*.05);frame.sequence = i
+                processor.process(frame,frame,frame)
+            before = processor._lane_quadratics.left.coefficients.copy()
+            lane[:,:160] = 0
+            metadata.update(boundary_visible=False,lane_overlay_mode='raw_rgb')
+            frame.timestamp = timedelta(seconds=10.5)
+            processor.process(frame,frame,frame)
+            self.assertTrue(processor._lane_quadratics.left.is_virtual)
+            np.testing.assert_allclose(processor._lane_quadratics.left.coefficients,before,atol=1e-7)
+            metadata.update(boundary_visible=True,lane_overlay_mode='normal')
+            frame.timestamp = timedelta(seconds=10.55)
+            processor.process(frame,frame,frame)
+            self.assertTrue(processor._lane_quadratics.left.is_virtual)
+            self.assertTrue(server.return_value.publish.call_args.args[0]['left_boundary_valid'])
+            metadata['source_epoch'] = 2
+            frame.timestamp = timedelta(seconds=10.6)
+            processor.process(frame,frame,frame)
+            self.assertIsNone(processor._lane_quadratics.left)
+            self.assertFalse(server.return_value.publish.call_args.args[0]['left_boundary_valid'])
+
     def setUp(self):
         # These assertions specify the legacy/off rendering and telemetry.
         from virtual_guidance import GuidanceConfig
@@ -160,7 +205,7 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertEqual(payload['frame_seq'], 7)
             self.assertIsNone(payload['corridor_width_m'])
             self.assertIsNone(payload['normal_width_error_dev'])
-            self.assertEqual(payload['boundary_model'],'image_motion')
+            self.assertEqual(payload['boundary_model'],'mask_contour_temporal')
             self.assertGreater(len(payload['left_boundary_image']),12)
             self.assertGreater(len(payload['right_boundary_image']),12)
             result = processor.result.send.call_args.args[0]
@@ -192,8 +237,9 @@ class BoundaryPipelineTests(unittest.TestCase):
                 rgb_only=node.Yolopv2Postprocess()
                 rgb_only._tensor=MagicMock()
                 rgb_only.process(Frame(),Frame(),Frame())
-            self.assertTrue(server.return_value.publish.call_args.args[0]['boundary_pair_valid'])
-            # One observed side initializes a low-confidence image perspective prior.
+            self.assertFalse(server.return_value.publish.call_args.args[0]['boundary_pair_valid'])
+            # Full mode now tracks actual mask contours, never RGB-only paint
+            # or an unobserved side fabricated from a default image width.
             partial_lane=lane.copy()
             partial_lane[:,160:]=0
             partial_source=source.copy()
@@ -206,12 +252,12 @@ class BoundaryPipelineTests(unittest.TestCase):
             payload=server.return_value.publish.call_args.args[0]
             self.assertTrue(payload['boundary_valid'])
             self.assertTrue(payload['left_boundary_valid'])
-            self.assertTrue(payload['right_boundary_valid'])
-            self.assertTrue(payload['boundary_pair_valid'])
+            self.assertFalse(payload['right_boundary_valid'])
+            self.assertFalse(payload['boundary_pair_valid'])
             self.assertFalse(payload['centerline_valid'])
             result=partial.result.send.call_args.args[0]
             self.assertTrue(np.any(np.all(result.data==(0,220,255),axis=2)))
-            self.assertEqual(payload['right_boundary_state'],'inferred')
+            self.assertEqual(payload['right_boundary_state'],'unavailable')
             self.assertFalse(np.any(np.all(result.data==(114,81,0),axis=2)))
             # Even if a real-looking stereo image reaches the callback, PC
             # provenance must suppress its distances and reset old tracking.
@@ -232,7 +278,7 @@ class BoundaryPipelineTests(unittest.TestCase):
             # Basic must bypass the expensive algorithms, not just hide lines.
             processor.video_input.metadata.return_value=dict(input_source='pc',source_epoch=2,
                 processing_mode='basic',processing_epoch=1)
-            with patch.object(node.ImageBoundaryTracker,'update',side_effect=AssertionError('boundary ran')), \
+            with patch.object(node.ImageBoundaryTracker,'update_contours',side_effect=AssertionError('boundary ran')), \
                  patch.object(node.StopLineTracker,'update',side_effect=AssertionError('stop ran')), \
                  patch.object(node,'render_boundary_bev',side_effect=AssertionError('BEV ran')):
                 processor.process(Frame(),Frame(),Frame())

@@ -14,7 +14,7 @@ class NoVideoDiagnosticPatchTests(unittest.TestCase):
     def test_preserves_processing_and_removes_video(self):
         main = patch.patch_main((ROOT/'apps/yolopv2_standalone/main.py').read_text(encoding='utf-8'))
         node = patch.patch_node((ROOT/'apps/yolopv2_standalone/yolopv2_node.py').read_text(encoding='utf-8'))
-        for name in ('self._boundary_tracker.update(', 'segmentation_masks(', 'self.drivable.send(',
+        for name in ('self._boundary_tracker.update_contours(', 'segmentation_masks(', 'self.drivable.send(',
                      'self.lane.send(', 'self._telemetry.publish(', 'self._stop_line_tracker.update(',
                      'self._guidance.update('):
             self.assertIn(name, node)

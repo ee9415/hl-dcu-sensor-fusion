@@ -510,7 +510,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._contour_visible=source.get('contour_visible',False)
         self._lane_overlay_mode=source.get('lane_overlay_mode','normal')
         self._lane_overlay_threshold=source.get('lane_overlay_threshold',.5)
-        processing_key=(processing_mode,source.get('processing_epoch',0))
+        processing_key=(processing_mode,source.get('processing_epoch',0),source.get('source_media_epoch'))
         if (source and source.get('source_epoch') != self._input_epoch) or processing_key!=self._processing_key:
             self._boundary_tracker = ImageBoundaryTracker(self._boundary_tracker.config)
             self._stop_line_tracker = StopLineTracker()
@@ -598,14 +598,10 @@ class Yolopv2Postprocess(dai.node.HostNode):
         )
         boundary_started = time.monotonic()
         from lane_contours import extract_lane_contours
-        self._lane_contour_result = (extract_lane_contours(lane)
-            if (self._boundary_visible or self._contour_visible) and self._lane_overlay_mode != 'raw_rgb' else None)
-        from ego_lane_quadratic import select_ego_quadratics,add_virtual_side,complete_partial_lanes
-        self._lane_quadratics=(select_ego_quadratics(self._lane_contour_result,lane.shape)
-            if self._lane_contour_result is not None else None)
-        if self._lane_quadratics is not None:
-            self._lane_quadratics=add_virtual_side(self._lane_quadratics,self._lane_contour_result,lane.shape)
-            self._lane_quadratics=complete_partial_lanes(self._lane_quadratics,self._lane_contour_result,lane.shape)
+        # Perception is independent of display switches. Full mode uses one
+        # contour-fed tracker for RGB, TOP, guidance and telemetry.
+        self._lane_contour_result = extract_lane_contours(lane)
+        self._lane_quadratics = None
         self._lane_scores=None
         self._lane_preview_error=None
         if self._lane_overlay_mode != 'raw_rgb':
@@ -614,9 +610,11 @@ class Yolopv2Postprocess(dai.node.HostNode):
             except ValueError as exc:
                 self._lane_preview_error=str(exc)
         if processing_mode=='full':
-            boundaries = self._boundary_tracker.update(
-                drivable, lane, nn_data.getTimestamp().total_seconds(), rgb=preview.getCvFrame(),
-                detections=detection_messages)
+            boundaries = self._boundary_tracker.update_contours(
+                self._lane_contour_result, lane.shape, nn_data.getTimestamp().total_seconds(),
+                rgb=preview.getCvFrame())
+            from ego_lane_quadratic import tracked_quadratics
+            self._lane_quadratics = tracked_quadratics(boundaries, lane.shape)
             boundary_finished = time.monotonic()
             stop_line=self._stop_line_tracker.update(preview.getCvFrame(),boundaries,
                              nn_data.getTimestamp().total_seconds(),detection_messages)
@@ -630,6 +628,11 @@ class Yolopv2Postprocess(dai.node.HostNode):
             stop_line=StopLineEstimate(state='disabled')
             self._guidance_estimate = GuidanceEstimate(reason='basic_mode')
             boundary_finished=stop_finished=bev_finished=boundary_started
+            # Basic mode deliberately bypasses temporal perception/guidance.
+            from ego_lane_quadratic import select_ego_quadratics, add_virtual_side, complete_partial_lanes
+            self._lane_quadratics = complete_partial_lanes(
+                add_virtual_side(select_ego_quadratics(self._lane_contour_result,lane.shape),
+                                 self._lane_contour_result,lane.shape), self._lane_contour_result,lane.shape)
         # TOP video remains available in basic mode; no boundary tracking needed.
         top_projection = projection_for(lane.shape, self._top_config)
         bev = self._top_view.render(preview.getCvFrame(), lane, top_projection, 'raw_rgb')

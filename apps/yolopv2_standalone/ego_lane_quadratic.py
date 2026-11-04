@@ -418,3 +418,49 @@ def select_ego_quadratics(result, image_shape, vehicle_x=None):
             left=None
     reason='left_only' if left else 'right_only' if right else 'no_supported_lane'
     return EgoLaneQuadratics(left,right,reference_y,center,reason)
+
+
+def tracked_quadratics(estimate, image_shape):
+    """Adapt the common 320x180 tracking estimate for RGB and TOP drawing.
+
+    No detection or temporal state lives here. Non-observed rows are dashed,
+    and the adapter cannot create a side absent from the tracking estimate.
+    """
+    height, width = image_shape[:2]
+    reference = height*.85
+    fits = []
+    for side in ('left', 'right'):
+        points = getattr(estimate, 'image_'+side)
+        good = np.isfinite(points).all(axis=1)
+        if good.sum() < 8:
+            fits.append(None)
+            continue
+        points = points[good].copy()
+        points *= np.array([width/320., height/180.])
+        points = points[np.argsort(points[:,1])]
+        coefficients = np.polyfit(points[:,1], points[:,0], 2)
+        state = getattr(estimate, side+'_state')
+        support = getattr(estimate, side+'_support')
+        virtual = state not in ('observed', 'partial', 'aligning')
+        rows = points[:,1]
+        extension = None
+        if not virtual and support is not None:
+            measured = getattr(estimate, 'image_'+side)[support]
+            measured = measured[np.isfinite(measured).all(axis=1)]
+            if len(measured):
+                low, high = measured[:,1].min()*height/180., measured[:,1].max()*height/180.
+                tail = rows[rows < low]
+                if len(tail) >= 2:
+                    extension = QuadraticLane(coefficients.copy(),
+                        np.column_stack((np.polyval(coefficients,tail),tail)), -1, 0, float('nan'),
+                        float(np.polyval(coefficients,reference)), is_virtual=True,
+                        width_source='tracked_extension')
+                rows = rows[(rows >= low) & (rows <= high)]
+        if len(rows) < 2:
+            fits.append(None)
+            continue
+        fits.append(QuadraticLane(coefficients, np.column_stack((np.polyval(coefficients,rows),rows)),
+            -1, int(np.count_nonzero(support)) if support is not None else 0,
+            getattr(estimate, side+'_residual_px'), float(np.polyval(coefficients,reference)),
+            is_virtual=virtual, width_source='tracked_'+state, extension=extension))
+    return EgoLaneQuadratics(*fits, reference, width/2., 'temporal_'+estimate.state)

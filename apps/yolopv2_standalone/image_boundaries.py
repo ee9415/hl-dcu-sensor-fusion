@@ -23,6 +23,7 @@ class ImageBoundaryEstimate:
     right_residual_px: object = None
     restored_pair: bool = False
     detection_diagnostics: object = None
+    model: str = 'image_motion'
 
     @property
     def left_valid(self):
@@ -56,7 +57,7 @@ class ImageBoundaryEstimate:
                     left_boundary_state=self.left_state,right_boundary_state=self.right_state,
                     left_boundary_confidence=self.left_confidence,right_boundary_confidence=self.right_confidence,
                     boundary_confidence_kind='heuristic_not_probability',boundary_units='image_pixels_320x180',
-                    boundary_model='image_motion',left_boundary_image=points(self.image_left),
+                    boundary_model=self.model,left_boundary_image=points(self.image_left),
                     left_display_residual_px=self.left_residual_px,
                     right_display_residual_px=self.right_residual_px,
                     boundary_restored_pair=self.restored_pair,
@@ -164,6 +165,243 @@ class ImageBoundaryTracker:
         self.current_pair_hits=0
         self.current_pair_previous=None
         self.observation_motion=np.array([[1.,0.,0.],[0.,1.,0.]])
+
+    def update_contours(self, result, image_shape, timestamp_s, rgb=None):
+        """Track actual mask contours once for rendering, guidance and telemetry.
+
+        Coordinates are normalized to the existing 320x180 image model. No
+        virtual/extended samples enter the observations. Motion prediction is
+        hold-only; a learned bilateral width is a weak, rate-limited constraint.
+        """
+        from ego_lane_quadratic import fit_quadratic
+        height, width = image_shape[:2]
+        shape = (height, width)
+        last = getattr(self, '_contour_time', None)
+        dt = 0. if last is None else timestamp_s-last
+        gray = None
+        if rgb is not None:
+            gray = rgb[np.linspace(0, rgb.shape[0]-1, 24).astype(int)[:, None],
+                       np.linspace(0, rgb.shape[1]-1, 32).astype(int)[None, :]].mean(axis=2)
+        previous = getattr(self, '_contour_gray', None)
+        cut = gray is not None and previous is not None and np.mean(abs(gray-previous)) > 45
+        reset = (last is None or not np.isfinite(timestamp_s) or dt <= 0 or dt > 1.
+                 or shape != getattr(self, '_contour_shape', None) or cut)
+        if reset:
+            self.history = [None, None]
+            self.scores = [0., 0.]
+            self.width = None
+            self.width_samples[:] = 0
+            self._contour_seen = [None, None]
+            self._contour_pending = [None, None]
+            self._contour_width_time = None
+            dt = 0.
+        self._contour_time = float(timestamp_s) if np.isfinite(timestamp_s) else None
+        self._contour_shape = shape
+        self._contour_gray = gray
+        empty = lambda: np.column_stack((np.full(48, np.nan), self.rows))
+        identity = np.array([[1., 0., 0.], [0., 1., 0.]])
+        stats = [dict(source='mask_contours', reset=reset, candidates=0),
+                 dict(source='mask_contours', reset=reset, candidates=0)]
+        if not np.isfinite(timestamp_s):
+            return ImageBoundaryEstimate(empty(), empty(), projection_for((180,320), self.config),
+                'unavailable', 'unavailable', 0., 0., 0., identity, 'unavailable', 'none',
+                np.zeros(48,bool), np.zeros(48,bool), detection_diagnostics=stats, model='mask_contour_temporal')
+
+        # Expired tracks cannot bias association or make an old lane reappear.
+        for side in (0, 1):
+            seen = self._contour_seen[side]
+            if seen is not None and timestamp_s-seen > 1.5:
+                self.history[side] = None
+                self.scores[side] = 0.
+        candidates = []
+        for index, curve in enumerate(result.group_curves):
+            fit = fit_quadratic(curve, height, index)
+            if fit is None or fit.points[-1,1] < height*.68:
+                continue
+            anchor = np.polyval(fit.coefficients, height*.85)*320/width
+            if not -32 <= anchor <= 352:
+                continue
+            rows = self.rows*height/180
+            support = (rows >= fit.points[0,1]) & (rows <= fit.points[-1,1])
+            if support.sum() < 8:
+                continue
+            points = np.column_stack((np.polyval(fit.coefficients, rows)*320/width, self.rows))
+            points[~support,0] = np.nan
+            if not self._smooth_shape(points):
+                continue
+            quality = float(np.clip((.55+.4*min(1., np.ptp(fit.points[:,1])/(height*.4)))
+                                   *np.exp(-fit.residual_px*320/width/6.), .15, .95))
+            candidates.append((index, points, support, quality, anchor))
+
+        self.last_candidate_count = len(candidates)
+
+        # Associate BEFORE any bilateral pair rejection. A weak/short opposite
+        # cannot delete an otherwise supported, temporally consistent boundary.
+        options = [[], []]
+        for side in (0, 1):
+            prior = self.history[side]
+            for item in candidates:
+                index, points, support, quality, anchor = item
+                if prior is None:
+                    if (anchor < 160) != (side == 0):
+                        continue
+                    cost = .1*abs(anchor-160)+4*(1-quality)
+                else:
+                    common = support & np.isfinite(prior[:,0])
+                    if common.sum() < 8:
+                        continue
+                    cost = float(np.percentile(abs(points[common,0]-prior[common,0]), 80))
+                    cost += 4*(1-quality)
+                    # Never force an unrelated opposite/outer boundary into an
+                    # owned track merely to maximize the number of assignments.
+                    if cost > 60.:
+                        continue
+                options[side].append((cost, index, item))
+            options[side].sort(key=lambda entry: entry[:2])
+            stats[side]['candidates'] = len(options[side])
+        # Joint assignment prevents both sides consuming the same skeleton.
+        assignments = []
+        for left in [None]+options[0]:
+            for right in [None]+options[1]:
+                if left is not None and right is not None:
+                    if left[1] == right[1]:
+                        continue
+                    pair = [left[2][1], right[2][1]]
+                    if not self._valid_pair(pair):
+                        continue
+                cost = sum(100. if entry is None else entry[0] for entry in (left,right))
+                assignments.append((cost, left, right))
+        _, left, right = min(assignments, key=lambda entry: entry[0])
+        chosen = [left, right]
+        observations = [None, None]
+        for side, entry in enumerate(chosen):
+            if entry is None:
+                self._contour_pending[side] = None
+                continue
+            _, index, item = entry
+            _, points, support, quality, _ = item
+            prior = self.history[side]
+            accepted = prior is None
+            error = 0.
+            if prior is not None:
+                common = support & np.isfinite(prior[:,0])
+                error = float(np.percentile(abs(points[common,0]-prior[common,0]), 90))
+                slope_old = np.polyfit(self.rows[common], prior[common,0], 1)[0]
+                slope_new = np.polyfit(self.rows[common], points[common,0], 1)[0]
+                age = timestamp_s-self._contour_seen[side]
+                accepted = (error <= min(32., 12.+20.*age)
+                            and abs(np.arctan(slope_new)-np.arctan(slope_old)) <= np.deg2rad(25))
+            stats[side].update(group=index, prior_error_px=error, accepted=accepted)
+            if not accepted:
+                pending = self._contour_pending[side]
+                common = support & (np.isfinite(pending[0][:,0]) if pending is not None else False)
+                repeat = (pending is not None and common.sum() >= 8
+                          and np.max(abs(points[common,0]-pending[0][common,0])) <= 4.)
+                pending = (points.copy(), pending[1], pending[2]+1) if repeat else (points.copy(), timestamp_s, 1)
+                self._contour_pending[side] = pending
+                accepted = pending[2] >= 3 and timestamp_s-pending[1] >= .2-1e-9
+                stats[side]['confirmed_reacquisition'] = accepted
+                if not accepted:
+                    continue
+            else:
+                self._contour_pending[side] = None
+            observations[side] = (points, support, quality)
+
+        output = [p.copy() if p is not None else empty() for p in self.history]
+        states = ['unavailable', 'unavailable']
+        supports = [np.zeros(48,bool), np.zeros(48,bool)]
+        residuals = [None, None]
+        observed = [False, False]
+        for side, observation in enumerate(observations):
+            if observation is None:
+                self.scores[side] *= np.exp(-dt/ .6)
+                if self.history[side] is not None:
+                    states[side] = 'held'
+                continue
+            points, support, quality = observation
+            prior = self.history[side]
+            if prior is None:
+                output[side] = points.copy()
+            else:
+                common = support & np.isfinite(prior[:,0])
+                domain = np.isfinite(prior[:,0]) | support
+                # Fit the correction on observed rows only; short spans update
+                # offset/direction instead of inventing unsupported curvature.
+                degree = 2 if np.ptp(self.rows[common]) >= 45 else 1 if np.ptp(self.rows[common]) >= 16 else 0
+                u = (self.rows-125.)/50.
+                correction = np.polynomial.polynomial.polyfit(u[common], points[common,0]-prior[common,0], degree)
+                delta = np.polynomial.polynomial.polyval(u, correction)
+                tau = .12 if stats[side]['prior_error_px'] > 4 else .25
+                alpha = (1.-np.exp(-dt/tau))*quality
+                fraction = min(alpha, 80.*dt/max(float(np.max(abs(delta[domain]))), 1e-9))
+                base = np.polynomial.polynomial.polyfit(u[np.isfinite(prior[:,0])], prior[np.isfinite(prior[:,0]),0], 2)
+                values = np.polynomial.polynomial.polyval(u, base)+fraction*delta
+                output[side] = np.column_stack((np.where(domain, values, np.nan), self.rows))
+            supports[side] = support.copy()
+            residuals[side] = float(np.percentile(abs(output[side][support,0]-points[support,0]),90))
+            states[side] = 'observed' if residuals[side] <= 4 else 'aligning'
+            self.scores[side] = quality*float(np.exp(-residuals[side]/12.))
+            self._contour_seen[side] = timestamp_s
+            observed[side] = True
+
+        # Learn width only from actual, aligned bilateral measurements.
+        common = supports[0] & supports[1]
+        if all(observed) and states == ['observed','observed'] and common.sum() >= 8 and self._valid_pair(output):
+            measured_width = observations[1][0][:,0]-observations[0][0][:,0]
+            if self.width is None:
+                self.width = np.full(48, np.nan)
+            first = common & (self.width_samples == 0)
+            known = common & ~first
+            self.width[first] = measured_width[first]
+            self.width[known] += (1.-np.exp(-dt/.8))*(measured_width[known]-self.width[known])
+            self.width_samples[common] += 1
+            self._contour_width_time = timestamp_s
+        for side in (0, 1):
+            other = 1-side
+            if (observed[side] or not observed[other] or self.history[side] is None
+                    or self.width is None or self._contour_width_time is None
+                    or timestamp_s-self._contour_width_time > 3.):
+                continue
+            trusted = (self.width_samples >= 3) & supports[other] & np.isfinite(output[side][:,0]) & np.isfinite(self.width)
+            if trusted.sum() < 8 or np.ptp(self.rows[trusted]) < 20:
+                continue
+            target = output[other][:,0]+(-1 if side == 0 else 1)*self.width
+            error = target[trusted]-output[side][trusted,0]
+            if np.percentile(abs(error),90) > 24.:
+                stats[side]['width_conflict'] = True
+                continue
+            u = (self.rows-125.)/50.
+            correction = np.polynomial.polynomial.polyfit(u[trusted], error, 2)
+            delta = np.polynomial.polynomial.polyval(u, correction)
+            domain = np.isfinite(output[side][:,0])
+            fraction = min(1.-np.exp(-dt/.4), 20.*dt/max(float(np.max(abs(delta[domain]))),1e-9))
+            candidate = output[side].copy()
+            candidate[domain,0] += fraction*delta[domain]
+            pair = list(output); pair[side] = candidate
+            if self._valid_pair(pair):
+                output[side] = candidate
+                states[side] = 'inferred'
+
+        # No observation can refresh the opposite's age, score or width evidence.
+        any_observed = any(observed)
+        for side in (0,1):
+            age = None if self._contour_seen[side] is None else timestamp_s-self._contour_seen[side]
+            stats[side].update(missing_s=age, observed=observed[side], width_samples=int(np.max(self.width_samples)))
+            if age is None or age > (1.5 if any_observed else .6)+1e-9:
+                output[side] = empty(); states[side] = 'unavailable'; self.scores[side] = 0.
+                self.history[side] = None
+        # Reject incompatible fusion without discarding a valid observed side.
+        if all(np.isfinite(p[:,0]).sum() >= 8 for p in output) and not self._valid_pair(output):
+            side = int(self.scores[1] < self.scores[0])
+            output[side] = empty(); states[side] = 'unavailable'; supports[side][:] = False
+            self.scores[side] = 0.; stats[side]['pair_rejected'] = True
+        self.history = [p.copy() if np.isfinite(p[:,0]).sum() >= 8 else None for p in output]
+        self.side_missing = np.array([0. if seen is None else timestamp_s-seen for seen in self._contour_seen])
+        self.detection_diagnostics = stats
+        reference = 'both' if all(observed) else 'left' if observed[0] else 'right' if observed[1] else 'none'
+        state = 'tracking' if any_observed else 'held' if any(p is not None for p in self.history) else 'unavailable'
+        return ImageBoundaryEstimate(*output, projection_for((180,320), self.config), *states, *self.scores,
+            0., identity, state, reference, *supports, *residuals, False, stats, 'mask_contour_temporal')
 
     def _nn_support(self, points):
         """Tie-break only on observed paint; never change acceptance/confidence."""
