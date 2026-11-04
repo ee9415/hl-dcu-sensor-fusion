@@ -11,6 +11,17 @@ import video_input_settings
 
 
 class UnifiedSettingsTests(unittest.TestCase):
+    def test_optional_contour_preference_legacy_and_roundtrip(self):
+        data=dict(display=dict(full_processing=True,boundary_visible=True,lane_mode='normal',threshold=.5),
+                  selected=dict(rgb=True,yolopv2=True),recording=dict(output_dir='out',session_name='test',
+                    resolution='원본 스트림',fps='10',verify_output=True))
+        self.assertNotIn('contour_visible',store.preferences(data)['display'])
+        data['display']['contour_visible']=True
+        store.update(self.path,{'preferences':store.preferences(data)})
+        self.assertTrue(store.preferences(store.read(self.path)['preferences'])['display']['contour_visible'])
+        data['display']['contour_visible']='true'
+        with self.assertRaises(ValueError):store.preferences(data)
+
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.path=Path(self.temp.name)/'settings.json'

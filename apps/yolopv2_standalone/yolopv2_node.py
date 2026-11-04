@@ -266,6 +266,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._guidance = VirtualGuidance(GuidanceConfig.load())
         self._guidance_estimate = GuidanceEstimate()
         self._boundary_visible = True
+        self._contour_visible = False
         self._lane_overlay_mode = 'normal'
         self._lane_overlay_threshold = .5
         self._lane_scores = None
@@ -275,7 +276,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._processing_key = None
         # Include the final camera row; reserve the canvas below it as unseen
         # ground. Never synthesize or stretch the last visible road pixels.
-        self._top_view = TopViewRenderer(near_row=419)
+        self._top_view = TopViewRenderer(near_row=419, horizontal_scale=1.75)
         # Fit from 61 near-road rows per side, not a symmetric image trapezoid.
         # The left/right reference points belong to the same straight corridor.
         # Normalized road-plane anchors; not metric camera calibration.
@@ -466,75 +467,15 @@ class Yolopv2Postprocess(dai.node.HostNode):
         rendered = np.ascontiguousarray(source[::2, ::2])
         if rendered.shape[:2] != (result_height, result_width):
             raise ValueError(f"Unexpected result shape: {rendered.shape}")
-        if self._lane_overlay_mode!='normal' and (self._lane_overlay_mode=='raw_rgb' or self._lane_scores is not None):
-            rendered=render_lane_overlay(rendered,self._lane_scores,self._lane_overlay_threshold,self._lane_overlay_mode)
-            mode=self._lane_overlay_mode
-            threshold=effective_preview_threshold(mode,self._lane_overlay_threshold)
-            titles={'raw_rgb':'ORIGINAL RGB','lane_score':'LANE PIXEL SCORE','lane_mask':'LANE MASK',
-                    'lane_bands':'LANE SCORE BANDS','lane_bands_rgb':'RGB SCORE BANDS','lane_compare':'LANE COMPARE'}
-            detail=' PREVIEW ONLY' if mode=='raw_rgb' else f' T={threshold:.2f} PREVIEW ONLY'
-            self._draw_text(rendered,titles[mode]+detail,10,12,(0,220,255))
-            if mode=='raw_rgb':
-                self._draw_text(rendered,f'FRAME {preview.getSequenceNum()}',10,32,(0,220,255))
-            elif self._lane_scores is not None:
-                area=100.*np.mean(self._lane_scores>=threshold)
-                self._draw_text(rendered,f'AREA {area:.2f} BASE 0.50',10,32,(0,220,255))
-            if mode=='lane_compare':
-                y=(result_height-result_height//3)//2-22
-                for i,label in enumerate(('ORIGINAL RGB','SCORE BANDS','RGB AND BANDS')):
-                    self._draw_text(rendered,label,i*(result_width//3)+10,y,(255,255,255))
-            if mode in ('lane_bands','lane_bands_rgb'):
-                self._draw_lane_band_legend(rendered,threshold)
-            elif mode in ('lane_score','lane_compare'):
-                # Exactly the same per-pixel score-to-color function as RGB.
-                rendered[-43:,:640]=(14,22,30)
-                color_fn=reference_band_colors if mode=='lane_compare' else lane_score_colors
-                colors=color_fn(np.linspace(0,1,601)).astype(np.uint8)
-                rendered[-30:-18,10:611]=colors[None]
-                for edge in (BAND_LEVELS if mode=='lane_compare' else RAINBOW_EDGES):
-                    x=10+round(edge*600)
-                    self._draw_text(rendered,f'{edge:.2f}',max(10,x-12),result_height-11,
-                                    (255,255,255),scale=1)
-                x=10+round(threshold*600)
-                rendered[-34:-14,max(0,x-1):x+2]=(255,255,255)
-            result=dai.ImgFrame()
-            result.setCvFrame(rendered,dai.ImgFrame.Type.NV12)
-            result.setTimestamp(preview.getTimestamp());result.setSequenceNum(preview.getSequenceNum())
-            return result
-        drivable_up = np.repeat(np.repeat(drivable, 3, axis=0), 3, axis=1)
-
-        self._blend_mask(rendered, drivable_up, (0, 180, 0), 0.20)
-        if self._lane_scores is not None:
-            rendered = overlay_pixel_confidence(rendered, self._lane_scores,
-                                                self._lane_overlay_threshold)
-            rendered[-44:,-240:] = (14,22,30)
-            rendered[-30:-20,-230:-10] = lane_score_colors(1-np.linspace(0,1,220))[None].astype(np.uint8)
-            for x, label in ((730,'0.00'),(830,'0.50'),(920,'1.00')):
-                self._draw_text(rendered,label,x,525,(255,255,255),scale=1)
-            self._draw_text(rendered,'PIXEL SCORE',730,498,(255,255,255),scale=1)
-        if self._lane_preview_error:
-            self._draw_text(rendered,'LANE SCORE UNAVAILABLE',10,112,(0,0,255))
         full = boundaries.state != 'disabled'
-        if full:
-            if self._guidance.config.enabled:
-                draw_guidance(rendered, self._guidance_estimate,show_boundaries=self._boundary_visible)
-                path_label=('ESTIMATED' if not self._guidance_estimate.valid and
-                            self._guidance_estimate.visible_path is not None else self._guidance_estimate.source.upper())
-                self._draw_text(rendered, 'PATH '+path_label
-                                +' '+self._guidance_estimate.reason.upper().replace('_',' '),10,72,(255,255,0))
-                if self._guidance_estimate.boundaries_available and not self._guidance_estimate.valid:
-                    self._draw_text(rendered,'BND '+self._guidance_estimate.boundary_state.upper().replace('_',' '),
-                                    10,92,(0,150,255))
-            elif self._boundary_visible:
-                draw_boundaries(rendered, boundaries, (drivable.shape[1], drivable.shape[0]))
-            draw_stop_line(rendered,stop_line)
-            self._draw_text(rendered, 'BOUNDARIES '+boundaries.state.upper().replace('_', ' ')
-                            +' REF '+boundaries.reference_side.upper(),10,12,(0,220,255))
-            self._draw_text(rendered,f'L {boundaries.left_confidence:.2f} {boundaries.left_state.upper()} '
-                            f'R {boundaries.right_confidence:.2f} {boundaries.right_state.upper()}',10,32,(0,220,255))
-            self._draw_text(rendered,f'STOP {stop_line.state.upper()} {stop_line.confidence:.2f}',10,52,(255,0,255))
-        else:
-            self._draw_text(rendered,'YOLOPV2 BASIC',10,12,(0,220,255))
+        if self._lane_overlay_mode != 'raw_rgb':
+            from lane_overlay import overlay_lane_quadratics,overlay_contour_skeleton
+            contours = getattr(self,'_lane_contour_result',None)
+            if self._contour_visible and contours is not None:
+                overlay_contour_skeleton(rendered,contours)
+            if self._boundary_visible and contours is not None:
+                overlay_lane_quadratics(rendered,self._lane_quadratics,contours.directional_mask.shape)
+            self._draw_text(rendered,'MAGENTA REAL / YELLOW DASHED VIRTUAL',10,12,(0,220,255))
         invalid_labels = 0
         for detection, measurement in zip(detections, measurements, strict=True):
             self._draw_box(rendered, detection)
@@ -566,6 +507,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
             return  # Do not process a frame whose source provenance expired.
         processing_mode=source.get('processing_mode','full')
         self._boundary_visible=source.get('boundary_visible',True)
+        self._contour_visible=source.get('contour_visible',False)
         self._lane_overlay_mode=source.get('lane_overlay_mode','normal')
         self._lane_overlay_threshold=source.get('lane_overlay_threshold',.5)
         processing_key=(processing_mode,source.get('processing_epoch',0))
@@ -655,6 +597,15 @@ class Yolopv2Postprocess(dai.node.HostNode):
             self.model_size,
         )
         boundary_started = time.monotonic()
+        from lane_contours import extract_lane_contours
+        self._lane_contour_result = (extract_lane_contours(lane)
+            if (self._boundary_visible or self._contour_visible) and self._lane_overlay_mode != 'raw_rgb' else None)
+        from ego_lane_quadratic import select_ego_quadratics,add_virtual_side,complete_partial_lanes
+        self._lane_quadratics=(select_ego_quadratics(self._lane_contour_result,lane.shape)
+            if self._lane_contour_result is not None else None)
+        if self._lane_quadratics is not None:
+            self._lane_quadratics=add_virtual_side(self._lane_quadratics,self._lane_contour_result,lane.shape)
+            self._lane_quadratics=complete_partial_lanes(self._lane_quadratics,self._lane_contour_result,lane.shape)
         self._lane_scores=None
         self._lane_preview_error=None
         if self._lane_overlay_mode != 'raw_rgb':
@@ -681,34 +632,16 @@ class Yolopv2Postprocess(dai.node.HostNode):
             boundary_finished=stop_finished=bev_finished=boundary_started
         # TOP video remains available in basic mode; no boundary tracking needed.
         top_projection = projection_for(lane.shape, self._top_config)
-        bev = self._top_view.render(preview.getCvFrame(), lane, top_projection,
-                                   self._lane_overlay_mode, self._lane_overlay_threshold,
-                                   self._lane_scores)
-        if processing_mode == 'full':
-            top_boundaries = replace(boundaries, projection=self._top_view.projection)
-            if self._guidance.config.enabled:
-                draw_guidance(bev, self._guidance_estimate, projection=self._top_view.projection,
-                              show_boundaries=self._boundary_visible)
-            elif self._boundary_visible:
-                from lane_boundaries import draw_polyline, transform
-                for points, color in ((boundaries.image_left, (0,220,255)),
-                                      (boundaries.image_right, (255,180,0))):
-                    draw_polyline(bev, transform(points, np.linalg.inv(self._top_view.projection)), color, 2)
-            draw_stop_line(bev, stop_line, top_boundaries)
-        # Rasterized guide/boundary lines must not paint into unseen ground.
+        bev = self._top_view.render(preview.getCvFrame(), lane, top_projection, 'raw_rgb')
+        if self._contour_visible and self._lane_overlay_mode != 'raw_rgb':
+            self._top_view.overlay_lane_groups(bev,self._lane_contour_result)
+        if self._boundary_visible and self._lane_overlay_mode != 'raw_rgb':
+            from lane_overlay import overlay_lane_quadratics
+            overlay_lane_quadratics(bev,self._lane_quadratics,lane.shape,
+                                    self._top_view.projection,self._top_view.valid)
         bev[~self._top_view.valid] = 0
-        self._draw_text(bev, 'TOP VIEW - UNCALIBRATED',10,10,(0,220,255))
-        self._draw_text(bev, processing_mode.upper()+' '+self._lane_overlay_mode.upper(),10,30,(0,220,255))
-        if self._lane_overlay_mode == 'normal':
-            if self._lane_scores is None:
-                self._draw_text(bev,'LANE SCORE UNAVAILABLE',10,50,(0,0,255))
-            else:
-                # Fixed raw-score scale, never normalized to this frame's range.
-                bev[-44:,-240:] = (14,22,30)
-                bev[-30:-20,-230:-10] = lane_score_colors(1-np.linspace(0,1,220))[None].astype(np.uint8)
-                for x, label in ((410,'0.00'),(510,'0.50'),(600,'1.00')):
-                    self._draw_text(bev,label,x,465,(255,255,255),scale=1)
-                self._draw_text(bev,'PIXEL SCORE',410,438,(255,255,255),scale=1)
+        self._draw_text(bev,'TOP LANE QUADRATIC',10,10,(0,220,255))
+        self._draw_text(bev,'MAGENTA REAL / YELLOW VIRTUAL',10,30,(0,220,255))
         bev_finished = time.monotonic()
         capture_s = preview.getTimestamp().total_seconds()
         capture_wall = time.time() - (dai.Clock.now().total_seconds() - capture_s)

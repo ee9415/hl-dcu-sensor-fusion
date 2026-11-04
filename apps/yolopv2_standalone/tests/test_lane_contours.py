@@ -1,0 +1,182 @@
+import unittest
+
+import cv2
+import numpy as np
+
+from lane_contours import (extract_lane_contours, longitudinal_mask,
+                           LanePiece, connect_lane_pieces, lane_group_curves,
+                           observed_curve_segments)
+
+
+class ContourTests(unittest.TestCase):
+    def test_thick_lane_skeleton_is_central_and_inside(self):
+        mask=np.zeros((180,320),np.uint8)
+        mask[20:165,70:81]=1
+        result=extract_lane_contours(mask)
+        y,x=np.nonzero(result.skeleton_mask)
+        self.assertGreater(np.ptp(y),125)
+        self.assertTrue(np.all(abs(x-75)<=1))
+        self.assertTrue(np.all(mask[y,x]))
+        curve=result.group_curves[0]
+        observed=curve[curve[:,2]>0,:2].astype(int)
+        self.assertTrue(np.all(result.skeleton_mask[observed[:,1],observed[:,0]]))
+
+    def test_curved_skeleton_and_holes_stay_inside_mask(self):
+        mask=np.zeros((180,320),np.uint8)
+        rows=np.arange(20,170)
+        points=np.column_stack((np.rint(80+.004*(rows-85)**2),rows)).astype(np.int32)
+        cv2.polylines(mask,[points],False,1,7)
+        mask[60:64,80:82]=0
+        result=extract_lane_contours(mask)
+        self.assertTrue(np.all(result.skeleton_mask<=mask))
+        for curve in result.group_curves:
+            observed=curve[curve[:,2]>0,:2].astype(int)
+            self.assertTrue(np.all(result.skeleton_mask[observed[:,1],observed[:,0]]))
+        self.assertGreater(np.ptp(np.nonzero(result.skeleton_mask)[1]),15)
+
+    def test_observed_endpoints_do_not_make_gap_observed(self):
+        mask=np.zeros((20,20),np.uint8)
+        mask[5,5]=mask[6,10]=1
+        curve=np.array([[5,5,1],[10,6,1]],float)
+        self.assertFalse(observed_curve_segments(curve,mask)[0])
+
+    @staticmethod
+    def piece(start,stop,x,slope,width=4):
+        rows=np.arange(start,stop,dtype=float)
+        centers=x+slope*(rows-start)
+        contour=np.column_stack((centers,rows)).astype(np.int32)[:,None,:]
+        return LanePiece(contour,rows,centers,np.full(len(rows),width))
+
+    def test_overlapping_curve_fragments_associate(self):
+        pieces=[self.piece(80,110,80,1.1),self.piece(107,145,110,1.2)]
+        groups,links=connect_lane_pieces(pieces,(180,320))
+        self.assertEqual(groups,[[0,1]])
+        self.assertEqual(links,[(1,0)])
+
+    def test_parallel_neighbor_does_not_join(self):
+        pieces=[self.piece(80,110,80,.8),self.piece(114,150,140,.8)]
+        self.assertEqual(connect_lane_pieces(pieces,(180,320))[1],[])
+
+    def test_opposing_distant_lanes_do_not_rejoin(self):
+        pieces=[self.piece(80,110,100,-1),self.piece(111,150,102,1)]
+        self.assertEqual(connect_lane_pieces(pieces,(180,320))[1],[])
+
+    def test_smooth_gap_is_inferred_without_changing_observations(self):
+        pieces=[self.piece(80,100,80,.8),self.piece(108,140,102.4,.8)]
+        groups,links=connect_lane_pieces(pieces,(180,320))
+        self.assertEqual(links,[(1,0)])
+        curve=lane_group_curves(pieces,groups)[0]
+        self.assertEqual(int((curve[:,2]==0).sum()),8)
+        np.testing.assert_allclose(np.diff(curve[:,0]),.8,atol=1e-8)
+
+    def test_intermediate_piece_cannot_be_skipped(self):
+        pieces=[self.piece(80,100,80,1),self.piece(102,110,102,1),
+                self.piece(113,145,113,1)]
+        groups,links=connect_lane_pieces(pieces,(180,320),ambiguity_margin=0.)
+        self.assertNotIn((2,0),links)
+    def test_parallel_dashes_stay_separate(self):
+        mask = np.zeros((180, 320), np.uint8)
+        for x in (80, 220):
+            for y in (80, 110, 140):
+                mask[y:y+16, x:x+4] = 255
+        before = mask.copy()
+        result = extract_lane_contours(mask)
+        self.assertEqual(sorted(map(len, result.groups)), [3, 3])
+        np.testing.assert_array_equal(mask, before)
+        for piece in result.pieces:
+            xy = piece.contour[:, 0]
+            self.assertTrue(np.all(mask[xy[:, 1], xy[:, 0]] > 0))
+
+    def test_ambiguous_fork_remains_separate(self):
+        mask = np.zeros((180, 320), np.uint8)
+        mask[140:160, 99:102] = 1
+        mask[110:125, 96:99] = 1
+        mask[110:125, 102:105] = 1
+        self.assertEqual(extract_lane_contours(mask).links, [])
+
+    def test_horizontal_and_empty(self):
+        mask = np.zeros((180, 320), np.uint8)
+        self.assertEqual(extract_lane_contours(mask).groups, [])
+        mask[100:104, 50:150] = 1
+        result = extract_lane_contours(mask)
+        self.assertEqual(len(result.rejected_contours), 1)
+        self.assertEqual(result.pieces, [])
+
+    def test_sloped_dashes(self):
+        mask = np.zeros((180, 320), np.uint8)
+        for y in (80, 110, 140):
+            cv2.line(mask, (100+y//3, y), (100+(y+16)//3, y+16), 1, 3)
+        self.assertEqual(len(extract_lane_contours(mask).groups), 1)
+
+    def test_curve_survives_transverse_branch_removal(self):
+        curve = np.zeros((180, 320), np.uint8)
+        rows = np.arange(20, 170)
+        columns = np.rint(80 + .004 * (rows-85)**2).astype(int)
+        points = np.column_stack((columns, rows)).astype(np.int32)
+        cv2.polylines(curve, [points], False, 1, 3)
+        mask = curve.copy()
+        cv2.line(mask, (20,100), (290,100), 1, 3)
+        kept = longitudinal_mask(mask)
+        self.assertGreater((kept & curve).sum()/curve.sum(), .95)
+        # Far from the intersection the transverse bar must disappear.
+        self.assertEqual(int(kept[98:103,180:280].sum()), 0)
+        self.assertTrue(np.all(kept <= mask))
+
+    def test_shallow_perspective_lane_survives(self):
+        mask = np.zeros((180, 320), np.uint8)
+        cv2.line(mask, (30,40), (290,150), 1, 3)
+        kept = longitudinal_mask(mask)
+        self.assertGreater(kept.sum()/mask.sum(), .95)
+
+    def test_multiple_crosswalk_bars_are_removed(self):
+        mask = np.zeros((180, 320), np.uint8)
+        for y in (60,90,130):
+            cv2.line(mask, (20,y), (290,y), 1, 3)
+        self.assertFalse(longitudinal_mask(mask).any())
+
+    def test_invalid_mask_is_rejected(self):
+        for mask in (np.zeros((3,4,3)), np.array([[np.nan]])):
+            with self.assertRaises(ValueError):
+                extract_lane_contours(mask)
+
+    def test_final_contours_preserve_curved_lane(self):
+        mask = np.zeros((180,320),np.uint8)
+        rows = np.arange(20,170)
+        points = np.column_stack((np.rint(80+.004*(rows-85)**2),rows)).astype(np.int32)
+        cv2.polylines(mask,[points],False,1,3)
+        result = extract_lane_contours(mask)
+        self.assertEqual(len(result.pieces),1)
+        self.assertGreater(result.directional_mask.sum()/mask.sum(),.95)
+
+    def test_distant_horizontal_bridge_is_split(self):
+        mask = np.zeros((180,320),np.uint8)
+        cv2.line(mask,(50,170),(140,30),1,3)
+        cv2.line(mask,(270,170),(180,30),1,3)
+        cv2.line(mask,(140,30),(180,30),1,3)
+        result = extract_lane_contours(mask)
+        self.assertGreaterEqual(len(result.pieces),2)
+        self.assertFalse(result.directional_mask[30,155:165].any())
+        self.assertTrue(result.directional_mask[140:,40:90].any())
+        self.assertTrue(result.directional_mask[140:,230:280].any())
+
+    def test_junction_pruning_preserves_curved_trunk(self):
+        curve = np.zeros((180,320),np.uint8)
+        rows = np.arange(20,170)
+        points = np.column_stack((np.rint(80+.004*(rows-85)**2),rows)).astype(np.int32)
+        cv2.polylines(curve,[points],False,1,3)
+        mask = curve.copy()
+        cv2.line(mask,(20,100),(290,100),1,3)
+        kept = extract_lane_contours(mask).directional_mask
+        self.assertGreater((kept & curve).sum()/curve.sum(),.90)
+        self.assertEqual(int(kept[98:103,180:280].sum()),0)
+
+    def test_direction_filter_can_be_disabled_for_comparison(self):
+        mask = np.zeros((180,320), np.uint8)
+        mask[90:94,20:290] = 1
+        np.testing.assert_array_equal(
+            extract_lane_contours(mask, direction_filter=False).directional_mask,
+            mask)
+
+
+if __name__ == '__main__':
+    unittest.main()

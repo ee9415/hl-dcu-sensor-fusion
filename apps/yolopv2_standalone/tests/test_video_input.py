@@ -15,7 +15,7 @@ from video_transport import (VideoInputServer, jpeg_size, read_message, send_mes
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT/'tools'))
-from video_file_sender import VideoFileSender, fit_frame, select_camera, parse_video_time, set_processing_mode, set_boundary_display, set_lane_overlay
+from video_file_sender import VideoFileSender, fit_frame, select_camera, parse_video_time, set_processing_mode, set_boundary_display, set_contour_display, set_lane_overlay
 
 
 def jpeg(value=100):
@@ -99,6 +99,24 @@ class TransportTests(unittest.TestCase):
         self.assertTrue(self.hub.take()[1]['boundary_visible'])
         for bad in (1,'false',None):
             with self.assertRaises(ValueError):self.command(object(),'boundary_display',visible=bad)
+
+    def test_contour_toggle_preserves_input_and_old_frame_metadata(self):
+        publisher=object()
+        self.command(publisher,'select',source='pc')
+        before=self.command(publisher,'frame',frame_index=8,media_time_s=.8,media_epoch=0)
+        self.assertFalse(before['contour_visible'])
+        enabled=set_contour_display('127.0.0.1',True,self.port)
+        self.assertTrue(enabled['contour_visible'])
+        self.assertEqual(enabled['source_epoch'],before['source_epoch'])
+        self.assertEqual(enabled['processing_epoch'],before['processing_epoch'])
+        self.assertEqual(enabled['boundary_visible'],before['boundary_visible'])
+        _,metadata=self.hub.take()
+        self.assertTrue(metadata['contour_visible'])
+        self.hub.remember(42,metadata)
+        set_contour_display('127.0.0.1',False,self.port)
+        self.assertTrue(self.hub.metadata(42)['contour_visible'])
+        for bad in (1,'false',None):
+            with self.assertRaises(ValueError):self.command(object(),'contour_display',visible=bad)
 
     def make_video(self, folder, fps=30, count=30):
         path=Path(folder)/'input.avi'

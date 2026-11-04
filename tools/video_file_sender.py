@@ -52,6 +52,18 @@ def set_processing_mode(ip, mode, port=PORT):
         return response
 
 
+def set_contour_display(ip, visible, port=PORT):
+    if type(visible) is not bool:
+        raise ValueError('Contour visibility must be boolean')
+    with socket.create_connection((ip,port),timeout=3) as connection:
+        send_message(connection,dict(op='contour_display',visible=visible))
+        with connection.makefile('rb') as stream:
+            response,_=read_message(stream)
+        if not response.get('ok') or response.get('contour_visible') is not visible:
+            raise RuntimeError(response.get('error','Contour display was not applied'))
+        return response
+
+
 def set_boundary_display(ip, visible, port=PORT):
     if type(visible) is not bool:
         raise ValueError('Boundary visibility must be boolean')

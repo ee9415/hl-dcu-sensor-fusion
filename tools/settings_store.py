@@ -16,6 +16,8 @@ def preferences(data):
     display=data['display'];recording=data['recording'];selected=data['selected']
     if any(type(display[key]) is not bool for key in ('full_processing','boundary_visible')):
         raise ValueError('잘못된 표시 설정')
+    if type(display.get('contour_visible',False)) is not bool:
+        raise ValueError('잘못된 컨투어 표시 설정')
     if display['lane_mode'] not in ('normal','lane_score','lane_mask','raw_rgb','lane_bands','lane_bands_rgb','lane_compare'):
         raise ValueError('잘못된 차선 표시 모드')
     threshold=display['threshold']

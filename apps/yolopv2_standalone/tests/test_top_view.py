@@ -81,6 +81,59 @@ class TopViewTests(unittest.TestCase):
         for row in (0,480):
             with self.assertRaises(ValueError):TopViewRenderer(row)
 
+    def test_group_overlay_uses_same_map_and_preserves_unseen_ground(self):
+        from lane_contours import extract_lane_contours
+        lane=np.zeros((180,320),np.uint8)
+        lane[90:180,60:66]=255
+        rgb=np.full((180,320,3),50,np.uint8)
+        renderer=TopViewRenderer(419)
+        projection=projection_for(lane.shape,BoundaryConfig(near_left_u=.2,near_right_u=.8))
+        top=renderer.render(rgb,lane,projection,'raw_rgb')
+        result=extract_lane_contours(lane)
+        original=lane.copy()
+        before=top.copy()
+        renderer.overlay_lane_groups(top,result)
+        changed=np.any(top!=before,axis=2)
+        self.assertTrue(changed.any())
+        # Vector rasterization and nearest RGB sampling can differ by one
+        # source pixel at the projected contour edge.
+        self.assertTrue(np.all(renderer.mx[changed]>=59))
+        self.assertTrue(np.all(renderer.mx[changed]<=66))
+        self.assertTrue(np.all(renderer.my[changed]>=89))
+        self.assertFalse(top[~renderer.valid].any())
+        self.assertFalse(top[420:].any())
+        np.testing.assert_array_equal(lane,original)
+
+    def test_group_overlay_empty_and_dimension_validation(self):
+        from lane_contours import extract_lane_contours
+        lane=np.zeros((180,320),np.uint8)
+        result=extract_lane_contours(lane)
+        renderer=TopViewRenderer(419)
+        with self.assertRaises(ValueError):
+            renderer.overlay_lane_groups(np.zeros((480,640,3),np.uint8),result)
+        top=renderer.render(np.full((180,320,3),50,np.uint8),lane,projection_for(lane.shape),'raw_rgb')
+        before=top.copy()
+        renderer.overlay_lane_groups(top,result)
+        np.testing.assert_array_equal(top,before)
+        with self.assertRaises(ValueError):
+            renderer.overlay_lane_groups(top,extract_lane_contours(np.zeros((90,160),np.uint8)))
+
+    def test_only_raw_skeleton_is_drawn_not_group_interpolation(self):
+        from lane_overlay import contour_skeleton_layer
+        from lane_contours import extract_lane_contours
+        lane=np.zeros((180,320),np.uint8)
+        lane[80:100,80:85]=1
+        lane[115:140,80:85]=1
+        result=extract_lane_contours(lane)
+        self.assertTrue(result.links)
+        hidden=contour_skeleton_layer(result)
+        self.assertFalse(np.any(np.all(hidden==(255,255,0),axis=2)))
+        layer=contour_skeleton_layer(result,show_skeleton=True)
+        self.assertFalse(layer[100:115].any())
+        cyan=np.all(layer==(255,255,0),axis=2)
+        np.testing.assert_array_equal(cyan,result.skeleton_mask>0)
+        self.assertTrue(np.all(lane[cyan]>0))
+
 
 if __name__ == '__main__':
     unittest.main()

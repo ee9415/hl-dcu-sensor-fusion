@@ -3,6 +3,79 @@ import math
 import numpy as np
 
 
+def contour_skeleton_layer(result,show_skeleton=False):
+    """Only measured outlines and true thinning pixels; no inferred segments."""
+    import cv2
+    layer=np.zeros((*result.directional_mask.shape,3),np.uint8)
+    for piece in result.pieces:
+        cv2.drawContours(layer,[piece.contour],-1,(0,255,255),1)
+    if show_skeleton:
+        layer[result.skeleton_mask>0]=(255,255,0)
+    return layer
+
+
+def overlay_contour_skeleton(frame,result):
+    """Scale measured source pixels onto RGB without fitted center curves."""
+    import cv2
+    layer=contour_skeleton_layer(result)
+    scaled=cv2.resize(layer,(frame.shape[1],frame.shape[0]),interpolation=cv2.INTER_NEAREST)
+    selected=scaled.any(axis=2)
+    frame[selected]=scaled[selected]
+    return frame
+
+
+def overlay_lane_quadratics(frame,selected,mask_shape,projection=None,valid=None):
+    """Magenta polynomial fits, distinct from measured cyan skeleton pixels.
+
+    Observed fits are solid magenta; explicitly virtual fits are dashed yellow.
+    A TOP homography maps canvas to mask; use its inverse for these vectors.
+    """
+    import cv2
+    if selected is None:
+        return frame
+    h,w=frame.shape[:2]
+    matrix=(np.diag([w/mask_shape[1],h/mask_shape[0],1.]) if projection is None
+            else np.linalg.inv(projection))
+    fits=[]
+    for boundary in (selected.left,selected.right):
+        if boundary is not None:
+            fits.append(boundary)
+            if getattr(boundary,'extension',None) is not None:
+                fits.append(boundary.extension)
+    for fit in fits:
+        if fit is None:
+            continue
+        dash_distance=0.
+        rows=np.arange(fit.points[0,1],fit.points[-1,1]+.01,.25)
+        source=np.column_stack((np.polyval(fit.coefficients,rows),rows,np.ones(len(rows))))
+        mapped=source@matrix.T
+        denominator=mapped[:,2]
+        good=np.isfinite(mapped).all(axis=1)&(abs(denominator)>1e-9)
+        xy=mapped[:,:2]/np.where(good,denominator,1)[:,None]
+        good &= (abs(xy)<1e7).all(axis=1)
+        for i in range(len(xy)-1):
+            if not (good[i] and good[i+1]) or denominator[i]*denominator[i+1]<=0:
+                continue
+            a,b=np.rint(xy[i:i+2]).astype(int)
+            visible,start,end=cv2.clipLine((0,0,w,h),tuple(a),tuple(b))
+            if visible:
+                if not fit.is_virtual:
+                    cv2.line(frame,start,end,(255,0,255),3)
+                else:
+                    start=np.asarray(start,dtype=float)
+                    end=np.asarray(end,dtype=float)
+                    length=float(np.linalg.norm(end-start))
+                    if length>0:
+                        for distance in np.arange(0,length+.01,.75):
+                            if int((dash_distance+distance)//10)%2==0:
+                                point=np.rint(start+(end-start)*(distance/length)).astype(int)
+                                cv2.circle(frame,tuple(point),1,(0,255,255),-1)
+                        dash_distance+=length
+    if valid is not None:
+        frame[~valid]=0
+    return frame
+
+
 def overlay_pixel_confidence(rgb, scores, threshold):
     """RGB preview only: absolute per-pixel score colors, low red to high violet."""
     h, w = scores.shape
@@ -20,16 +93,20 @@ def overlay_pixel_confidence(rgb, scores, threshold):
 class TopViewRenderer:
     """Cached inverse perspective sampling for display, never metric geometry."""
 
-    def __init__(self, near_row=479):
+    def __init__(self, near_row=479, horizontal_scale=3.75):
         if not 1 <= near_row <= 479:
             raise ValueError('TOP near row must be in [1,479]')
         self.near_row = near_row
+        if not np.isfinite(horizontal_scale) or not 0 < horizontal_scale <= 20:
+            raise ValueError('TOP horizontal scale must be in (0,20]')
+        self.horizontal_scale = float(horizontal_scale)
         self.key = None
 
     def render(self, rgb, lane, projection, mode='normal', threshold=.5, scores=None):
-        # Existing projection maps BEV -> native mask. Expand its narrow reference
-        # corridor to 75% of the TOP canvas, retaining the same road trapezoid.
-        expand = np.array([[1/3.75, 0, 319.5*(1-1/3.75)],
+        # Existing projection maps BEV -> native mask. The horizontal display
+        # scale controls zoom; lower values show more road on both sides.
+        scale=self.horizontal_scale
+        expand = np.array([[1/scale, 0, 319.5*(1-1/scale)],
                            [0, 479/self.near_row, 0], [0, 0, 1.]])
         self.projection = np.asarray(projection) @ expand
         key = (rgb.shape, lane.shape, self.projection.tobytes())
@@ -43,6 +120,7 @@ class TopViewRenderer:
             h, w = lane.shape
             self.valid = (finite & (uv[0] >= 0) & (uv[0] <= w-1) &
                           (uv[1] >= 0) & (uv[1] <= h-1)).reshape(480, 640)
+            self.valid &= yy <= self.near_row
             self.mx = np.clip(np.rint(uv[0]), 0, w-1).astype(int).reshape(480, 640)
             self.my = np.clip(np.rint(uv[1]), 0, h-1).astype(int).reshape(480, 640)
             self.rx = np.clip(np.rint(uv[0]*rgb.shape[1]/w), 0, rgb.shape[1]-1).astype(int).reshape(480, 640)
@@ -69,6 +147,25 @@ class TopViewRenderer:
             frame[selected] = colors
         else:
             frame[selected] = np.rint(.2*frame[selected]+.8*colors).astype(np.uint8)
+        return frame
+
+    def overlay_lane_groups(self, frame, result):
+        """Use the RGB inverse map for measured yellow outlines/cyan skeleton.
+
+        Pixel sampling preserves mask membership and never joins components.
+        """
+        import cv2
+        if self.key is None:
+            raise ValueError('render TOP before drawing lane groups')
+        if result.directional_mask.shape != (self.key[1]):
+            raise ValueError('group mask must match TOP source mask dimensions')
+        if frame.shape != (480,640,3):
+            raise ValueError('expected 480x640 TOP frame')
+        layer=contour_skeleton_layer(result)
+        sampled=layer[self.my,self.mx]
+        selected=sampled.any(axis=2)&self.valid
+        frame[selected]=sampled[selected]
+        frame[~self.valid]=0
         return frame
 
 MODES=('normal','lane_score','lane_mask','raw_rgb','lane_bands','lane_bands_rgb','lane_compare')

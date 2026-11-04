@@ -77,7 +77,8 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertEqual(payload['guidance_source'],'road')
             self.assertFalse(payload['centerline_valid'])
             self.assertIsNone(payload['coefficients'])
-            self.assertTrue(np.any(np.all(processor.result.send.call_args.args[0].data==(255,255,0),axis=2)))
+            # No lane mask means no skeleton, even when guidance is valid.
+            self.assertFalse(np.any(np.all(processor.result.send.call_args.args[0].data==(255,255,0),axis=2)))
             processor.video_input=MagicMock()
             processor.video_input.metadata.return_value=dict(input_source='camera',source_epoch=1,
                 processing_mode='full',processing_epoch=0,boundary_visible=True)
@@ -94,7 +95,7 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertEqual(before['guidance_path_image'],after['guidance_path_image'])
             self.assertFalse(after['boundary_visible'])
             self.assertFalse(np.any(np.all(hidden==(0,150,255),axis=2)))
-            self.assertTrue(np.any(np.all(hidden==(255,255,0),axis=2)))
+            self.assertFalse(np.any(np.all(hidden==(255,255,0),axis=2)))
             # Preview settings alter the RGB result only, not perception masks
             # or the existing path/trackers. All callbacks use the same input.
             preview_paths=[];mask_frames=[];selected=[]
@@ -168,8 +169,25 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertEqual(bev.data.shape, (480,640,3))
             self.assertEqual(result.getSequenceNum(), 7)
             self.assertEqual(bev.getTimestamp(), timedelta(seconds=10))
-            for color in ((0,220,255), (255,180,0)):
-                self.assertTrue(np.any(np.all(result.data == color, axis=2)))
+            self.assertTrue(np.any(np.all(result.data==(255,0,255),axis=2)))
+            self.assertFalse(np.any(np.all(result.data==(0,255,255),axis=2)))
+            self.assertFalse(np.any(np.all(result.data==(255,255,0),axis=2)))
+            self.assertFalse(np.any(np.all(bev.data==(0,255,255),axis=2)))
+            self.assertFalse(np.any(np.all(bev.data==(255,255,0),axis=2)))
+            processor.video_input=MagicMock()
+            processor.video_input.metadata.return_value=dict(input_source='camera',source_epoch=0,
+                processing_mode='full',processing_epoch=0,boundary_visible=True,contour_visible=True)
+            processor.process(Frame(),Frame(),Frame())
+            self.assertTrue(np.any(np.all(processor.result.send.call_args.args[0].data==(0,255,255),axis=2)))
+            tracker=processor._boundary_tracker
+            processor.video_input.metadata.return_value['boundary_visible']=False
+            processor.process(Frame(),Frame(),Frame())
+            contour_only=processor.result.send.call_args.args[0].data
+            self.assertTrue(np.any(np.all(contour_only==(0,255,255),axis=2)))
+            self.assertFalse(np.any(np.all(contour_only==(255,0,255),axis=2)))
+            self.assertFalse(np.any(np.all(contour_only==(255,255,0),axis=2)))
+            self.assertIs(processor._boundary_tracker,tracker)
+            processor.video_input=None
             with patch.object(node,'segmentation_masks',return_value=(road,np.zeros_like(lane))):
                 rgb_only=node.Yolopv2Postprocess()
                 rgb_only._tensor=MagicMock()
@@ -194,7 +212,7 @@ class BoundaryPipelineTests(unittest.TestCase):
             result=partial.result.send.call_args.args[0]
             self.assertTrue(np.any(np.all(result.data==(0,220,255),axis=2)))
             self.assertEqual(payload['right_boundary_state'],'inferred')
-            self.assertTrue(np.any(np.all(result.data==(114,81,0),axis=2)))
+            self.assertFalse(np.any(np.all(result.data==(114,81,0),axis=2)))
             # Even if a real-looking stereo image reaches the callback, PC
             # provenance must suppress its distances and reset old tracking.
             old_tracker=processor._boundary_tracker
@@ -227,7 +245,7 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertFalse(payload['boundary_valid'])
             # Missing raw scores must retain the RGB/road overlay, never fake
             # confidence by painting the binary mask a uniform cyan.
-            self.assertTrue(np.any(np.all(processor.result.send.call_args.args[0].data==(184,220,184),axis=2)))
+            self.assertFalse(np.any(np.all(processor.result.send.call_args.args[0].data==(184,220,184),axis=2)))
             processor.video_input.metadata.return_value=dict(input_source='pc',source_epoch=2,
                 processing_mode='full',processing_epoch=2)
             processor.process(Frame(),Frame(),Frame())

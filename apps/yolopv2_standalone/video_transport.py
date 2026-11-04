@@ -85,6 +85,8 @@ class VideoInputServer:
         self.processing_epoch = 0
         self.boundary_visible = True
         self.boundary_display_epoch = 0
+        self.contour_visible = False
+        self.contour_display_epoch = 0
         self.lane_overlay_mode = 'normal'
         self.lane_overlay_threshold = .5
         self.lane_overlay_epoch = 0
@@ -167,6 +169,13 @@ class VideoInputServer:
                 if mode != self.processing_mode:
                     self.processing_mode = mode
                     self.processing_epoch += 1
+            elif op == 'contour_display':
+                visible=header.get('visible')
+                if type(visible) is not bool or payload:
+                    raise ValueError('Contour visibility must be boolean')
+                if visible != self.contour_visible:
+                    self.contour_visible=visible
+                    self.contour_display_epoch+=1
             elif op == 'boundary_display':
                 visible=header.get('visible')
                 if type(visible) is not bool or payload:
@@ -203,7 +212,8 @@ class VideoInputServer:
                     dropped_frames=self.dropped)
 
     def _preview_metadata(self):
-        return dict(lane_overlay_mode=self.lane_overlay_mode,lane_overlay_threshold=self.lane_overlay_threshold,
+        return dict(contour_visible=self.contour_visible,contour_display_epoch=self.contour_display_epoch,
+                    lane_overlay_mode=self.lane_overlay_mode,lane_overlay_threshold=self.lane_overlay_threshold,
                     lane_overlay_epoch=self.lane_overlay_epoch,lane_perception_threshold=.5)
 
     def release(self, token):
