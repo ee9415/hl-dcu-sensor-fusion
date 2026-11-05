@@ -47,7 +47,10 @@ def status(cli, ip, password='', identifier=IDENTIFIER, allow_preparing=False, i
     if installed_only or installed:
         matches = installed
     if len(matches) > 1:
-        raise RuntimeError('동일한 카메라 앱이 여러 개입니다. 장치 앱 구성을 확인해 주세요.')
+        running = [item for item in matches if str(item.get('status', '')).lower() == 'running']
+        if len(running) != 1:
+            raise RuntimeError('동일한 카메라 앱이 여러 개입니다. 장치 앱 구성을 확인해 주세요.')
+        matches = running
     if not matches:
         return dict(state='stopped', app_id=None, detail='앱 미설치')
     item = matches[0]
@@ -71,6 +74,10 @@ def start_installed(cli, ip, identifier, password='', stop_event=None):
     items = list_apps(cli, ip, password)
     targets = [item for item in items if item.get('identifier') == identifier
                and item.get('app_id') and item['app_id'] != DEVELOPMENT_ID]
+    if len(targets) > 1:
+        running = [item for item in targets if str(item.get('status', '')).lower() == 'running']
+        if len(running) == 1:
+            targets = running
     if len(targets) != 1:
         raise RuntimeError('설치된 카메라 앱이 없거나 중복입니다. AI/RGB 패키지를 먼저 설치해 주세요.')
     target = targets[0]

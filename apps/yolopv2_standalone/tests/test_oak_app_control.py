@@ -10,6 +10,26 @@ import oak_app_control as control
 
 
 class AppControlTests(unittest.TestCase):
+    def test_one_running_install_can_coexist_with_stopped_rollback(self):
+        apps = [dict(identifier=control.IDENTIFIER, app_id='rollback', status='ready'),
+                dict(identifier=control.IDENTIFIER, app_id='current', status='running')]
+        with (patch.object(control, 'list_apps', return_value=apps),
+              patch.object(control, 'command') as command):
+            self.assertEqual(control.status('cli', 'ip')['app_id'], 'current')
+            self.assertEqual(control.start_installed('cli', 'ip', control.IDENTIFIER), 'current')
+            command.assert_not_called()
+
+    def test_ambiguous_installs_still_require_explicit_choice(self):
+        for state in ('running', 'ready'):
+            apps = [dict(identifier=control.IDENTIFIER, app_id=str(i), status=state) for i in range(2)]
+            with (patch.object(control, 'list_apps', return_value=apps),
+                  patch.object(control, 'command') as command):
+                with self.assertRaises(RuntimeError):
+                    control.status('cli', 'ip')
+                with self.assertRaises(RuntimeError):
+                    control.start_installed('cli', 'ip', control.IDENTIFIER)
+                command.assert_not_called()
+
     def test_switch_starts_installed_app_and_disables_autostart(self):
         apps = [dict(identifier=control.IDENTIFIER, app_id='ai', status='running'),
                 dict(identifier=control.RGB_IDENTIFIER, app_id='rgb', status='stopped'),
