@@ -125,6 +125,8 @@ with dai.Pipeline(device) as pipeline:
 
     encoder = pipeline.create(dai.node.VideoEncoder)
     encoder.setDefaultProfilePreset(FPS, dai.VideoEncoderProperties.Profile.H264_MAIN)
+    encoder.setKeyframeFrequency(FPS)
+    encoder.setNumBFrames(0)
     camera_out.link(encoder.input)
     pipeline.create(StreamOutput).build(encoder.out, FPS, 8555, '/rgb')
     print('RGB RTSP: rtsp://<device-ip>:8555/rgb', flush=True)
@@ -134,6 +136,8 @@ with dai.Pipeline(device) as pipeline:
         depth_preview = pipeline.create(DepthPreview).build(aligned_depth)
         depth_encoder = pipeline.create(dai.node.VideoEncoder)
         depth_encoder.setDefaultProfilePreset(FPS, dai.VideoEncoderProperties.Profile.H264_MAIN)
+        depth_encoder.setKeyframeFrequency(FPS)
+        depth_encoder.setNumBFrames(0)
         depth_preview.preview_out.link(depth_encoder.input)
         pipeline.create(StreamOutput).build(depth_encoder.out, FPS, 8556, '/depth')
         print('Depth preview RTSP: rtsp://<device-ip>:8556/depth', flush=True)
@@ -183,6 +187,8 @@ with dai.Pipeline(device) as pipeline:
                     dai.VideoEncoderProperties.Profile.H264_MAIN,
                 )
                 postprocess.result.link(result_encoder.input)
+                result_encoder.setKeyframeFrequency(FPS)
+                result_encoder.setNumBFrames(0)
                 visualizer.addTopic("YOLOPv2Result", result_encoder.out, "results")
                 pipeline.create(StreamOutput).build(
                     result_encoder.out,
@@ -201,6 +207,8 @@ with dai.Pipeline(device) as pipeline:
                     dai.VideoEncoderProperties.Profile.H264_MAIN,
                 )
                 postprocess.bev.link(bev_encoder.input)
+                bev_encoder.setKeyframeFrequency(FPS)
+                bev_encoder.setNumBFrames(0)
                 visualizer.addTopic("CenterlineBEV", bev_encoder.out, "bev")
                 pipeline.create(StreamOutput).build(
                     bev_encoder.out,
