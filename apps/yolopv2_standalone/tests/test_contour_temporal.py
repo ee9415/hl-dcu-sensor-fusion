@@ -1,5 +1,6 @@
 """Sequence contracts for the mask-fed common boundary tracker."""
 import unittest
+import json
 from types import SimpleNamespace
 
 import numpy as np
@@ -136,6 +137,15 @@ class ContourTemporalTests(unittest.TestCase):
             lane = getattr(display,side)
             points = np.array(payload[side+'_boundary_image'])
             self.assertLess(np.max(abs(np.polyval(lane.coefficients,points[:,1])-points[:,0])),1e-7)
+
+    def test_live_telemetry_is_json_serializable_after_rgb_reset_and_association(self):
+        for i in range(20):
+            estimate = self.tracker.update_contours(scene(left=i<10),(180,320),i*.05,
+                rgb=np.full((180,320,3),60,np.uint8))
+            # The real server uses this strict conversion; a mock publisher
+            # alone does not expose NumPy bool diagnostics on frame two.
+            payload = json.loads(json.dumps(estimate.telemetry(),allow_nan=False))
+            self.assertIs(type(payload['boundary_detection_diagnostics'][0]['reset']),bool)
 
     def test_time_and_shape_and_scene_reset_do_not_leak_history(self):
         self.warm()

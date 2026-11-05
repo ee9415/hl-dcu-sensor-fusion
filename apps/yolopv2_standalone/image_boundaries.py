@@ -184,8 +184,8 @@ class ImageBoundaryTracker:
                        np.linspace(0, rgb.shape[1]-1, 32).astype(int)[None, :]].mean(axis=2)
         previous = getattr(self, '_contour_gray', None)
         cut = gray is not None and previous is not None and np.mean(abs(gray-previous)) > 45
-        reset = (last is None or not np.isfinite(timestamp_s) or dt <= 0 or dt > 1.
-                 or shape != getattr(self, '_contour_shape', None) or cut)
+        reset = bool(last is None or not np.isfinite(timestamp_s) or dt <= 0 or dt > 1.
+                     or shape != getattr(self, '_contour_shape', None) or cut)
         if reset:
             self.history = [None, None]
             self.scores = [0., 0.]
@@ -291,7 +291,7 @@ class ImageBoundaryTracker:
                 age = timestamp_s-self._contour_seen[side]
                 accepted = (error <= min(32., 12.+20.*age)
                             and abs(np.arctan(slope_new)-np.arctan(slope_old)) <= np.deg2rad(25))
-            stats[side].update(group=index, prior_error_px=error, accepted=accepted)
+            stats[side].update(group=index, prior_error_px=error, accepted=bool(accepted))
             if not accepted:
                 pending = self._contour_pending[side]
                 common = support & (np.isfinite(pending[0][:,0]) if pending is not None else False)
