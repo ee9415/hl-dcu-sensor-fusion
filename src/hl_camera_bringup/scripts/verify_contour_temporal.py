@@ -15,10 +15,10 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT/'apps/yolopv2_standalone'))
 from ego_lane_quadratic import (select_ego_quadratics, add_virtual_side,
-                               complete_partial_lanes, tracked_quadratics)
+                               complete_partial_lanes)
 from image_boundaries import ImageBoundaryTracker
 from lane_contours import extract_lane_contours
-from lane_overlay import overlay_lane_quadratics
+from lane_overlay import overlay_lane_quadratics, overlay_tracked_skeleton
 
 
 def run(archive, output):
@@ -44,24 +44,28 @@ def run(archive, output):
         started = time.perf_counter()
         estimate = tracker.update_contours(contours, mask.shape, frame*.05, rgb)
         elapsed = time.perf_counter()-started
-        after = tracked_quadratics(estimate, mask.shape)
         record = dict(frame=frame, time_s=frame*.05, states=[estimate.left_state, estimate.right_state],
                       old_reason=before.reason, old_jump_px=None, new_jump_px=None, tracking_ms=elapsed*1000)
-        for index, (label, selected) in enumerate((('old', before), ('new', after))):
-            fit, prior = selected.left, previous[index]
-            if fit is not None and prior is not None:
-                lo, hi = max(fit.points[0,1], prior.points[0,1]), min(fit.points[-1,1], prior.points[-1,1])
-                if hi > lo:
-                    rows = np.linspace(lo, hi, 32)
-                    record[label+'_jump_px'] = float(np.max(abs(
-                        np.polyval(fit.coefficients,rows)-np.polyval(prior.coefficients,rows))))
-            previous[index] = fit
+        fit, prior = before.left, previous[0]
+        if fit is not None and prior is not None:
+            lo,hi = max(fit.points[0,1],prior.points[0,1]),min(fit.points[-1,1],prior.points[-1,1])
+            if hi > lo:
+                rows = np.linspace(lo,hi,32)
+                record['old_jump_px'] = float(np.max(abs(
+                    np.polyval(fit.coefficients,rows)-np.polyval(prior.coefficients,rows))))
+        previous[0] = fit
+        points = estimate.image_left
+        if previous[1] is not None:
+            common = np.isfinite(points[:,0]) & np.isfinite(previous[1][:,0])
+            if common.any():
+                record['new_jump_px'] = float(np.max(abs(points[common,0]-previous[1][common,0])))
+        previous[1] = points.copy()
         records.append(record)
         if frame in (9, 10, 14, 20, 29):
             left = cv2.resize(rgb, (640,360))
             right = left.copy()
             overlay_lane_quadratics(left,before,mask.shape)
-            overlay_lane_quadratics(right,after,mask.shape)
+            overlay_tracked_skeleton(right,estimate,mask.shape)
             cv2.putText(left,f'BEFORE t={frame*.05:.2f}s',(8,24),0,.6,(0,255,255),2)
             cv2.putText(right,'AFTER '+str(record['states']),(8,24),0,.5,(0,255,255),1)
             panels.append(np.hstack((left,right)))
