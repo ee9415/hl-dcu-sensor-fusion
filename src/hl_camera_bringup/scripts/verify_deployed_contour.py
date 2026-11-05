@@ -170,7 +170,8 @@ def run(args):
             writer.release()
         for key,source in sources.items():
             video_report[key] = dict(frames=source.frames_received,reconnects=source.reconnects,
-                                     received=source.snapshot()[0])
+                                     received=source.snapshot()[0],
+                                     last_frame_age_s=source.info()['last_frame_age_s'])
             source.close()
         # Leave the installed app running on its real camera, in full mode.
         try:
@@ -197,7 +198,8 @@ def run(args):
     report['runtime_ok'] = (len(relevant) >= 20 and not errors
                             and set(report['models']).issubset(TRACKED_MODELS)
                             and not report['sequence_mismatches'] and len(report['telemetry_sessions']) == 1
-                            and all(s['frames'] >= 5 for s in video_report.values()))
+                            and all(s['frames'] >= 5 and s['received']
+                                    and s['last_frame_age_s'] <= 3. for s in video_report.values()))
     report['loss_continuity_observed'] = (any(r['uninterrupted_source'] for r in report['loss_transitions'])
                                           and not report['limit_violations'])
     (args.output/'frames.jsonl').write_text('\n'.join(json.dumps(f) for f in relevant),encoding='utf-8')
