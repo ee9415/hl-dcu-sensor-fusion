@@ -48,7 +48,9 @@ class ImageBoundaryEstimate:
         def coefficients(p):
             good=np.isfinite(p[:,0])
             return np.polynomial.polynomial.polyfit(p[good,1],p[good,0],2).tolist() if good.sum()>=3 else None
-        return dict(image_curve_degree=2,
+        return dict(image_curve_degree=None if self.model=='persistent_skeleton' else 2,
+                    image_geometry='tracked_skeleton_samples' if self.model=='persistent_skeleton' else 'quadratic',
+                    image_coefficients_kind='least_squares_approximation' if self.model=='persistent_skeleton' else 'quadratic_model',
                     left_image_coefficients=coefficients(self.image_left),
                     right_image_coefficients=coefficients(self.image_right),
                     boundary_valid=self.valid,boundary_pair_valid=self.pair_valid,
@@ -194,6 +196,7 @@ class ImageBoundaryTracker:
             self._contour_seen = [None, None]
             self._contour_pending = [None, None]
             self._contour_width_time = None
+            self._contour_loss_anchor = [None, None]
             dt = 0.
         self._contour_time = float(timestamp_s) if np.isfinite(timestamp_s) else None
         self._contour_shape = shape
@@ -205,14 +208,10 @@ class ImageBoundaryTracker:
         if not np.isfinite(timestamp_s):
             return ImageBoundaryEstimate(empty(), empty(), projection_for((180,320), self.config),
                 'unavailable', 'unavailable', 0., 0., 0., identity, 'unavailable', 'none',
-                np.zeros(48,bool), np.zeros(48,bool), detection_diagnostics=stats, model='mask_contour_temporal')
+                np.zeros(48,bool), np.zeros(48,bool), detection_diagnostics=stats, model='persistent_skeleton')
 
-        # Expired tracks cannot bias association or make an old lane reappear.
-        for side in (0, 1):
-            seen = self._contour_seen[side]
-            if seen is not None and timestamp_s-seen > 1.5:
-                self.history[side] = None
-                self.scores[side] = 0.
+        # Previously observed skeletons survive a detection loss. Only source,
+        # timestamp, image geometry or scene resets discard their identity.
         candidates = []
         for index, curve in enumerate(result.group_curves):
             fit = fit_quadratic(curve, height, index)
@@ -225,7 +224,14 @@ class ImageBoundaryTracker:
             support = (rows >= fit.points[0,1]) & (rows <= fit.points[-1,1])
             if support.sum() < 8:
                 continue
-            points = np.column_stack((np.polyval(fit.coefficients, rows)*320/width, self.rows))
+            measured = np.asarray(curve)[np.asarray(curve)[:,2] > 0]
+            ys = np.unique(measured[:,1])
+            xs = np.array([np.median(measured[measured[:,1]==y,0]) for y in ys])
+            distance = np.min(abs(rows[:,None]-ys[None,:]),axis=1)
+            support &= distance <= 1.1
+            if support.sum() < 8:
+                continue
+            points = np.column_stack((np.interp(rows,ys,xs)*320/width,self.rows))
             points[~support,0] = np.nan
             if not self._smooth_shape(points):
                 continue
@@ -255,7 +261,9 @@ class ImageBoundaryTracker:
                     # Never force an unrelated opposite/outer boundary into an
                     # owned track merely to maximize the number of assignments.
                     if cost > 60.:
-                        continue
+                        age = timestamp_s-self._contour_seen[side]
+                        if age < 1.5 or cost > 120. or ((anchor < 160) != (side == 0)):
+                            continue
                 options[side].append((cost, index, item))
             options[side].sort(key=lambda entry: entry[:2])
             stats[side]['candidates'] = len(options[side])
@@ -269,7 +277,7 @@ class ImageBoundaryTracker:
                     pair = [left[2][1], right[2][1]]
                     if not self._valid_pair(pair):
                         continue
-                cost = sum(100. if entry is None else entry[0] for entry in (left,right))
+                cost = sum(160. if entry is None else entry[0] for entry in (left,right))
                 assignments.append((cost, left, right))
         _, left, right = min(assignments, key=lambda entry: entry[0])
         chosen = [left, right]
@@ -307,6 +315,8 @@ class ImageBoundaryTracker:
                 self._contour_pending[side] = None
             observations[side] = (points, support, quality)
 
+        seen_before = list(self._contour_seen)
+        scores_before = list(self.scores)
         output = [p.copy() if p is not None else empty() for p in self.history]
         states = ['unavailable', 'unavailable']
         supports = [np.zeros(48,bool), np.zeros(48,bool)]
@@ -335,7 +345,10 @@ class ImageBoundaryTracker:
                 alpha = (1.-np.exp(-dt/tau))*quality
                 fraction = min(alpha, 80.*dt/max(float(np.max(abs(delta[domain]))), 1e-9))
                 base = np.polynomial.polynomial.polyfit(u[np.isfinite(prior[:,0])], prior[np.isfinite(prior[:,0]),0], 2)
-                values = np.polynomial.polynomial.polyval(u, base)+fraction*delta
+                values = np.polynomial.polynomial.polyval(u, base)
+                retained = np.isfinite(prior[:,0])
+                values[retained] = prior[retained,0]  # Preserve skeleton detail.
+                values += fraction*delta
                 output[side] = np.column_stack((np.where(domain, values, np.nan), self.rows))
             supports[side] = support.copy()
             residuals[side] = float(np.percentile(abs(output[side][support,0]-points[support,0]),90))
@@ -358,50 +371,75 @@ class ImageBoundaryTracker:
             self._contour_width_time = timestamp_s
         for side in (0, 1):
             other = 1-side
-            if (observed[side] or not observed[other] or self.history[side] is None
-                    or self.width is None or self._contour_width_time is None
-                    or timestamp_s-self._contour_width_time > 3.):
+            if observed[side]:
+                self._contour_loss_anchor[side] = None
                 continue
-            trusted = (self.width_samples >= 3) & supports[other] & np.isfinite(output[side][:,0]) & np.isfinite(self.width)
+            if (not observed[other] or states[other] != 'observed'
+                    or self.history[side] is None):
+                continue
+            # Transfer CHANGE since the loss, never the absolute opposite shape.
+            # This preserves an independently observed bend/offset on the lost
+            # side even when there was no bilateral width training.
+            anchor = self._contour_loss_anchor[side]
+            if anchor is None:
+                reference = self.history[other] if self.history[other] is not None else output[other]
+                anchor = (self.history[side].copy(), reference.copy())
+                self._contour_loss_anchor[side] = anchor
+            missing_anchor, opposite_anchor = anchor
+            trusted = (supports[other] & np.isfinite(opposite_anchor[:,0])
+                       & np.isfinite(missing_anchor[:,0]) & np.isfinite(output[side][:,0]))
             if trusted.sum() < 8 or np.ptp(self.rows[trusted]) < 20:
                 continue
-            target = output[other][:,0]+(-1 if side == 0 else 1)*self.width
-            error = target[trusted]-output[side][trusted,0]
-            if np.percentile(abs(error),90) > 24.:
-                stats[side]['width_conflict'] = True
-                continue
             u = (self.rows-125.)/50.
-            correction = np.polynomial.polynomial.polyfit(u[trusted], error, 2)
-            delta = np.polynomial.polynomial.polyval(u, correction)
-            domain = np.isfinite(output[side][:,0])
-            fraction = min(1.-np.exp(-dt/.4), 20.*dt/max(float(np.max(abs(delta[domain]))),1e-9))
+            change = output[other][trusted,0]-opposite_anchor[trusted,0]
+            deformation = np.polynomial.polynomial.polyfit(u[trusted],change,2)
+            target = missing_anchor[:,0]+np.polynomial.polynomial.polyval(u,deformation)
+            domain = np.isfinite(output[side][:,0]) & np.isfinite(target)
+            delta = np.where(domain,target-output[side][:,0],0.)
+            fraction = min(1.-np.exp(-dt/.4),20.*dt/max(float(np.max(abs(delta[domain]))),1e-9))
             candidate = output[side].copy()
             candidate[domain,0] += fraction*delta[domain]
             pair = list(output); pair[side] = candidate
             if self._valid_pair(pair):
                 output[side] = candidate
                 states[side] = 'inferred'
+                stats[side]['opposite_curve_applied_px'] = float(np.max(abs(fraction*delta[domain])))
+            else:
+                stats[side]['opposite_curve_rejected'] = True
 
-        # No observation can refresh the opposite's age, score or width evidence.
+        # Retention is geometric memory, not a new observation. Age and
+        # confidence remain honest even after a long one- or two-sided loss.
         any_observed = any(observed)
         for side in (0,1):
             age = None if self._contour_seen[side] is None else timestamp_s-self._contour_seen[side]
-            stats[side].update(missing_s=age, observed=observed[side], width_samples=int(np.max(self.width_samples)))
-            if age is None or age > (1.5 if any_observed else .6)+1e-9:
+            stats[side].update(missing_s=age, observed=observed[side],
+                              retained=bool(not observed[side] and self.history[side] is not None),
+                              width_samples=int(np.max(self.width_samples)))
+            if age is None:
                 output[side] = empty(); states[side] = 'unavailable'; self.scores[side] = 0.
-                self.history[side] = None
         # Reject incompatible fusion without discarding a valid observed side.
         if all(np.isfinite(p[:,0]).sum() >= 8 for p in output) and not self._valid_pair(output):
-            side = int(self.scores[1] < self.scores[0])
-            output[side] = empty(); states[side] = 'unavailable'; supports[side][:] = False
-            self.scores[side] = 0.; stats[side]['pair_rejected'] = True
+            if self._valid_pair(self.history):
+                output = [p.copy() for p in self.history]
+                states = ['held','held']; supports = [np.zeros(48,bool),np.zeros(48,bool)]
+                self._contour_seen = seen_before
+                observed = [False,False]; any_observed = False
+                self.scores = [min(.15,float(score*np.exp(-dt/.6))) for score in scores_before]
+                residuals = [None,None]
+                for side in (0,1):
+                    stats[side].update(observed=False,retained=True,pair_conflict_held=True,
+                                      opposite_curve_applied_px=0.,missing_s=timestamp_s-self._contour_seen[side])
+            else:
+                side = int(self.scores[1] < self.scores[0])
+                output[side] = empty(); states[side] = 'unavailable'; supports[side][:] = False
+                self.scores[side] = 0.; stats[side]['pair_rejected'] = True
         self.history = [p.copy() if np.isfinite(p[:,0]).sum() >= 8 else None for p in output]
         self.side_missing = np.array([0. if seen is None else timestamp_s-seen for seen in self._contour_seen])
         self.detection_diagnostics = stats
         reference = 'both' if all(observed) else 'left' if observed[0] else 'right' if observed[1] else 'none'
         state = 'tracking' if any_observed else 'held' if any(p is not None for p in self.history) else 'unavailable'
         return ImageBoundaryEstimate(*output, projection_for((180,320), self.config), *states, *self.scores,
-            0., identity, state, reference, *supports, *residuals, False, stats, 'mask_contour_temporal')
+            0., identity, state, reference, *supports, *residuals, False, stats, 'persistent_skeleton')
 
     def _nn_support(self, points):
         """Tie-break only on observed paint; never change acceptance/confidence."""

@@ -76,6 +76,53 @@ def overlay_lane_quadratics(frame,selected,mask_shape,projection=None,valid=None
     return frame
 
 
+def overlay_tracked_skeleton(frame, estimate, mask_shape, projection=None, valid=None):
+    """Draw the retained tracker samples directly, without a quadratic refit.
+
+    Current supported skeleton segments are magenta; remembered/deformed ones
+    are dashed yellow. The same 320x180 samples are exported in telemetry.
+    """
+    import cv2
+    h,w = frame.shape[:2]
+    matrix = (np.diag([w/320.,h/180.,1.]) if projection is None else
+              np.linalg.inv(projection) @ np.diag([mask_shape[1]/320.,mask_shape[0]/180.,1.]))
+    for side in ('left','right'):
+        points = getattr(estimate,'image_'+side)
+        if len(points) < 2:
+            continue
+        mapped = np.column_stack((points,np.ones(len(points)))) @ matrix.T
+        denominator = mapped[:,2]
+        good = np.isfinite(mapped).all(axis=1) & (abs(denominator)>1e-9)
+        xy = mapped[:,:2]/np.where(good,denominator,1.)[:,None]
+        good &= (abs(xy)<1e7).all(axis=1)
+        support = getattr(estimate,side+'_support')
+        supported = np.zeros(len(points),bool) if support is None else np.asarray(support,bool)
+        measured = getattr(estimate,side+'_state') in ('observed','partial','aligning')
+        distance = 0.
+        for i in range(len(points)-1):
+            if not (good[i] and good[i+1]) or denominator[i]*denominator[i+1] <= 0:
+                continue
+            a,b = np.rint(xy[i:i+2]).astype(int)
+            visible,start,end = cv2.clipLine((0,0,w,h),tuple(a),tuple(b))
+            if not visible:
+                continue
+            if measured and supported[i] and supported[i+1]:
+                cv2.line(frame,start,end,(255,0,255),3)
+                continue
+            start,end = np.asarray(start,float),np.asarray(end,float)
+            length = float(np.linalg.norm(end-start))
+            if length <= 0:
+                continue
+            for offset in np.arange(0.,length+.01,.75):
+                if int((distance+offset)//10)%2 == 0:
+                    point = np.rint(start+(end-start)*min(1.,offset/length)).astype(int)
+                    cv2.circle(frame,tuple(point),1,(0,255,255),-1)
+            distance += length
+    if valid is not None:
+        frame[~valid] = 0
+    return frame
+
+
 def overlay_pixel_confidence(rgb, scores, threshold):
     """RGB preview only: absolute per-pixel score colors, low red to high violet."""
     h, w = scores.shape

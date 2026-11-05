@@ -24,16 +24,17 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('command', choices=('deploy', 'rollback'))
     p.add_argument('--device-ip', required=True)
+    p.add_argument('--app-id', default=APP, help='installed app UUID, or development app by default')
     p.add_argument('--files', nargs='+')
     p.add_argument('--backup')
     args = p.parse_args()
     root = Path(__file__).resolve().parents[3]/'apps/yolopv2_standalone'
-    exec_command = [OAKCTL, 'app', 'exec', '-d', args.device_ip, APP, '--']
+    exec_command = [OAKCTL, 'app', 'exec', '-d', args.device_ip, args.app_id, '--']
 
     def run(code):
         encoded = base64.b64encode(code.encode()).decode()
         r = subprocess.run(exec_command+['python3.12', '-c', f"import base64;exec(base64.b64decode('{encoded}'))"],
-                           capture_output=True, text=True, encoding='utf-8', timeout=120)
+                           input='', capture_output=True, text=True, encoding='utf-8', timeout=120)
         if r.returncode or 'Traceback (most recent call last)' in r.stdout+r.stderr:
             raise RuntimeError(r.stdout+r.stderr)
         return r.stdout
@@ -81,12 +82,19 @@ for name,digest in expected.items():
     data=base64.b64decode((s/(name+'.b64')).read_text())
     assert hashlib.sha256(data).hexdigest()==digest,name
     compile(data,name,'exec');staged[name]=data
-for name,data in staged.items():
-    Path('/app',name).write_bytes(data);assert hashlib.sha256(Path('/app',name).read_bytes()).hexdigest()==expected[name]
-import shutil;shutil.rmtree(s)
+import subprocess,shutil
+subprocess.run(['sv','stop','/etc/service/backend'],check=True,capture_output=True)
+try:
+    for name,data in staged.items():
+        Path('/app',name).write_bytes(data)
+        assert hashlib.sha256(Path('/app',name).read_bytes()).hexdigest()==expected[name]
+except Exception:
+    for name in expected:shutil.copy2(Path({backup!r},name),Path('/app',name))
+    raise
+finally:subprocess.run(['sv','start','/etc/service/backend'],check=True,capture_output=True)
+shutil.rmtree(s)
 print('DEPLOYED='+json.dumps(expected))
 """)
-    subprocess.run(exec_command+['sv', 'restart', '/etc/service/backend'], check=True, capture_output=True)
     print(json.dumps(dict(backup=backup, deployed=json.loads(out.split('DEPLOYED=', 1)[1].splitlines()[0]))))
 
 

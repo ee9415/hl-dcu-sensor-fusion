@@ -474,8 +474,12 @@ class Yolopv2Postprocess(dai.node.HostNode):
             if self._contour_visible and contours is not None:
                 overlay_contour_skeleton(rendered,contours)
             if self._boundary_visible and contours is not None:
-                overlay_lane_quadratics(rendered,self._lane_quadratics,contours.directional_mask.shape)
-            self._draw_text(rendered,'MAGENTA REAL / YELLOW DASHED VIRTUAL',10,12,(0,220,255))
+                if full:
+                    from lane_overlay import overlay_tracked_skeleton
+                    overlay_tracked_skeleton(rendered,boundaries,contours.directional_mask.shape)
+                else:
+                    overlay_lane_quadratics(rendered,self._lane_quadratics,contours.directional_mask.shape)
+            self._draw_text(rendered,'MAGENTA SKELETON / YELLOW RETAINED',10,12,(0,220,255))
         invalid_labels = 0
         for detection, measurement in zip(detections, measurements, strict=True):
             self._draw_box(rendered, detection)
@@ -640,10 +644,15 @@ class Yolopv2Postprocess(dai.node.HostNode):
             self._top_view.overlay_lane_groups(bev,self._lane_contour_result)
         if self._boundary_visible and self._lane_overlay_mode != 'raw_rgb':
             from lane_overlay import overlay_lane_quadratics
-            overlay_lane_quadratics(bev,self._lane_quadratics,lane.shape,
-                                    self._top_view.projection,self._top_view.valid)
+            if processing_mode == 'full':
+                from lane_overlay import overlay_tracked_skeleton
+                overlay_tracked_skeleton(bev,boundaries,lane.shape,
+                                         self._top_view.projection,self._top_view.valid)
+            else:
+                overlay_lane_quadratics(bev,self._lane_quadratics,lane.shape,
+                                        self._top_view.projection,self._top_view.valid)
         bev[~self._top_view.valid] = 0
-        self._draw_text(bev,'TOP LANE QUADRATIC',10,10,(0,220,255))
+        self._draw_text(bev,'TOP TRACKED SKELETON',10,10,(0,220,255))
         self._draw_text(bev,'MAGENTA REAL / YELLOW VIRTUAL',10,30,(0,220,255))
         bev_finished = time.monotonic()
         capture_s = preview.getTimestamp().total_seconds()

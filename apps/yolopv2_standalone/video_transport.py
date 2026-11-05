@@ -81,7 +81,7 @@ class VideoInputServer:
         self.input_fps = input_fps
         self.lock = threading.Lock()
         self.mode = 'camera'
-        self.processing_mode = 'basic'
+        self.processing_mode = 'full'
         self.processing_epoch = 0
         self.boundary_visible = True
         self.boundary_display_epoch = 0

@@ -22,10 +22,24 @@ from video_file_sender import (VideoFileSender, select_camera, set_processing_mo
                                set_boundary_display, set_contour_display, set_lane_overlay)
 
 
+TRACKED_MODELS = ('mask_contour_temporal','persistent_skeleton')
+
+
 def analyze(frames):
     transitions, movements, violations = [], [], []
+    retained_ages = []
+    curve_updates = []
+    for frame in frames:
+        diagnostics = frame.get('boundary_detection_diagnostics') or [{},{}]
+        left = diagnostics[0]
+        if len(frame.get('left_boundary_image',[])) >= 8 and left.get('retained'):
+            if left.get('missing_s') is not None:
+                retained_ages.append(left['missing_s'])
+            if left.get('opposite_curve_applied_px',0.) > 1e-6:
+                curve_updates.append(dict(media_time_s=frame.get('source_media_time_s'),
+                    missing_s=left.get('missing_s'),movement_px=left['opposite_curve_applied_px']))
     for previous, current in zip(frames,frames[1:]):
-        if current.get('boundary_model') != 'mask_contour_temporal':
+        if current.get('boundary_model') not in TRACKED_MODELS:
             continue
         diagnostics = current.get('boundary_detection_diagnostics') or [{},{}]
         if (current.get('source_epoch') != previous.get('source_epoch')
@@ -56,6 +70,9 @@ def analyze(frames):
         if movement > 20.*dt+1e-5 and source_gap <= 1:
             violations.append(record)
     return dict(frames=len(frames), left_states=dict(Counter(f.get('left_boundary_state') for f in frames)),
+                max_retained_missing_s=max(retained_ages,default=None),
+                long_retained_frames=sum(age>1.5 for age in retained_ages),
+                opposite_curve_updates=curve_updates,
                 models=dict(Counter(f.get('boundary_model') for f in frames)),
                 loss_transitions=transitions, missed_side_samples=len(movements),
                 uninterrupted_missed_samples=sum(r['uninterrupted_source'] for r in movements),
@@ -167,7 +184,7 @@ def run(args):
     # full-mode command. Discard that prefix only; a later fallback/restart must
     # remain visible and fail the runtime identity check.
     startup_frames = 0
-    while relevant and relevant[0].get('boundary_model') != 'mask_contour_temporal':
+    while relevant and relevant[0].get('boundary_model') not in TRACKED_MODELS:
         relevant.pop(0)
         startup_frames += 1
     report = analyze(relevant)
@@ -178,7 +195,7 @@ def run(args):
                   errors=errors,streams=video_report,images=images,sender=sender.snapshot() if sender else None,
                   note='RTSP images and telemetry are asynchronous; coordinate measurements use telemetry only.')
     report['runtime_ok'] = (len(relevant) >= 20 and not errors
-                            and report['models'] == {'mask_contour_temporal':len(relevant)}
+                            and set(report['models']).issubset(TRACKED_MODELS)
                             and not report['sequence_mismatches'] and len(report['telemetry_sessions']) == 1
                             and all(s['frames'] >= 5 for s in video_report.values()))
     report['loss_continuity_observed'] = (any(r['uninterrupted_source'] for r in report['loss_transitions'])

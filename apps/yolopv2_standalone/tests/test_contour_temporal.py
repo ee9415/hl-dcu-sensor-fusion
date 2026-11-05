@@ -76,17 +76,104 @@ class ContourTemporalTests(unittest.TestCase):
             previous = result
         self.assertEqual(result.left_state,'observed')
 
-    def test_loss_expires_without_virtual_self_confirmation(self):
-        self.warm()
-        for i in range(1,34):
+    def test_long_loss_retains_skeleton_without_virtual_self_confirmation(self):
+        before = self.warm()
+        width = self.tracker.width.copy()
+        counts = self.tracker.width_samples.copy()
+        for i in range(1,121):
             result = self.update(.95+i*.05,left=False)
-        self.assertFalse(result.left_valid)
+        self.assertTrue(result.left_valid)
         self.assertTrue(result.right_valid)
-        self.assertIsNone(tracked_quadratics(result,(180,320)).left)
-        self.warm()
-        for i in range(1,15):
-            result = self.update(.95+i*.05,left=False,right=False)
-        self.assertFalse(result.valid)
+        self.assertLess(self.displacement(before,result),1e-8)
+        self.assertFalse(result.left_support.any())
+        self.assertLess(result.left_confidence,.001)
+        self.assertAlmostEqual(self.tracker._contour_seen[0],.95)
+        np.testing.assert_array_equal(width,self.tracker.width)
+        np.testing.assert_array_equal(counts,self.tracker.width_samples)
+        before = result
+        for i in range(1,121):
+            result = self.update(6.95+i*.05,left=False,right=False)
+        self.assertTrue(result.pair_valid)
+        self.assertLess(self.displacement(before,result),1e-8)
+
+    def test_opposite_curvature_is_accumulated_after_three_second_width_timeout(self):
+        previous = self.warm()
+        initial = previous
+        middle = None
+        for i in range(1,121):
+            result = self.update(.95+i*.05,left=False,curve=i*.08)
+            self.assertTrue(result.pair_valid)
+            self.assertFalse(result.left_support.any())
+            self.assertLessEqual(self.displacement(previous,result),20.*.05+1e-6)
+            if i == 70:
+                middle = result
+            previous = result
+        self.assertGreater(self.displacement(middle,result),.4)
+        self.assertGreater(self.displacement(initial,result),2.)
+        self.assertEqual(result.left_state,'inferred')
+        self.assertGreater(result.detection_diagnostics[0]['missing_s'],5.)
+
+    def test_loss_preserves_distinct_original_shape_instead_of_copying_other_curve(self):
+        curves = scene().group_curves
+        curves[0][:,0] += 2.*((curves[0][:,1]-125.)/50.)**2
+        curves[1][:,0] -= 3.*((curves[1][:,1]-125.)/50.)**2
+        for i in range(8):
+            before = self.tracker.update_contours(SimpleNamespace(group_curves=curves),(180,320),i*.05)
+        for i in range(1,61):
+            after = self.tracker.update_contours(SimpleNamespace(group_curves=[curves[1]]),(180,320),.35+i*.05)
+        self.assertLess(self.displacement(before,after),1e-8)
+
+    def test_skeleton_details_survive_without_polynomial_refitting(self):
+        curves = scene().group_curves
+        for curve in curves:
+            curve[:,0] += 1.4*np.sin(curve[:,1]/7.)
+        result = self.tracker.update_contours(SimpleNamespace(group_curves=curves),(180,320),0.)
+        points = result.image_left
+        good = np.isfinite(points[:,0])
+        expected = np.interp(points[good,1],curves[0][:,1],curves[0][:,0])
+        np.testing.assert_allclose(points[good,0],expected,atol=1e-8)
+        fit = np.polyfit(points[good,1],points[good,0],2)
+        self.assertGreater(np.max(abs(np.polyval(fit,points[good,1])-expected)),.5)
+        self.assertIsNone(result.telemetry()['image_curve_degree'])
+        self.assertEqual(result.telemetry()['image_geometry'],'tracked_skeleton_samples')
+        after = self.update(.1,left=False,right=False)
+        self.assertLess(self.displacement(result,after),1e-8)
+
+    def test_renderer_draws_retained_skeleton_samples_and_keeps_unseen_top_black(self):
+        from lane_overlay import overlay_tracked_skeleton
+        result = self.warm()
+        image = np.zeros((180,320,3),np.uint8)
+        overlay_tracked_skeleton(image,result,(180,320))
+        points = result.image_left[np.isfinite(result.image_left).all(axis=1)]
+        x,y = np.rint(points).astype(int).T
+        self.assertTrue(np.all(image[y,x] == (255,0,255)))
+        retained = self.update(1.,left=False)
+        image[:] = 0
+        overlay_tracked_skeleton(image,retained,(180,320))
+        self.assertGreater(np.all(image[:,:160] == (0,255,255),axis=2).sum(),10)
+        valid = np.ones((180,320),bool);valid[160:]=False
+        overlay_tracked_skeleton(image,retained,(180,320),np.eye(3),valid)
+        self.assertFalse(image[~valid].any())
+
+    def test_reacquisition_after_long_retention_still_has_no_jump(self):
+        previous = self.warm()
+        for i in range(1,81):
+            previous = self.update(.95+i*.05,left=False)
+        for i in range(1,21):
+            result = self.update(4.95+i*.05,shift=35.)
+            self.assertLessEqual(self.displacement(previous,result),80.*.05+1e-6)
+            previous = result
+        self.assertEqual(result.left_state,'observed')
+
+    def test_opposite_changes_do_not_require_bilateral_width_training(self):
+        self.update(0.,right=False)
+        initial = self.update(.05,left=False)
+        self.assertIsNone(self.tracker.width)
+        for i in range(1,61):
+            result = self.update(.05+i*.05,left=False,curve=i*.1)
+        self.assertTrue(result.left_valid)
+        self.assertGreater(self.displacement(initial,result),1.)
+        self.assertIsNone(self.tracker.width)
 
     def test_no_unobserved_side_is_initialized_from_default_width(self):
         result = self.update(0.,left=False)

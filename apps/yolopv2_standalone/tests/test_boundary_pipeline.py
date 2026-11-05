@@ -205,7 +205,7 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertEqual(payload['frame_seq'], 7)
             self.assertIsNone(payload['corridor_width_m'])
             self.assertIsNone(payload['normal_width_error_dev'])
-            self.assertEqual(payload['boundary_model'],'mask_contour_temporal')
+            self.assertEqual(payload['boundary_model'],'persistent_skeleton')
             self.assertGreater(len(payload['left_boundary_image']),12)
             self.assertGreater(len(payload['right_boundary_image']),12)
             result = processor.result.send.call_args.args[0]

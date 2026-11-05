@@ -312,7 +312,7 @@ class RecorderApp:
         self.applied_input_settings = None
         self.processing_events = queue.SimpleQueue()
         self.processing_pending = False
-        self.confirmed_full_processing = False
+        self.confirmed_full_processing = True
         self.boundary_display_pending = False
         self.confirmed_boundary_visible = True
         self.contour_display_pending = False
@@ -671,7 +671,7 @@ class RecorderApp:
                                style='Control.TLabelframe', padding=8)
         panel.grid(row=0, column=0, sticky='ew', padx=14, pady=14)
         panel.columnconfigure(3, weight=1)
-        self.full_processing = tk.BooleanVar(value=False)
+        self.full_processing = tk.BooleanVar(value=True)
         self.processing_check = ttk.Checkbutton(panel,text='전체 후처리 (경계 추적·가상 경계·정지선)',
             variable=self.full_processing,command=self._apply_processing_mode,state=tk.DISABLED,
             style='App.TCheckbutton')
