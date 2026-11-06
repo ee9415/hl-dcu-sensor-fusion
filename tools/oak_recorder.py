@@ -455,6 +455,8 @@ class RecorderApp:
         self.settings_windows = {}
         menu_bar = ttk.Frame(header, style="Header.TFrame")
         menu_bar.grid(row=2, column=0, sticky="w", pady=(10, 0))
+        ttk.Button(menu_bar, text='영상 연결', command=self.connect_video).pack(
+            side=tk.LEFT, padx=(0, 6))
         for key, label in (("device", "장비 연결"), ("source", "영상 입력"),
                            ("display", "표시 설정")):
             ttk.Button(menu_bar, text=label,
