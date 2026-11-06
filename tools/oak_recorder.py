@@ -648,7 +648,7 @@ class RecorderApp:
         ttk.Checkbutton(panel, text='반복 재생', variable=self.input_loop,
                         style='App.TCheckbutton').grid(row=0,column=3)
         self.source_apply = ttk.Button(panel, text='소스 적용',
-                                       command=self._apply_input_source, state=tk.DISABLED)
+                                       command=self._apply_input_source, state=tk.NORMAL)
         self.source_apply.grid(row=0,column=4,padx=5)
         ttk.Button(panel, text='전송 중지', command=self._stop_input).grid(
             row=0,column=6,padx=(5,0))
@@ -1001,7 +1001,7 @@ class RecorderApp:
             return
         if self.source_change_pending:
             return
-        if not self.connect_requested:
+        if not self.connect_requested and self.input_mode.get() == '카메라':
             messagebox.showwarning('영상 소스', '먼저 OAK 영상 연결을 완료해 주세요.')
             return
         mode = self.input_mode.get()
