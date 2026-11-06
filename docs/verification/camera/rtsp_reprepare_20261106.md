@@ -44,3 +44,52 @@ verify_starved_reconnect.py는 PC 입력5초 전송 후 중단, 수신 종료, �
 
 메인 화면에도 기존 연결 동작을 호출하는 '영상 연결' 버튼을 직접 노출했다.
 카메라 앱 상태 확인과 영상 수신 연결을 구분해 설정 창을 열지 않고 연결할 수 있다.
+
+## WSL 수신기 추가 원인과 조치
+
+Windows 수신은 지속 수신에 성공한 뒤에도 WSL OpenCV4.5.4는 연결 직후 끊겼다.
+별도 OpenCV4.10 수신기의 상세 FFmpeg 로그에서 초기 스트림 분석에10.5286초가
+걸린 뒤 정상 연결·30프레임 수신을 확인했다. 기존5초 open timeout은 이보다 짧았다.
+기존4.5.4도15초 제한에서는12.9536초에 열리고30프레임 수신했다.
+단순 네트워크 장애와 구분하기 위해 WSL에서21,962byte 텔레메트리 수신도 확인했다.
+
+- 수신기 open timeout을15초로 늘리고 read timeout은5초로 유지한다.
+  종료 대기도 open 중인 작업을 정리할 수 있도록16초로 맞췄다.
+- FFmpeg 초기 FPS 분석량·분석 시간을 제한한다.4.10의 실제 시험은6.0416초에
+  연결되고30프레임을10.4913초 안에 수신했다.
+- WSL 전용 OpenCV4.10.0.84 wheel을 artifacts/runtime/recorder-wsl-site에 격리했다.
+  시스템 OpenCV는 변경하지 않았다. requirements-oak-recorder-wsl.txt로 버전을 고정한다.
+- run_oak_recorder.sh는 해당 경로가 있을 때만 PYTHONPATH에 추가하며, 이 런타임에서는
+  FFmpeg 병렬 연결과 디코더1스레드를 사용한다. 없으면 기존 Python 환경을 사용한다.
+  OPENCV_FFMPEG_IS_THREAD_SAFE/THREADS 지원은 [OpenCV4.10 원문](https://github.com/opencv/opencv/blob/4.10.0/modules/videoio/src/cap_ffmpeg_impl.hpp)에서 확인했다.
+- 수신기 버전과 초기 연결 제한을 실행 로그에 기록한다. 녹화 관련 회귀10개 통과.
+
+WSL에 pip가 없어 Windows pip로 Linux wheel을 받아 격리 경로에 풀었다.
+재설치 시 pip가 있는 Linux에서는 저장소 루트에서 다음을 사용할 수 있다.
+`python3 -m pip install --no-deps --target artifacts/runtime/recorder-wsl-site -r tools/requirements-oak-recorder-wsl.txt`.
+현재 WSL NumPy1.21.5와 호환됨을 확인했다. wheel 및 설치·비교 로그는 같은 artifacts에 보존했다.
+
+## 최종 카메라 패키지
+
+0.33.6 UUID `49c5a294-4e02-4003-b0d9-68858ee886ba`, running/enabled=false.
+부팅 full/persistent_skeleton,7개 소스 해시 일치·임시 배포 백업 없음.
+패키지1,014,802,432bytes, SHA256 `8bc1f9b9fd41cec9fff3253bc1968c8eee7559b121d87fdd51a43416198fb4a6`.
+증거 identity_final/manifest.json, runtime_identity.json, boot_frame.json.
+
+최종 패키지+WSL4.10 수신기 조합의 강화 검사도 통과했다(`final_wsl/report.json`).
+인식 결과346프레임·TOP347프레임, 마지막20초에 각각127프레임 증가,
+최종 연결 상태이며 프레임 나이0.190/0.094초였다. 재개한 스트림의 재접속은 모두0회.
+의도한 초기 무입력 구간에서는 open/read timeout이 발생했고 해당 로그도 보존했다.
+
+실제 run_oak_recorder.sh로 실행한 멀티뷰의 로그에서 OpenCV4.10.0을 확인했다.
+메인의 '영상 연결'을 누른 뒤 PC 전송을 시작해 RGB·인식 결과·TOP 도로 재생을
+화면에서 확인했다. 초기 원본 RTSP는1회 open timeout 뒤 연결됐으나 인식/TOP은
+준비 후 약2초에 수신이 시작됐다. 증거 multiview_410.log.
+
+카메라를 재시작하지 않고 멀티뷰만 종료·재실행하는 실제 warm 재접속도 수행했다.
+메인의 영상 연결 후 PC 전송을 재개해 RGB·인식 결과·TOP 재생을 다시 확인했다.
+10:34:58 연결,10:35:08 전송 시작,10:35:14 인식/TOP/RGB 수신을 확인했다.
+무입력 중 open timeout 로그가 있었지만 재개 후 화면은 정상 표시됐다.
+재실행 후 텔레메트리5개는 pc/full/persistent_skeleton이며 부팅 시와 session이 같았다.
+즉 카메라 재시작으로 일시 복구한 결과가 아니다. 증거 multiview_warm.log,
+warm_ui_frames.json. 현재 재생 상태로 남겨 두었다.
