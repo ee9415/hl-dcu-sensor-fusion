@@ -4,6 +4,7 @@ from collections import deque
 from pathlib import Path
 import re
 import threading
+import time
 from types import SimpleNamespace
 import unittest
 
@@ -12,7 +13,12 @@ def factory():
     tree = ast.parse((Path(__file__).parents[1]/'rtsp_server.py').read_text())
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef)
                and n.name == '_H264MediaFactory')
-    namespace = dict(deque=deque, threading=threading, re=re,
+    class Buffer:
+        def fill(self, _offset, data):
+            self.data = data
+    gst = SimpleNamespace(Buffer=SimpleNamespace(new_allocate=lambda *_: Buffer()),
+                          FlowReturn=SimpleNamespace(OK=0))
+    namespace = dict(deque=deque, threading=threading, re=re, Gst=gst,
                      GstRtspServer=SimpleNamespace(RTSPMediaFactory=object))
     exec(compile(ast.Module(body=[cls], type_ignores=[]), 'rtsp_server.py', 'exec'), namespace)
     return namespace['_H264MediaFactory'](20)
@@ -25,6 +31,36 @@ PFRAME = b'\x00\x00\x01\x41pframe'
 
 
 class RtspContinuityTests(unittest.TestCase):
+    def test_empty_input_callback_returns_without_waiting_for_unprepared(self):
+        f = factory()
+        callback = threading.Thread(target=f._on_need_data, args=(None, 0, 0), daemon=True)
+        callback.start()
+        try:
+            callback.join(.2)
+            self.assertFalse(callback.is_alive(), 'Empty input blocks media teardown')
+        finally:
+            f._on_unprepared(None, 0)
+            callback.join(1)
+
+    def test_worker_preserves_order_and_obeys_backpressure(self):
+        f = factory()
+        received = []
+        def emit(_signal, buffer):
+            received.append(buffer.data)
+            f._on_enough_data(None, f._generation)
+            return 0
+        f._source = SimpleNamespace(emit=emit)
+        f.send_data(SPS+PPS+IDR)
+        f.send_data(PFRAME)
+        for count in (1, 2):
+            f._on_need_data(f._source, 0, f._generation)
+            deadline = time.monotonic()+1
+            while len(received) < count and time.monotonic() < deadline:
+                time.sleep(.005)
+            self.assertEqual(len(received), count)
+        self.assertEqual(received, [SPS+PPS+IDR, PFRAME])
+        f._on_unprepared(None, f._generation)
+
     def test_new_media_discards_backlog_and_waits_for_fresh_idr(self):
         f = factory()
         f.send_data(SPS+PPS+IDR)

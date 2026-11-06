@@ -23,6 +23,10 @@ class _H264MediaFactory(GstRtspServer.RTSPMediaFactory):
         self._generation = 0
         self._headers: dict[int, bytes] = {}
         self._waiting_idr = True
+        self._source = None
+        self._demand = False
+        self._worker = threading.Thread(target=self._pump, daemon=True, name='rtsp-appsrc')
+        self._worker.start()
 
     def send_data(self, data: bytes) -> None:
         with self._condition:
@@ -51,28 +55,50 @@ class _H264MediaFactory(GstRtspServer.RTSPMediaFactory):
 
     def _on_need_data(self, source, _length: int, generation: int) -> None:
         with self._condition:
-            while not self._queue and generation == self._generation:
-                self._condition.wait(timeout=1.0)
             if generation != self._generation:
                 return
-            data = self._queue.popleft()
+            self._demand = True
+            self._condition.notify_all()
 
-        buffer = Gst.Buffer.new_allocate(None, len(data), None)
-        buffer.fill(0, data)
-        source.emit("push-buffer", buffer)
+    def _on_enough_data(self, _source, generation: int) -> None:
+        with self._condition:
+            if generation == self._generation:
+                self._demand = False
+
+    def _pump(self) -> None:
+        # Never wait for a camera/PC frame inside a GStreamer callback. Media
+        # teardown can wait for that callback before emitting 'unprepared'.
+        # One worker preserves access-unit ordering while callbacks return now.
+        while True:
+            with self._condition:
+                while self._source is None or not self._demand or not self._queue:
+                    self._condition.wait()
+                source = self._source
+                generation = self._generation
+                data = self._queue.popleft()
+            buffer = Gst.Buffer.new_allocate(None, len(data), None)
+            buffer.fill(0, data)
+            flow = source.emit('push-buffer', buffer)
+            if flow != Gst.FlowReturn.OK:
+                with self._condition:
+                    if generation == self._generation:
+                        self._demand = False
 
     def do_create_element(self, _url):
         return Gst.parse_launch(self._launch_string)
 
     def do_configure(self, media) -> None:
+        source = media.get_element().get_child_by_name("source")
         with self._condition:
             self._generation += 1
             generation = self._generation
             self._queue.clear()
             self._waiting_idr = True
+            self._source = source
+            self._demand = False
             self._condition.notify_all()
-        source = media.get_element().get_child_by_name("source")
         source.connect("need-data", self._on_need_data, generation)
+        source.connect("enough-data", self._on_enough_data, generation)
         media.connect("unprepared", self._on_unprepared, generation)
 
     def _on_unprepared(self, _media, generation: int) -> None:
@@ -80,6 +106,8 @@ class _H264MediaFactory(GstRtspServer.RTSPMediaFactory):
             if generation == self._generation:
                 self._generation += 1
                 self._queue.clear()
+                self._source = None
+                self._demand = False
                 self._condition.notify_all()
 
 
