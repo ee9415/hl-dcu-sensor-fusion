@@ -19,7 +19,8 @@ import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-os.environ.setdefault('OPENCV_FFMPEG_CAPTURE_OPTIONS', 'rtsp_transport;tcp')
+os.environ.setdefault('OPENCV_FFMPEG_CAPTURE_OPTIONS',
+                      'rtsp_transport;tcp|fpsprobesize;2|analyzeduration;1000000|probesize;262144')
 import cv2
 from PIL import Image, ImageTk
 from frame_csv_logger import FrameCsvLogger
@@ -177,7 +178,7 @@ class CaptureSource:
     def _capture_loop(self) -> None:
         while not self.stop_event.is_set():
             capture = cv2.VideoCapture(self.url, cv2.CAP_FFMPEG, [
-                cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000,
+                cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 15000,
                 cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000,
             ])
             capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
@@ -279,7 +280,7 @@ class CaptureSource:
         self.stop_event.set()
         self.stop_recording()
         if self.thread is not None:
-            self.thread.join(timeout=6)
+            self.thread.join(timeout=16)
 
 
 class RecorderApp:
@@ -1928,6 +1929,7 @@ def main() -> None:
     if args.auto_connect:
         log_event('--auto-connect 무시 · 카메라 앱은 버튼으로 직접 시작합니다.', 'WARN')
     log_event('멀티뷰 실행 · 카메라 앱 자동 실행 없음 · 사용자 시작 대기')
+    log_event(f'영상 수신기 OpenCV {cv2.__version__} · 초기 연결 제한 15초')
     root.mainloop()
 
 

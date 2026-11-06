@@ -39,6 +39,8 @@ def main():
         sender.close()
         time.sleep(12)
         for source in sources:
+            source.stop_event.set()
+        for source in sources:
             source.close()
         sources = []
         time.sleep(10)
@@ -66,6 +68,8 @@ def main():
         (args.output/'samples.json').write_text(json.dumps(samples,indent=2),encoding='utf-8')
         if sender:
             sender.close()
+        for source in sources:
+            source.stop_event.set()
         for source in sources:
             source.close()
         select_camera(args.device_ip)

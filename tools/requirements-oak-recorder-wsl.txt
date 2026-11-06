@@ -1,0 +1,2 @@
+# Isolated GUI receiver runtime; camera-side requirements are separate.
+opencv-python-headless==4.10.0.84
