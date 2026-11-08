@@ -1,4 +1,9 @@
 {
+  "skeleton_observed_tau_s": 0.08,
+  "skeleton_observed_fine_tau_s": 0.16,
+  "skeleton_observed_max_rate_px_s": 120.0,
+  "skeleton_retained_tau_s": 0.2,
+  "skeleton_retained_max_rate_px_s": 40.0,
   "vehicle_width_m": 1.8,
   "left_margin_m": 0.15,
   "right_margin_m": 0.15,

@@ -43,12 +43,18 @@ class ImageBoundaryEstimate:
         return bool(common.sum() >= 8 and np.all(self.image_right[common,0] > self.image_left[common,0]))
 
     def telemetry(self, config=None):
+        c = config or BoundaryConfig()
         def points(p):
             return [[float(x),float(y)] for x,y in p if np.isfinite([x,y]).all()]
         def coefficients(p):
             good=np.isfinite(p[:,0])
             return np.polynomial.polynomial.polyfit(p[good,1],p[good,0],2).tolist() if good.sum()>=3 else None
-        return dict(image_curve_degree=None if self.model=='persistent_skeleton' else 2,
+        return dict(boundary_response=dict(observed_max_rate_px_s=c.skeleton_observed_max_rate_px_s,
+                    observed_tau_s=c.skeleton_observed_tau_s,
+                    observed_fine_tau_s=c.skeleton_observed_fine_tau_s,
+                    retained_max_rate_px_s=c.skeleton_retained_max_rate_px_s,
+                    retained_tau_s=c.skeleton_retained_tau_s) if self.model=='persistent_skeleton' else None,
+                    image_curve_degree=None if self.model=='persistent_skeleton' else 2,
                     image_geometry='tracked_skeleton_samples' if self.model=='persistent_skeleton' else 'quadratic',
                     image_coefficients_kind='least_squares_approximation' if self.model=='persistent_skeleton' else 'quadratic_model',
                     left_image_coefficients=coefficients(self.image_left),
@@ -341,9 +347,11 @@ class ImageBoundaryTracker:
                 u = (self.rows-125.)/50.
                 correction = np.polynomial.polynomial.polyfit(u[common], points[common,0]-prior[common,0], degree)
                 delta = np.polynomial.polynomial.polyval(u, correction)
-                tau = .12 if stats[side]['prior_error_px'] > 4 else .25
+                tau = (self.config.skeleton_observed_tau_s if stats[side]['prior_error_px'] > 4
+                       else self.config.skeleton_observed_fine_tau_s)
                 alpha = (1.-np.exp(-dt/tau))*quality
-                fraction = min(alpha, 80.*dt/max(float(np.max(abs(delta[domain]))), 1e-9))
+                fraction = min(alpha, self.config.skeleton_observed_max_rate_px_s*dt
+                               /max(float(np.max(abs(delta[domain]))), 1e-9))
                 base = np.polynomial.polynomial.polyfit(u[np.isfinite(prior[:,0])], prior[np.isfinite(prior[:,0]),0], 2)
                 values = np.polynomial.polynomial.polyval(u, base)
                 retained = np.isfinite(prior[:,0])
@@ -374,8 +382,9 @@ class ImageBoundaryTracker:
             if observed[side]:
                 self._contour_loss_anchor[side] = None
                 continue
-            if (not observed[other] or states[other] != 'observed'
-                    or self.history[side] is None):
+            # 'aligning' is a confirmed observation whose display is catching
+            # up. Its filtered motion can already guide the retained side.
+            if not observed[other] or self.history[side] is None:
                 continue
             # Transfer CHANGE since the loss, never the absolute opposite shape.
             # This preserves an independently observed bend/offset on the lost
@@ -396,7 +405,9 @@ class ImageBoundaryTracker:
             target = missing_anchor[:,0]+np.polynomial.polynomial.polyval(u,deformation)
             domain = np.isfinite(output[side][:,0]) & np.isfinite(target)
             delta = np.where(domain,target-output[side][:,0],0.)
-            fraction = min(1.-np.exp(-dt/.4),20.*dt/max(float(np.max(abs(delta[domain]))),1e-9))
+            fraction = min(1.-np.exp(-dt/self.config.skeleton_retained_tau_s),
+                           self.config.skeleton_retained_max_rate_px_s*dt
+                           /max(float(np.max(abs(delta[domain]))),1e-9))
             candidate = output[side].copy()
             candidate[domain,0] += fraction*delta[domain]
             pair = list(output); pair[side] = candidate

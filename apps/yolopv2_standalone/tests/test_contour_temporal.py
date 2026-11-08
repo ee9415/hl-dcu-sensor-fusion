@@ -1,11 +1,13 @@
 """Sequence contracts for the mask-fed common boundary tracker."""
 import unittest
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
 
 from image_boundaries import ImageBoundaryTracker
+from lane_boundaries import BoundaryConfig
 from ego_lane_quadratic import tracked_quadratics
 
 
@@ -21,6 +23,52 @@ def scene(shift=0., left=True, right=True, curve=0., wrong_right=0., reverse=Fal
 
 
 class ContourTemporalTests(unittest.TestCase):
+    def test_faster_profile_reaches_retained_target_sooner_at_two_frame_rates(self):
+        slow = replace(BoundaryConfig.load(), skeleton_observed_tau_s=.12,
+                       skeleton_observed_fine_tau_s=.25, skeleton_observed_max_rate_px_s=80.,
+                       skeleton_retained_tau_s=.4, skeleton_retained_max_rate_px_s=20.)
+        def response(config, fps):
+            tracker = ImageBoundaryTracker(config)
+            for i in range(fps):
+                before = tracker.update_contours(scene(),(180,320),i/fps)
+            initial = before.image_left.copy()
+            good = np.isfinite(initial[:,0])
+            for i in range(1,4*fps):
+                result = tracker.update_contours(scene(left=False,shift=12.),(180,320),
+                                                 (fps-1+i)/fps)
+                if np.max(abs(result.image_left[good,0]-initial[good,0]-12.)) <= 1.2:
+                    return i/fps
+            self.fail('Retained boundary did not converge')
+        for fps in (10,20):
+            self.assertLess(response(BoundaryConfig.load(),fps),response(slow,fps)-.1)
+
+    def test_confirmed_aligning_observation_already_guides_missing_side(self):
+        previous = self.warm()
+        guided = False
+        for i in range(1,16):
+            result = self.update(.95+i*.05,left=False,shift=25.)
+            if result.right_state == 'aligning' and result.right_support.any():
+                guided |= self.displacement(previous,result) > 1e-6
+            if not result.right_support.any():
+                self.assertLess(self.displacement(previous,result),1e-8)
+            previous = result
+        self.assertTrue(guided)
+
+    def test_response_telemetry_reports_configured_limits(self):
+        result = self.warm()
+        profile = result.telemetry(self.tracker.config)['boundary_response']
+        self.assertEqual(profile['retained_max_rate_px_s'],40.)
+        self.assertEqual(profile['observed_max_rate_px_s'],120.)
+        self.assertEqual(profile['retained_tau_s'],.2)
+
+    def test_first_turn_at_loss_is_not_omitted_from_retained_target(self):
+        before = self.warm()
+        for i in range(1,61):
+            result = self.update(.95+i*.05,left=False,shift=12.)
+        good = np.isfinite(before.image_left[:,0])
+        error = np.max(abs(result.image_left[good,0]-before.image_left[good,0]-12.))
+        self.assertLess(error,1.2)
+
     def setUp(self):
         self.tracker = ImageBoundaryTracker()
 
@@ -54,7 +102,7 @@ class ContourTemporalTests(unittest.TestCase):
         initial = previous
         for i in range(1,11):
             result = self.update(.95+i*.05, left=False,shift=i*.8)
-            self.assertLessEqual(self.displacement(previous,result),20*.05+1e-7)
+            self.assertLessEqual(self.displacement(previous,result),self.tracker.config.skeleton_retained_max_rate_px_s*.05+1e-7)
             previous = result
         self.assertGreater(self.displacement(initial,result),.5)
         np.testing.assert_array_equal(self.tracker.width,width)
@@ -72,7 +120,7 @@ class ContourTemporalTests(unittest.TestCase):
         previous = self.warm()
         for i in range(1,16):
             result = self.update(.95+i*.05,shift=35.)
-            self.assertLessEqual(self.displacement(previous,result),80*.05+1e-6)
+            self.assertLessEqual(self.displacement(previous,result),self.tracker.config.skeleton_observed_max_rate_px_s*.05+1e-6)
             previous = result
         self.assertEqual(result.left_state,'observed')
 
@@ -104,7 +152,7 @@ class ContourTemporalTests(unittest.TestCase):
             result = self.update(.95+i*.05,left=False,curve=i*.08)
             self.assertTrue(result.pair_valid)
             self.assertFalse(result.left_support.any())
-            self.assertLessEqual(self.displacement(previous,result),20.*.05+1e-6)
+            self.assertLessEqual(self.displacement(previous,result),self.tracker.config.skeleton_retained_max_rate_px_s*.05+1e-6)
             if i == 70:
                 middle = result
             previous = result
@@ -161,7 +209,7 @@ class ContourTemporalTests(unittest.TestCase):
             previous = self.update(.95+i*.05,left=False)
         for i in range(1,21):
             result = self.update(4.95+i*.05,shift=35.)
-            self.assertLessEqual(self.displacement(previous,result),80.*.05+1e-6)
+            self.assertLessEqual(self.displacement(previous,result),self.tracker.config.skeleton_observed_max_rate_px_s*.05+1e-6)
             previous = result
         self.assertEqual(result.left_state,'observed')
 

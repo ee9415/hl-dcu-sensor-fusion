@@ -13,6 +13,11 @@ import numpy as np
 
 @dataclass(frozen=True)
 class BoundaryConfig:
+    skeleton_observed_tau_s: float = .08
+    skeleton_observed_fine_tau_s: float = .16
+    skeleton_observed_max_rate_px_s: float = 120.
+    skeleton_retained_tau_s: float = .2
+    skeleton_retained_max_rate_px_s: float = 40.
     opposite_curve_weight: float = .25
     image_nn_rank_weight: float = .06
     image_min_width_ratio: float = .25
