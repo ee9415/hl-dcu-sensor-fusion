@@ -8,7 +8,8 @@ import socket
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[3]
-SOURCES = ('skeleton_response.py', 'image_boundaries.py', 'lane_overlay.py', 'yolopv2_node.py',
+RUNTIME_SOURCES = ('release_runtime.py', 'backend-run.sh')
+SOURCES = ('telemetry_server.py', 'skeleton_response.py', 'image_boundaries.py', 'lane_overlay.py', 'yolopv2_node.py',
            'video_transport.py', 'ego_lane_quadratic.py', 'main.py', 'rtsp_server.py',
            'lane_boundaries.py', 'lane_boundaries.json')
 
@@ -23,7 +24,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     expected = {name:hashlib.sha256((ROOT/'apps/yolopv2_standalone'/name)
                                   .read_bytes().replace(b'\r\n', b'\n')).hexdigest()
-                for name in SOURCES}
+                for name in SOURCES+RUNTIME_SOURCES}
     with args.package.open('rb') as package_file:
         package_hash = hashlib.file_digest(package_file, 'sha256').hexdigest()
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
@@ -31,9 +32,16 @@ def main():
                     sha256=package_hash, source_commit=commit, source_sha256=expected)
     (args.output/'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     code = f"""
-import hashlib,json
+import hashlib,json,os,sys
 from pathlib import Path
-print('IDENTITY='+json.dumps(dict(source_sha256={{name:hashlib.sha256(Path('/app',name).read_bytes()).hexdigest() for name in {SOURCES!r}}},temporary_backup_present=bool(list(Path('/app').glob('deploy_backup_*'))))))
+sys.path.insert(0,'/app')
+from release_runtime import ReleaseStore
+store=ReleaseStore(Path(os.environ['OAKAGENT_STORAGE_APP'])/'code-deploy',Path('/app'))
+state=store.status()
+folder=store.folder(state['active']) if state['active'] else Path('/app')
+sums={{name:hashlib.sha256((folder/name).read_bytes()).hexdigest() for name in {SOURCES!r}}}
+sums.update({{name:hashlib.sha256(Path('/app',name).read_bytes()).hexdigest() for name in {RUNTIME_SOURCES!r}}})
+print('IDENTITY='+json.dumps(dict(source_sha256=sums,release_state=state,code_folder=str(folder),temporary_backup_present=bool(list(Path('/app').glob('deploy_backup_*'))))))
 """
     encoded = base64.b64encode(code.encode()).decode()
     cli = 'C:/Program Files/oakctl/bin/oakctl.exe'
@@ -62,6 +70,8 @@ print('IDENTITY='+json.dumps(dict(source_sha256={{name:hashlib.sha256(Path('/app
     assert not identity['temporary_backup_present'], 'Runtime includes staged hotfix backups'
     assert frame.get('processing_mode') == 'full', 'Boot processing mode is not full'
     assert frame.get('boundary_model') == 'persistent_skeleton', 'Wrong boundary tracker'
+    assert frame.get('code_release') == (identity['release_state']['active'] or 'embedded'), 'Wrong active code'
+    assert frame.get('runtime_fingerprint') == identity['release_state']['runtime'], 'Wrong runtime contract'
     print(json.dumps(dict(identity_ok=True, app_id=args.app_id, package_sha256=package_hash,
                           processing_mode=frame['processing_mode'], model=frame['boundary_model'])))
 

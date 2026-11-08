@@ -1,5 +1,6 @@
 """Bounded live JSON telemetry on trusted device LAN; no replay or control commands."""
 import json
+import os
 import queue
 import socketserver
 import threading
@@ -50,6 +51,8 @@ class TelemetryServer:
 
     def publish(self, payload):
         payload = dict(payload, session=self.session, schema_version=1,
+                       code_release=os.environ.get('OAK_CODE_RELEASE','embedded'),
+                       runtime_fingerprint=os.environ.get('OAK_RUNTIME_FINGERPRINT'),
                        sent_monotonic_s=time.monotonic(), sent_wall_s=time.time())
         data = (json.dumps(payload, allow_nan=False)+'\n').encode()
         with self.lock:
