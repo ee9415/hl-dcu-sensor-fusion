@@ -20,6 +20,7 @@
 - 정상 코드 `0.33.10-code1` release `cbab549cef313b95f5b16edcfdcd0b3a8d1334855f9a9d9c1eafa765b7c8b044` 실행 확인. 이어서 구문은 유효하지만 즉시 RuntimeError를 발생시키는 별도 시험 ZIP을 배포했다. 해당 릴리스 `2755f747000eee541d9f68f93dab87c9be8ee8b20b4813acc35e3b07f316b68c`의 기동 실패 후 정상 code1로 자동 복구됐다. 다시 컨테이너를 재시작해 같은 code1의 정상 프레임과 영구 저장소 보존을 확인했다.
 - 최종 실행 환경 패키지 1,014,807,552bytes. SHA256 `05aff307f02e202e00a2e1d47b1f8ef3da9246661c54bf0a7f77a06e7dd86c00`. 전체 이미지는 최초 설치에서만 전송했으며 이후 코드 배포·실패 복구 시험·재시작 과정에서 재설치하지 않았다.
 - 근거: `identity_embedded/`, `identity_code/`, `live/deployed.json`, `live/verification.json`, `tests_final.log`.
+- 최종 멀티뷰에서 PC 도로 영상의 RGB/인식 결과/TOP 수신을 확인했다. 저장된 표시 설정 적용 후 full·스켈레톤3.0배·code1 텔레메트리 확인(`gui_final_frame.json`). 자동 시작은 비활성 상태를 유지한다.
 
 ## 운영
 
