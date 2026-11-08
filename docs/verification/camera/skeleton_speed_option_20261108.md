@@ -14,6 +14,9 @@
 - WSL 회귀 테스트 381개 통과 (61.445초).
 - 설정 저장·기존 설정 호환·잘못된 배율 검증 6개 재실행 통과.
 - 배율 계산, 제어 소켓 응답, 소스 epoch 유지, 과거 프레임 메타데이터 보존 검증 포함.
-- 카메라 패키지 및 실시간 반영 확인: 배포 후 기록 예정.
+- CAM01 192.168.201.2에 0.33.8 설치·실행, UUID `c5b65b0c-0e10-4603-ba59-f61dc6be6eeb`. 부팅 full/persistent_skeleton, 소스·설정 10개 해시 일치 및 임시 핫픽스 없음.
+- 카메라 입력 및 실제 도로 PC 영상 입력에서 각각 0.5/2/3/1배 5프레임씩 총 40프레임 확인. 실제 이동 상한과 시간 상수가 배율에 일치하고 source/processing epoch 변화 없음.
+- GUI 미연결 2.0배 저장, 앱 종료·재실행 후 복원, 연결 시 적용, 도로 영상 재생 중 적용 버튼 응답 확인. 최종 full/2.0배, 관측 240px/s·유지 80px/s, 시간 상수 0.04/0.08/0.1초 확인. 영상 RGB/결과/TOP 수신 확인.
+- 패키지 1,014,802,432bytes, SHA256 `41c562ecd9a8eab2c0c4dd52e2e3f64f88fc8d2a0052eaf8c1f694b7760d55f7`. 근거 `artifacts/skeleton_speed_option_20261108`의 identity, live_speed.json, road_live_speed.json, ui_applied_frame.json 및 테스트 로그.
 
 ROS 드라이버·토픽·TF 변경이 없는 독립 OAK 앱/PC UI 수정으로 colcon/ROS 실행 검증 대상은 아니다. 영상별 최적 배율은 현장 조절 사항이다.
