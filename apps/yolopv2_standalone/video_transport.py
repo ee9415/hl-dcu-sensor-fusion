@@ -6,6 +6,7 @@ import socketserver
 import threading
 import time
 from lane_overlay import validate_preview
+from skeleton_response import validate_speed
 
 PORT = 8558
 MAX_PACKET = 2 * 1024 * 1024
@@ -83,6 +84,8 @@ class VideoInputServer:
         self.mode = 'camera'
         self.processing_mode = 'full'
         self.processing_epoch = 0
+        self.skeleton_response_speed = 1.0
+        self.skeleton_response_epoch = 0
         self.boundary_visible = True
         self.boundary_display_epoch = 0
         self.contour_visible = False
@@ -162,6 +165,13 @@ class VideoInputServer:
                 self.last_frame_index, self.last_media_epoch = index, media_epoch
                 self.received += 1
                 self.last_received = time.monotonic()
+            elif op == 'skeleton_response':
+                speed=validate_speed(header.get('speed'))
+                if payload:
+                    raise ValueError('Skeleton response control has no image payload')
+                if speed != self.skeleton_response_speed:
+                    self.skeleton_response_speed=speed
+                    self.skeleton_response_epoch+=1
             elif op == 'processing':
                 mode = header.get('mode')
                 if mode not in ('basic','full') or payload:
@@ -212,7 +222,9 @@ class VideoInputServer:
                     dropped_frames=self.dropped)
 
     def _preview_metadata(self):
-        return dict(contour_visible=self.contour_visible,contour_display_epoch=self.contour_display_epoch,
+        return dict(skeleton_response_speed=self.skeleton_response_speed,
+                    skeleton_response_epoch=self.skeleton_response_epoch,
+                    contour_visible=self.contour_visible,contour_display_epoch=self.contour_display_epoch,
                     lane_overlay_mode=self.lane_overlay_mode,lane_overlay_threshold=self.lane_overlay_threshold,
                     lane_overlay_epoch=self.lane_overlay_epoch,lane_perception_threshold=.5)
 

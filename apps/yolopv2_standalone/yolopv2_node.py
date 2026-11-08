@@ -261,7 +261,9 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._frames = 0
         self._started_at = time.monotonic()
         self._last_health_at = self._started_at
-        self._boundary_tracker = ImageBoundaryTracker(BoundaryConfig.load())
+        self._skeleton_base_config = BoundaryConfig.load()
+        self._skeleton_speed = 1.0
+        self._boundary_tracker = ImageBoundaryTracker(self._skeleton_base_config)
         self._stop_line_tracker = StopLineTracker()
         self._guidance = VirtualGuidance(GuidanceConfig.load())
         self._guidance_estimate = GuidanceEstimate()
@@ -509,6 +511,11 @@ class Yolopv2Postprocess(dai.node.HostNode):
                   if self.video_input is not None else {})
         if self.video_input is not None and not source:
             return  # Do not process a frame whose source provenance expired.
+        from skeleton_response import response_config
+        speed=source.get('skeleton_response_speed',1.0)
+        if speed != self._skeleton_speed:
+            self._boundary_tracker.config=response_config(self._skeleton_base_config,speed)
+            self._skeleton_speed=speed
         processing_mode=source.get('processing_mode','full')
         self._boundary_visible=source.get('boundary_visible',True)
         self._contour_visible=source.get('contour_visible',False)

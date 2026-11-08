@@ -16,6 +16,14 @@ class UnifiedSettingsTests(unittest.TestCase):
                   selected=dict(rgb=True,yolopv2=True),recording=dict(output_dir='out',session_name='test',
                     resolution='원본 스트림',fps='10',verify_output=True))
         self.assertNotIn('contour_visible',store.preferences(data)['display'])
+        self.assertNotIn('skeleton_speed',store.preferences(data)['display'])
+        data['display']['skeleton_speed']=2.3
+        store.update(self.path,{'preferences':store.preferences(data)})
+        self.assertEqual(store.preferences(store.read(self.path)['preferences'])['display']['skeleton_speed'],2.3)
+        for speed in (True,.4,3.1,float('nan'),'2'):
+            data['display']['skeleton_speed']=speed
+            with self.assertRaises(ValueError):store.preferences(data)
+        data['display']['skeleton_speed']=1.0
         data['display']['contour_visible']=True
         store.update(self.path,{'preferences':store.preferences(data)})
         self.assertTrue(store.preferences(store.read(self.path)['preferences'])['display']['contour_visible'])

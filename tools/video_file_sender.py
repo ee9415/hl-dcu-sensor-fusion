@@ -40,6 +40,19 @@ def select_camera(ip, port=PORT):
         return response
 
 
+def set_skeleton_response_speed(ip, speed, port=PORT):
+    from skeleton_response import validate_speed
+    speed=validate_speed(speed)
+    with socket.create_connection((ip,port),timeout=3) as connection:
+        connection.settimeout(3)
+        send_message(connection,dict(op='skeleton_response',speed=speed))
+        with connection.makefile('rb') as stream:
+            response,_=read_message(stream)
+        if not response.get('ok') or response.get('skeleton_response_speed')!=speed:
+            raise RuntimeError(response.get('error','Skeleton response was not applied'))
+        return response
+
+
 def set_processing_mode(ip, mode, port=PORT):
     if mode not in ('basic','full'):
         raise ValueError('Processing mode must be basic or full')

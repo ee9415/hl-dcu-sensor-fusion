@@ -30,7 +30,8 @@ import oak_app_control
 import video_input_settings
 import settings_store
 from console_log import action, event as log_event, state_event, register_secret, install_dialog_logging, progress_task
-from video_file_sender import VideoFileSender, select_camera, parse_video_time, set_processing_mode, set_boundary_display, set_contour_display, set_lane_overlay
+from video_file_sender import VideoFileSender, select_camera, parse_video_time, set_processing_mode, set_boundary_display, set_contour_display, set_lane_overlay, set_skeleton_response_speed
+from skeleton_response import validate_speed
 
 RESAMPLE_LANCZOS = getattr(Image, "Resampling", Image).LANCZOS
 
@@ -318,6 +319,8 @@ class RecorderApp:
         self.confirmed_boundary_visible = True
         self.contour_display_pending = False
         self.confirmed_contour_visible = False
+        self.skeleton_speed_pending = False
+        self.confirmed_skeleton_speed = 1.0
         self.lane_preview_pending = False
         self.confirmed_lane_preview = ('normal',.5)
         self.source_closing = threading.Event()
@@ -724,6 +727,24 @@ class RecorderApp:
         self.lane_preview_status=tk.StringVar(value='미리보기 전용 · 차선 마스크 픽셀별 점수색 · 인식용 임계값 0.50 유지')
         ttk.Label(panel,textvariable=self.lane_preview_status,style='App.TLabel').grid(
             row=8,column=0,columnspan=7,sticky='w')
+        speed_controls=ttk.Frame(panel,style='Panel.TFrame')
+        speed_controls.grid(row=9,column=0,columnspan=7,sticky='w',pady=(6,0))
+        ttk.Label(speed_controls,text='스켈레톤 반응 속도',style='App.TLabel').pack(side=tk.LEFT)
+        self.skeleton_speed=tk.DoubleVar(value=1.0)
+        self.skeleton_speed_scale=ttk.Scale(speed_controls,from_=.5,to=3,
+            variable=self.skeleton_speed,length=180)
+        self.skeleton_speed_scale.pack(side=tk.LEFT,padx=6)
+        self.skeleton_speed_scale.bind('<ButtonRelease-1>',self._apply_skeleton_speed)
+        self.skeleton_speed_spin=ttk.Spinbox(speed_controls,from_=.5,to=3,increment=.1,
+            textvariable=self.skeleton_speed,width=5,format='%.1f',command=self._apply_skeleton_speed)
+        self.skeleton_speed_spin.pack(side=tk.LEFT)
+        self.skeleton_speed_spin.bind('<Return>',self._apply_skeleton_speed)
+        ttk.Label(speed_controls,text='배',style='App.TLabel').pack(side=tk.LEFT)
+        self.skeleton_speed_apply=ttk.Button(speed_controls,text='적용',command=self._apply_skeleton_speed)
+        self.skeleton_speed_apply.pack(side=tk.LEFT,padx=6)
+        self.skeleton_speed_status=tk.StringVar(value='0.5배 느리게 ↔ 3.0배 빠르게 · 1.0배 현재 기준 · full 모드')
+        ttk.Label(panel,textvariable=self.skeleton_speed_status,style='App.TLabel').grid(
+            row=10,column=0,columnspan=7,sticky='w')
         progress = ttk.LabelFrame(controls, text='영상 재생',
                                   style='Control.TLabelframe', padding=8)
         progress.grid(row=0,column=0,sticky='ew',pady=(4,0))
@@ -789,6 +810,7 @@ class RecorderApp:
                 display=dict(full_processing=self.confirmed_full_processing,
                     boundary_visible=self.confirmed_boundary_visible,
                     contour_visible=self.confirmed_contour_visible,
+                    skeleton_speed=self.confirmed_skeleton_speed,
                     lane_mode=self.confirmed_lane_preview[0],threshold=self.confirmed_lane_preview[1]),
                 selected={key:var.get() for key,var in self.selected.items()},
                 recording={key:getattr(six,key).get() for key in
@@ -810,6 +832,8 @@ class RecorderApp:
             self.boundary_visible.set(display['boundary_visible'])
             self.confirmed_contour_visible=display.get('contour_visible',False)
             self.contour_visible.set(self.confirmed_contour_visible)
+            self.confirmed_skeleton_speed=display.get('skeleton_speed',1.0)
+            self.skeleton_speed.set(self.confirmed_skeleton_speed)
             self.confirmed_lane_preview=(display['lane_mode'],display['threshold'])
             self.lane_preview_view.set(next(k for k,v in self.lane_preview_modes.items() if v==display['lane_mode']))
             self.lane_preview_threshold.set(display['threshold'])
@@ -904,6 +928,32 @@ class RecorderApp:
         threading.Thread(target=change,daemon=True,name='boundary-display-control').start()
 
     @action('차선 미리보기 설정 적용 요청')
+    def _apply_skeleton_speed(self,event=None):
+        if self.skeleton_speed_pending:return
+        try:
+            speed=validate_speed(round(float(self.skeleton_speed.get()),1))
+        except (ValueError,TypeError,tk.TclError) as exc:
+            self.skeleton_speed_status.set(f'입력 확인: {exc}')
+            return
+        self.skeleton_speed.set(speed)
+        if not self.connect_requested:
+            self.confirmed_skeleton_speed=speed
+            if self._save_preferences():
+                self.skeleton_speed_status.set(f'{speed:.1f}배 저장됨 · 영상 연결 시 적용 · full 모드')
+            return
+        self.skeleton_speed_pending=True
+        for widget in (self.skeleton_speed_scale,self.skeleton_speed_spin,self.skeleton_speed_apply):
+            widget.configure(state=tk.DISABLED)
+        self.skeleton_speed_status.set('스켈레톤 반응 속도 적용 중...')
+        ip=self.device_ip
+        def change():
+            try:
+                set_skeleton_response_speed(ip,speed)
+                self.processing_events.put(('skeleton_speed_ok',speed))
+            except (OSError,ValueError,RuntimeError,EOFError) as exc:
+                self.processing_events.put(('skeleton_speed_error',str(exc)))
+        threading.Thread(target=change,daemon=True,name='skeleton-speed-control').start()
+
     def _apply_lane_preview(self,event=None):
         if self.lane_preview_pending or not self.connect_requested:
             return
@@ -1112,6 +1162,18 @@ class RecorderApp:
         while True:
             try:event,data=self.processing_events.get_nowait()
             except queue.Empty:break
+            if event in ('skeleton_speed_ok','skeleton_speed_error'):
+                self.skeleton_speed_pending=False
+                for widget in (self.skeleton_speed_scale,self.skeleton_speed_spin,self.skeleton_speed_apply):
+                    widget.configure(state=tk.NORMAL)
+                if event=='skeleton_speed_ok':
+                    self.confirmed_skeleton_speed=data
+                    if self._save_preferences():
+                        self.skeleton_speed_status.set(f'{data:.1f}배 적용·저장됨 · full 모드 · 추적 유지')
+                else:
+                    self.skeleton_speed.set(self.confirmed_skeleton_speed)
+                    self.skeleton_speed_status.set(f'속도 적용 실패: {data}')
+                continue
             if event in ('lane_preview_ok','lane_preview_error'):
                 self.lane_preview_pending=False
                 self.lane_preview_apply.configure(state=tk.NORMAL)
@@ -1454,7 +1516,8 @@ class RecorderApp:
     def release_perception_for_rgb(self):
         if (self.recording or self.source_change_pending or self.app_action_busy or self.connection_launch_pending
                 or self.processing_pending or self.boundary_display_pending
-                or self.contour_display_pending or self.lane_preview_pending):
+                or self.contour_display_pending or self.lane_preview_pending
+                or getattr(self,'skeleton_speed_pending',False)):
             messagebox.showwarning('순수 RGB 연결', '인식·검증의 녹화·장치 명령·영상 전환이 끝난 뒤 연결해 주세요.')
             return False
         self._stop_perception_receivers('6대 녹화용 순수 RGB로 전환 · 인식·검증 영상 연결을 누르면 AI 모드로 복귀합니다.')
@@ -1510,6 +1573,8 @@ class RecorderApp:
         if hasattr(self,'contour_display_check'):
             self.contour_display_check.configure(state=tk.NORMAL)
             self._apply_contour_display()
+        if hasattr(self,'skeleton_speed_apply'):
+            self._apply_skeleton_speed()
         if hasattr(self,'lane_preview_apply'):
             self.lane_preview_apply.configure(state=tk.NORMAL)
             self._apply_lane_preview()

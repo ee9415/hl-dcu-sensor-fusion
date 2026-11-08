@@ -23,6 +23,9 @@ def preferences(data):
     threshold=display['threshold']
     if type(threshold) not in (int,float) or not math.isfinite(threshold) or not 0<=threshold<=1:
         raise ValueError('잘못된 차선 임계값')
+    speed=display.get('skeleton_speed',1.0)
+    if type(speed) not in (int,float) or not math.isfinite(speed) or not .5<=speed<=3:
+        raise ValueError('잘못된 스켈레톤 반응 속도')
     if set(selected)!={'rgb','yolopv2'} or any(type(v) is not bool for v in selected.values()):
         raise ValueError('잘못된 녹화 영상 선택')
     if any(not isinstance(recording[k],str) for k in ('output_dir','session_name')):
