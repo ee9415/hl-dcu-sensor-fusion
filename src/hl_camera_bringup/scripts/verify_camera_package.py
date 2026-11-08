@@ -9,7 +9,8 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[3]
 SOURCES = ('image_boundaries.py', 'lane_overlay.py', 'yolopv2_node.py',
-           'video_transport.py', 'ego_lane_quadratic.py', 'main.py', 'rtsp_server.py')
+           'video_transport.py', 'ego_lane_quadratic.py', 'main.py', 'rtsp_server.py',
+           'lane_boundaries.py', 'lane_boundaries.json')
 
 
 def main():

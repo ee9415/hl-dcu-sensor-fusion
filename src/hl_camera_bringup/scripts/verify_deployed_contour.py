@@ -57,17 +57,21 @@ def analyze(frames):
         if len(rows) < 8:
             continue
         movement = max(abs(new[y]-old[y]) for y in rows)
+        rate_limit = float((current.get('boundary_response') or {}).get('retained_max_rate_px_s',20.))
+        if not np.isfinite(rate_limit) or rate_limit <= 0:
+            raise ValueError('Invalid retained boundary rate limit')
         # Bound applies to an uninterrupted missed-side interval. If the
         # telemetry skipped source frames, intervening observations are unknown.
         source_gap = (current.get('source_frame_index',0) or 0)-(previous.get('source_frame_index',0) or 0)
         record = dict(frame_seq=current['frame_seq'], media_time_s=current.get('source_media_time_s'),
                       dt_s=dt, max_movement_px=movement, rate_px_s=movement/dt,
                       previous_state=previous['left_boundary_state'], state=state,
+                      rate_limit_px_s=rate_limit,
                       source_gap=source_gap, uninterrupted_source=source_gap <= 1)
         movements.append(record)
         if previous['left_boundary_state'] in ('observed','aligning','partial'):
             transitions.append(record)
-        if movement > 20.*dt+1e-5 and source_gap <= 1:
+        if movement > rate_limit*dt+1e-5 and source_gap <= 1:
             violations.append(record)
     return dict(frames=len(frames), left_states=dict(Counter(f.get('left_boundary_state') for f in frames)),
                 max_retained_missing_s=max(retained_ages,default=None),
@@ -76,6 +80,7 @@ def analyze(frames):
                 models=dict(Counter(f.get('boundary_model') for f in frames)),
                 loss_transitions=transitions, missed_side_samples=len(movements),
                 uninterrupted_missed_samples=sum(r['uninterrupted_source'] for r in movements),
+                retained_rate_limits_px_s=sorted(set(r['rate_limit_px_s'] for r in movements)),
                 max_uninterrupted_rate_px_s=max((r['rate_px_s'] for r in movements
                     if r['uninterrupted_source']),default=None),
                 max_missed_movement_px=max((r['max_movement_px'] for r in movements),default=None),
