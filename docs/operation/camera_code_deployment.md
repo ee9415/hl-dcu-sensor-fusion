@@ -29,7 +29,7 @@ python src/hl_camera_bringup/scripts/deploy_code_release.py rollback --app-id <�
 
 동일 runtime fingerprint인 코드만 배포할 수 있다. 호환성이 다르면 자동 전체 설치하지 않고 중단한다. `rollback`은 마지막 정상 코드와 이전 코드를 교환하며 필요하면 embedded 복구 코드로 돌아간다. 이미 pending인 배포가 있으면 추가 활성화·수동 복구를 거부하므로 먼저 상태를 확인한다. 다른 PC의 동시 배포는 피한다. stage와 활성화 사이의 통신이 끊기면 status로 확인한 뒤 재시도한다. 배포 기록의 코드는 SHA256 release ID로 식별한다.
 
-런처의 전체 해시가 runtime fingerprint에 포함되므로 런처 수정도 실행 환경 업데이트가 필요하다. 소스만 변했을 때 임의로 전체 컨테이너 빌드를 반복하거나 라이브러리를 호스트 OS에 설치하지 않는다.
+런처의 전체 해시가 runtime fingerprint에 포함되므로 런처 수정도 실행 환경 업데이트가 필요하다. `runtime-base.toml`은 컨테이너에도 포함되는 기본 이미지 식별 파일이다. PC 빌드 시 oakapp.toml의 base_image와 일치하는지 검사한다(oakctl은 oakapp.toml 자체를 실행 컨테이너에서 제외한다). 기본 이미지를 바꾸면 두 파일을 함께 수정한다. 소스만 변했을 때 임의로 전체 컨테이너 빌드를 반복하거나 라이브러리를 호스트 OS에 설치하지 않는다.
 
 ## 근거
 

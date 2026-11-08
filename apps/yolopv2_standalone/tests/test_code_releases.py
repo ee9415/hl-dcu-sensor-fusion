@@ -24,6 +24,7 @@ class CodeReleaseTests(unittest.TestCase):
             'backend-run.sh':'# service','requirements.txt':'numpy==1',
             'install-runtime.sh':'# runtime','oakapp.toml':'[base_image]\nimage_tag="fixed"'}.items():
             (self.app/name).write_text(data)
+        (self.app/'runtime-base.toml').write_text((self.app/'oakapp.toml').read_text())
         self.store=ReleaseStore(self.root/'persistent',self.app)
 
     def bundle(self,version='one'):
@@ -44,6 +45,15 @@ class CodeReleaseTests(unittest.TestCase):
         incompatible=ReleaseStore(self.store.root,self.app)
         with self.assertRaises(ValueError):incompatible.stage(path)
         self.assertIsNone(self.store.read_state()['active'])
+
+    def test_contract_works_without_oakctl_build_configuration(self):
+        expected=self.store.runtime
+        (self.app/'oakapp.toml').unlink()
+        self.assertEqual(ReleaseStore(self.store.root,self.app).runtime,expected)
+
+    def test_base_image_drift_rejected_on_build_host(self):
+        (self.app/'oakapp.toml').write_text('[base_image]\nimage_tag="different"')
+        with self.assertRaises(ValueError):self.bundle()
 
     def test_corrupt_or_traversing_bundle_rejected(self):
         path,manifest=self.bundle()

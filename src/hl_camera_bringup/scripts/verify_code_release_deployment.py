@@ -18,7 +18,7 @@ def main():
     remote=Remote('C:/Program Files/oakctl/bin/oakctl.exe','192.168.201.2',args.app_id)
     initial=remote.control('status')
     bundle=args.output/'code1.zip'
-    manifest=build_bundle(APP,'0.33.9-code1',bundle)
+    manifest=build_bundle(APP,'0.33.10-code1',bundle)
     started=time.monotonic()
     deployed=remote.deploy(bundle)
     deployed['elapsed_s']=time.monotonic()-started

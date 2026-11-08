@@ -8,7 +8,7 @@ import socket
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[3]
-RUNTIME_SOURCES = ('release_runtime.py', 'backend-run.sh')
+RUNTIME_SOURCES = ('release_runtime.py', 'backend-run.sh', 'runtime-base.toml')
 SOURCES = ('telemetry_server.py', 'skeleton_response.py', 'image_boundaries.py', 'lane_overlay.py', 'yolopv2_node.py',
            'video_transport.py', 'ego_lane_quadratic.py', 'main.py', 'rtsp_server.py',
            'lane_boundaries.py', 'lane_boundaries.json')

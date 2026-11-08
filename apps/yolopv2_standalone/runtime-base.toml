@@ -1,0 +1,8 @@
+[base_image]
+api_url = "https://registry-1.docker.io"
+service = "registry.docker.io"
+oauth_url = "https://auth.docker.io/token"
+auth_type = "repository"
+auth_name = "library/python"
+image_name = "library/python"
+image_tag = "3.12.11-slim-bookworm"

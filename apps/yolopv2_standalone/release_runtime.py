@@ -17,7 +17,7 @@ from functools import wraps
 
 SCHEMA = 1
 MAX_BYTES = 8*1024*1024
-RUNTIME_FILES = ('requirements.txt', 'install-runtime.sh', 'backend-run.sh', 'release_runtime.py')
+RUNTIME_FILES = ('runtime-base.toml', 'requirements.txt', 'install-runtime.sh', 'backend-run.sh', 'release_runtime.py')
 EXCLUDED_CODE = {'release_runtime.py', 'inspect_lane_contours.py'}
 
 
@@ -42,7 +42,11 @@ def canonical(value):
 
 def contract(app):
     # Container version may change independently; runtime requirements may not.
-    base = (app/'oakapp.toml').read_text().split('[base_image]',1)[1].strip()
+    base = (app/'runtime-base.toml').read_text().split('[base_image]',1)[1].strip()
+    # oakctl omits oakapp.toml from runtime containers. Check agreement on the PC.
+    configuration=app/'oakapp.toml'
+    if configuration.exists() and configuration.read_text().split('[base_image]',1)[1].strip()!=base:
+        raise ValueError('Synchronize runtime-base.toml with oakapp.toml before building')
     return digest(canonical(dict(base_image=base, files={name:digest(
         (app/name).read_bytes().replace(b'\r\n', b'\n')) for name in RUNTIME_FILES})))
 
