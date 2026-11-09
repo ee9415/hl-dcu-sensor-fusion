@@ -32,6 +32,7 @@ import settings_store
 from console_log import action, event as log_event, state_event, register_secret, install_dialog_logging, progress_task
 from video_file_sender import VideoFileSender, select_camera, parse_video_time, set_processing_mode, set_boundary_display, set_contour_display, set_lane_overlay, set_skeleton_response_speed
 from skeleton_response import validate_speed
+from video_file_sender import prepare_preview
 
 RESAMPLE_LANCZOS = getattr(Image, "Resampling", Image).LANCZOS
 
@@ -1497,6 +1498,16 @@ class RecorderApp:
         deadline = time.monotonic() + 60.0
         while time.monotonic() < deadline:
             if self._rtsp_ports_open(ip):
+                try:
+                    preview=prepare_preview(ip)
+                except (OSError,EOFError):
+                    time.sleep(1.0)
+                    continue
+                except (ValueError,RuntimeError) as exc:
+                    self.connection_events.put(('error',f'영상 입력 준비 실패: {exc}'))
+                    return False
+                if preview['preview_recovered']:
+                    log_event('PC 영상 전송 연결 없음 · 카메라 미리보기로 복구 · PC 영상은 전송 시작으로 재개')
                 self.connection_events.put(("ready", ip))
                 return True
             time.sleep(1.0)

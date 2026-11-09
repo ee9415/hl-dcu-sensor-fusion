@@ -53,6 +53,18 @@ def set_skeleton_response_speed(ip, speed, port=PORT):
         return response
 
 
+def prepare_preview(ip, port=PORT):
+    """Explicit reconnect recovers idle PC input; an active publisher is preserved."""
+    with socket.create_connection((ip,port),timeout=3) as connection:
+        connection.settimeout(3)
+        send_message(connection,dict(op='prepare_preview'))
+        with connection.makefile('rb') as stream:
+            response,_=read_message(stream)
+        if not response.get('ok') or type(response.get('preview_recovered')) is not bool:
+            raise RuntimeError(response.get('error','Preview preparation was not acknowledged'))
+        return response
+
+
 def set_processing_mode(ip, mode, port=PORT):
     if mode not in ('basic','full'):
         raise ValueError('Processing mode must be basic or full')

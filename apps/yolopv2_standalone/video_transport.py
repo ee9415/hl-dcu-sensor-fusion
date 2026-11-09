@@ -172,6 +172,16 @@ class VideoInputServer:
                 if speed != self.skeleton_response_speed:
                     self.skeleton_response_speed=speed
                     self.skeleton_response_epoch+=1
+            elif op == 'prepare_preview':
+                if payload:
+                    raise ValueError('Preview preparation has no image payload')
+                recovered=self.mode=='pc' and self.owner is None
+                if recovered:
+                    self.mode='camera'
+                    self.latest=None
+                    self.epoch+=1
+                    self.last_frame_index=self.last_media_epoch=None
+                return dict(self._status(),preview_recovered=recovered)
             elif op == 'processing':
                 mode = header.get('mode')
                 if mode not in ('basic','full') or payload:

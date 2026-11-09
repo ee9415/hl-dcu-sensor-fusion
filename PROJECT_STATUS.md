@@ -1,5 +1,10 @@
 # PROJECT_STATUS.md
 
+## PC 전송 종료 후 영상 연결 timeout 복구 (2026-11-09)
+
+- 장치가 pc 입력/publisher_connected=false로 대기하는 상태에서 UI가 포트만 확인해 네 영상 timeout을 반복하는 원인을 확인했다. 영상 연결 버튼 처리에 atomic prepare_preview를 추가해 전송자 없는 PC 입력만 카메라 미리보기로 복구한다. 활성 PC 전송과 배경 대기 정책은 유지한다.
+- 실행 환경0.33.10 UUID `61fbe0c1-ad26-42dc-93c4-a8d2b5191fce` 유지, 코드 `0.33.10-code2` release `299a76ffe5551c30a90ce398d45684e358f895a1116f53d174d6a1280b4604b1`.82,305bytes 코드만 배포. 회귀391개+UI2개 통과, 장치 네 스트림 connected·재접속0 검증. [기록](docs/verification/camera/idle_pc_reconnect_20261109.md).
+
 ## 0.33.10 실행 환경·코드 분리 배포 (2026-11-08)
 
 - 일반 수정은 고정 실행 환경을 재사용하고 Python/JSON 코드 ZIP만 전송하도록 전환했다. AGENT.md와 [운영 매뉴얼](docs/operation/camera_code_deployment.md)에 기본 배포 절차를 기록했다. 라이브러리·모델·런처 변경 시에만 전체 패키지를 갱신한다.

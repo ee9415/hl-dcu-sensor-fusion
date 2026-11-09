@@ -23,6 +23,28 @@ def jpeg(value=100):
 
 
 class TransportTests(unittest.TestCase):
+    def test_explicit_preview_recovers_only_idle_pc_and_keeps_active_owner(self):
+        from video_file_sender import prepare_preview
+        token=object()
+        self.command(token,'select',source='pc')
+        epoch=self.hub.epoch
+        response=prepare_preview('127.0.0.1',self.port)
+        self.assertFalse(response['preview_recovered'])
+        self.assertEqual(response['source'],'pc')
+        self.assertIs(self.hub.owner,token)
+        self.assertEqual(self.hub.epoch,epoch)
+        self.hub.release(token)
+        self.assertEqual(self.hub.mode,'pc')  # No silent background fallback.
+        epoch=self.hub.epoch
+        response=prepare_preview('127.0.0.1',self.port)
+        self.assertTrue(response['preview_recovered'])
+        self.assertEqual(response['source'],'camera')
+        self.assertEqual(self.hub.epoch,epoch+1)
+        self.assertEqual(self.hub.take()[1]['input_source'],'camera')
+        self.assertFalse(prepare_preview('127.0.0.1',self.port)['preview_recovered'])
+        self.assertEqual(self.hub.epoch,epoch+1)
+        with self.assertRaises(ValueError):self.hub.handle(token,dict(op='prepare_preview'),b'x')
+
     def setUp(self):
         self.hub = VideoInputServer(0, '127.0.0.1')
         self.port = self.hub.server.server_address[1]
