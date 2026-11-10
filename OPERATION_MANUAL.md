@@ -4,7 +4,7 @@
 
 현재 실행 가능한 단일 카메라 ROS2 경로와 6카메라 비-ROS2 경로를 구분한다.
 
-기준일: 2026-10-06
+기준일: 2026-10-06. 카메라 패키지·앱 코드 운영 안내 추가: 2026-11-10.
 
 ## 2. Pre-Operation Checklist
 
@@ -71,3 +71,18 @@ recorder와 Web UI는 같은 장비를 동시에 점유할 수 없으므로 병�
 - topic 없음: node, 장비 점유, network, namespace를 확인한다.
 - Hz 저하: network, 저장장치, CPU/VPU 부하와 queue를 확인한다.
 - TF 없음: 현재는 정상적인 미구현 상태이며 TF publisher 구현이 필요하다.
+
+## 7. CAM01 패키지·앱 코드 운영 (2026-11-10)
+
+카메라 실행 환경은 **패키지 (`.oakapp`)**, 수정하는 Python·JSON은 **앱 코드 (`code.zip`)**로 구분한다. Windows CMD 명령과 실제 절차는 [패키지·앱 코드 운영 매뉴얼](docs/operation/camera_code_deployment.md)을 따른다.
+
+| 상황 | 절차 |
+| --- | --- |
+| 일반 Python·JSON 수정 | 앱 코드 build → deploy (업로드·교체·재시작·정상 확인 포함) |
+| 라이브러리·모델·기본 이미지·런처 변경 | 패키지 build → install → UUID 확인 → start·검증 |
+| 기존 설치본 실행·중지 | oakctl app start / stop |
+| 이전 앱 코드로 복구 | 앱 코드 rollback |
+| 패키지 삭제 | 대상 확인 후 uninstall (앱 코드 저장소도 삭제) |
+| PC 멀티뷰 수정 | 녹화·미저장 결과 확인 후 전용 WSL 스크립트로 재실행 |
+
+일반 앱 코드 수정 때문에 전체 패키지를 재빌드하지 않는다. 기존 패키지와 복구 코드는 임의 삭제하지 않는다.

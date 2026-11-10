@@ -1,5 +1,10 @@
 # PROJECT_STATUS.md
 
+## 패키지·앱 코드 CMD 운영 매뉴얼 정리 (2026-11-10)
+
+- 실행 환경을 패키지, 수정하는 Python·JSON을 앱 코드로 구분하고 CMD 명령을 운영 문서에 정리했다. 빌드·배포·실행·중지·교체·복구·삭제와 PC 실행을 포함한다.
+- 루트 운영 매뉴얼에서 [상세 절차](docs/operation/camera_code_deployment.md)로 연결했다. 문서 및 CLI 인자 대조·diff 검사 대상이며 카메라 배포·재시작은 수행하지 않았다.
+
 ## PC 전송 종료 후 영상 연결 timeout 복구 (2026-11-09)
 
 - 장치가 pc 입력/publisher_connected=false로 대기하는 상태에서 UI가 포트만 확인해 네 영상 timeout을 반복하는 원인을 확인했다. 영상 연결 버튼 처리에 atomic prepare_preview를 추가해 전송자 없는 PC 입력만 카메라 미리보기로 복구한다. 활성 PC 전송과 배경 대기 정책은 유지한다.
