@@ -1,4 +1,6 @@
 """Single active settings document; atomic updates preserve unrelated sections."""
+# 통합 설정 파일(artifacts/config/settings.json) 하나를 읽고 쓰는 공통 모듈.
+# 섹션 단위로 갱신하며, 원자적 교체로 다른 섹션과 원본 파일을 보호한다.
 import json
 import os
 from pathlib import Path
@@ -8,10 +10,12 @@ import threading
 import math
 
 DEFAULT_PATH = Path(__file__).resolve().parents[1] / 'artifacts/config/settings.json'
+# 여러 스레드(GUI, 녹화 등)가 동시에 설정을 갱신해도 섞이지 않게 하는 잠금
 LOCK = threading.RLock()
 
 
 def preferences(data):
+    """화면/녹화 환경설정(preferences) 값을 검사한다. 잘못된 값이면 ValueError."""
     if not isinstance(data,dict):raise ValueError('잘못된 화면 설정')
     display=data['display'];recording=data['recording'];selected=data['selected']
     if any(type(display[key]) is not bool for key in ('full_processing','boundary_visible')):
@@ -37,6 +41,7 @@ def preferences(data):
 
 
 def read(path):
+    """설정 파일 전체를 dict로 읽는다. 파일이 없으면 빈 dict."""
     path=Path(path)
     if not path.exists(): return {}
     data=json.loads(path.read_text(encoding='utf-8'))
@@ -45,6 +50,7 @@ def read(path):
 
 
 def update(path, changes):
+    """changes의 섹션만 바꿔 저장한다. 내용이 같으면 쓰지 않고, 이전 파일은 .bak으로 남긴다."""
     path=Path(path)
     with LOCK:
         data=read(path);data.update(changes)
@@ -65,6 +71,8 @@ def update(path, changes):
 
 def migrate(path=DEFAULT_PATH):
     """One-time import; previous files remain as rollback evidence, never rewritten."""
+    # 예전 개별 설정 파일(cameras.json, video_input.json, credentials.json)을 통합 파일로 한 번만 옮긴다.
+    # 원본은 before_unified_settings 폴더에 복사해 둔다.
     path=Path(path)
     if path.exists():return
     folder=path.parent;data={};sources=[]

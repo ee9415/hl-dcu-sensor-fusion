@@ -4,6 +4,22 @@ import numpy as np
 from lane_boundaries import BoundaryConfig, projection_for, white_lane_evidence
 
 
+def quadratic_display(points, support=None):
+    """One shared degree-two display curve; raw measured samples stay intact."""
+    display = np.array(points,dtype=float,copy=True)
+    valid = np.isfinite(display).all(axis=1)
+    if valid.sum() < 3:
+        return display,None
+    fit_rows = valid.copy()
+    if support is not None:
+        measured = valid & np.asarray(support,bool)
+        if measured.sum() >= 8 and np.ptp(display[measured,1]) >= 20:
+            fit_rows = measured
+    coefficients = np.polyfit(display[fit_rows,1],display[fit_rows,0],2)
+    display[valid,0] = np.polyval(coefficients,display[valid,1])
+    return display,coefficients
+
+
 @dataclass
 class ImageBoundaryEstimate:
     image_left: np.ndarray
@@ -49,14 +65,20 @@ class ImageBoundaryEstimate:
         def coefficients(p):
             good=np.isfinite(p[:,0])
             return np.polynomial.polynomial.polyfit(p[good,1],p[good,0],2).tolist() if good.sum()>=3 else None
-        return dict(boundary_response=dict(observed_max_rate_px_s=c.skeleton_observed_max_rate_px_s,
+        left_display,left_curve = quadratic_display(self.image_left,self.left_support)
+        right_display,right_curve = quadratic_display(self.image_right,self.right_support)
+        return dict(display_curve_degree=2,display_geometry='quadratic',
+                    left_display_image=points(left_display),right_display_image=points(right_display),
+                    left_display_coefficients=left_curve.tolist() if left_curve is not None else [],
+                    right_display_coefficients=right_curve.tolist() if right_curve is not None else [],
+                    boundary_response=dict(observed_max_rate_px_s=c.skeleton_observed_max_rate_px_s,
                     observed_tau_s=c.skeleton_observed_tau_s,
                     observed_fine_tau_s=c.skeleton_observed_fine_tau_s,
                     retained_max_rate_px_s=c.skeleton_retained_max_rate_px_s,
                     retained_tau_s=c.skeleton_retained_tau_s) if self.model=='persistent_skeleton' else None,
-                    image_curve_degree=None if self.model=='persistent_skeleton' else 2,
-                    image_geometry='tracked_skeleton_samples' if self.model=='persistent_skeleton' else 'quadratic',
-                    image_coefficients_kind='least_squares_approximation' if self.model=='persistent_skeleton' else 'quadratic_model',
+                    image_curve_degree=2,
+                    image_geometry='tracked_quadratic_model' if self.model=='persistent_skeleton' else 'quadratic',
+                    image_coefficients_kind='quadratic_model',
                     left_image_coefficients=coefficients(self.image_left),
                     right_image_coefficients=coefficients(self.image_right),
                     boundary_valid=self.valid,boundary_pair_valid=self.pair_valid,
@@ -66,6 +88,8 @@ class ImageBoundaryEstimate:
                     left_boundary_confidence=self.left_confidence,right_boundary_confidence=self.right_confidence,
                     boundary_confidence_kind='heuristic_not_probability',boundary_units='image_pixels_320x180',
                     boundary_model=self.model,left_boundary_image=points(self.image_left),
+                    left_boundary_supported_image=points(self.image_left[np.asarray(self.left_support,bool)]) if self.left_support is not None else [],
+                    right_boundary_supported_image=points(self.image_right[np.asarray(self.right_support,bool)]) if self.right_support is not None else [],
                     left_display_residual_px=self.left_residual_px,
                     right_display_residual_px=self.right_residual_px,
                     boundary_restored_pair=self.restored_pair,
@@ -201,6 +225,7 @@ class ImageBoundaryTracker:
             self.width_samples[:] = 0
             self._contour_seen = [None, None]
             self._contour_pending = [None, None]
+            self._contour_curve_pending = [None, None]
             self._contour_width_time = None
             self._contour_loss_anchor = [None, None]
             dt = 0.
@@ -220,15 +245,29 @@ class ImageBoundaryTracker:
         # timestamp, image geometry or scene resets discard their identity.
         candidates = []
         for index, curve in enumerate(result.group_curves):
+            raw = np.asarray(curve)
+            raw_measured = raw[raw[:,2] > 0]
+            raw_side = 0 if len(raw_measured) and np.median(raw_measured[:,0])*320/width < 160 else 1
+            def rejected(reason):
+                counts = stats[raw_side].setdefault('candidate_rejections',{})
+                counts[reason] = counts.get(reason,0)+1
             fit = fit_quadratic(curve, height, index)
-            if fit is None or fit.points[-1,1] < height*.68:
+            if fit is None:
+                rejected('quadratic_fit_or_support')
                 continue
             anchor = np.polyval(fit.coefficients, height*.85)*320/width
+            if fit.points[-1,1] < height*.68:
+                owned_side = 0 if anchor < 160 else 1
+                if self.history[owned_side] is None or np.ptp(fit.points[:,1]) < height*.22:
+                    rejected('far_short_unowned')
+                    continue
             if not -32 <= anchor <= 352:
+                rejected('anchor_outside')
                 continue
             rows = self.rows*height/180
             support = (rows >= fit.points[0,1]) & (rows <= fit.points[-1,1])
             if support.sum() < 8:
+                rejected('support_rows')
                 continue
             measured = np.asarray(curve)[np.asarray(curve)[:,2] > 0]
             ys = np.unique(measured[:,1])
@@ -236,10 +275,12 @@ class ImageBoundaryTracker:
             distance = np.min(abs(rows[:,None]-ys[None,:]),axis=1)
             support &= distance <= 1.1
             if support.sum() < 8:
+                rejected('measured_support_rows')
                 continue
             points = np.column_stack((np.interp(rows,ys,xs)*320/width,self.rows))
             points[~support,0] = np.nan
             if not self._smooth_shape(points):
+                rejected('raw_shape')
                 continue
             quality = float(np.clip((.55+.4*min(1., np.ptp(fit.points[:,1])/(height*.4)))
                                    *np.exp(-fit.residual_px*320/width/6.), .15, .95))
@@ -291,6 +332,7 @@ class ImageBoundaryTracker:
         for side, entry in enumerate(chosen):
             if entry is None:
                 self._contour_pending[side] = None
+                self._contour_curve_pending[side] = None
                 continue
             _, index, item = entry
             _, points, support, quality, _ = item
@@ -305,7 +347,36 @@ class ImageBoundaryTracker:
                 age = timestamp_s-self._contour_seen[side]
                 accepted = (error <= min(32., 12.+20.*age)
                             and abs(np.arctan(slope_new)-np.arctan(slope_old)) <= np.deg2rad(25))
-            stats[side].update(group=index, prior_error_px=error, accepted=bool(accepted))
+            stats[side].update(group=index, prior_error_px=error, accepted=bool(accepted),
+                support_rows=int(support.sum()),support_span_px=float(np.ptp(self.rows[support])),
+                candidate_quality=float(quality))
+            # Small residual on a short visible segment does not validate the
+            # curvature extrapolated over the retained display domain.
+            if prior is not None:
+                measured_curve = np.polyfit(self.rows[support],points[support,0],2)
+                retained = np.isfinite(prior[:,0])
+                previous_curve = np.polyfit(self.rows[retained],prior[retained,0],2)
+                span = float(np.ptp(self.rows[retained | support]))
+                bow_change = abs(measured_curve[0]-previous_curve[0])*span*span/4.
+                stats[side]['curvature_change_px'] = float(bow_change)
+                if bow_change > 2.5:
+                    pending = self._contour_curve_pending[side]
+                    domain = retained | support
+                    repeat = (pending is not None and np.max(abs(np.polyval(
+                        measured_curve-pending[0],self.rows[domain]))) <= 4.)
+                    pending = (measured_curve.copy(),pending[1],pending[2]+1) if repeat else (measured_curve.copy(),timestamp_s,1)
+                    self._contour_curve_pending[side] = pending
+                    enough = (support.sum() >= 16 and np.ptp(self.rows[support]) >= max(40.,.65*span))
+                    confirmed = bool(enough and pending[2] >= 3 and timestamp_s-pending[1] >= .3-1e-9)
+                    stats[side].update(curvature_pending=not confirmed,
+                        curvature_confirmation_hits=pending[2],curvature_support_sufficient=bool(enough),
+                        curvature_confirmed=confirmed)
+                    if not confirmed:
+                        stats[side]['accepted'] = False
+                        self._contour_pending[side] = None
+                        continue
+                else:
+                    self._contour_curve_pending[side] = None
             if not accepted:
                 pending = self._contour_pending[side]
                 common = support & (np.isfinite(pending[0][:,0]) if pending is not None else False)
@@ -321,6 +392,17 @@ class ImageBoundaryTracker:
                 self._contour_pending[side] = None
             observations[side] = (points, support, quality)
 
+        strength = []
+        for side,observation in enumerate(observations):
+            error = 0. if stats[side].get('confirmed_reacquisition') else float(stats[side].get('prior_error_px') or 0.)
+            strength.append(float(observation[2])*int(observation[1].sum())*np.exp(-min(error,60.)/8.) if observation is not None else 0.)
+        trusted_width = (self.width is not None and np.count_nonzero(
+            (self.width_samples >= 3) & np.isfinite(self.width) & (self.width > 6.)) >= 8)
+        weak = [bool(trusted_width and observations[side] is not None
+                     and observations[1-side] is not None
+                     and strength[1-side] > 1.15*strength[side]
+                     and (observations[side][1].sum() < .9*observations[1-side][1].sum()
+                          or float(stats[side].get('prior_error_px') or 0.) > 4.)) for side in (0,1)]
         seen_before = list(self._contour_seen)
         scores_before = list(self.scores)
         output = [p.copy() if p is not None else empty() for p in self.history]
@@ -329,35 +411,35 @@ class ImageBoundaryTracker:
         residuals = [None, None]
         observed = [False, False]
         for side, observation in enumerate(observations):
-            if observation is None:
+            if observation is None or weak[side]:
+                if weak[side]:
+                    stats[side]['weak_observation_rows'] = int(observation[1].sum())
                 self.scores[side] *= np.exp(-dt/ .6)
                 if self.history[side] is not None:
                     states[side] = 'held'
                 continue
             points, support, quality = observation
             prior = self.history[side]
+            measured_curve = np.polyfit(self.rows[support],points[support,0],2)
             if prior is None:
-                output[side] = points.copy()
+                domain = (self.rows >= self.rows[support].min()) & (self.rows <= self.rows[support].max())
+                values = np.polyval(measured_curve,self.rows)
             else:
-                common = support & np.isfinite(prior[:,0])
-                domain = np.isfinite(prior[:,0]) | support
-                # Fit the correction on observed rows only; short spans update
-                # offset/direction instead of inventing unsupported curvature.
-                degree = 2 if np.ptp(self.rows[common]) >= 45 else 1 if np.ptp(self.rows[common]) >= 16 else 0
-                u = (self.rows-125.)/50.
-                correction = np.polynomial.polynomial.polyfit(u[common], points[common,0]-prior[common,0], degree)
-                delta = np.polynomial.polynomial.polyval(u, correction)
+                retained = np.isfinite(prior[:,0])
+                domain = retained | support
+                domain = (self.rows >= self.rows[domain].min()) & (self.rows <= self.rows[domain].max())
+                previous_curve = np.polyfit(self.rows[retained],prior[retained,0],2)
+                previous_values = np.polyval(previous_curve,self.rows)
+                delta = np.polyval(measured_curve,self.rows)-previous_values
                 tau = (self.config.skeleton_observed_tau_s if stats[side]['prior_error_px'] > 4
                        else self.config.skeleton_observed_fine_tau_s)
-                alpha = (1.-np.exp(-dt/tau))*quality
-                fraction = min(alpha, self.config.skeleton_observed_max_rate_px_s*dt
-                               /max(float(np.max(abs(delta[domain]))), 1e-9))
-                base = np.polynomial.polynomial.polyfit(u[np.isfinite(prior[:,0])], prior[np.isfinite(prior[:,0]),0], 2)
-                values = np.polynomial.polynomial.polyval(u, base)
-                retained = np.isfinite(prior[:,0])
-                values[retained] = prior[retained,0]  # Preserve skeleton detail.
-                values += fraction*delta
-                output[side] = np.column_stack((np.where(domain, values, np.nan), self.rows))
+                fraction = min((1.-np.exp(-dt/tau))*quality,
+                               self.config.skeleton_observed_max_rate_px_s*dt
+                               /max(float(np.max(abs(delta[domain]))),1e-9))
+                # A coefficient blend is still one quadratic across measured,
+                # occluded and newly exposed rows. It cannot leave stale holes.
+                values = previous_values+fraction*delta
+            output[side] = np.column_stack((np.where(domain,values,np.nan),self.rows))
             supports[side] = support.copy()
             residuals[side] = float(np.percentile(abs(output[side][support,0]-points[support,0]),90))
             states[side] = 'observed' if residuals[side] <= 4 else 'aligning'
@@ -367,7 +449,10 @@ class ImageBoundaryTracker:
 
         # Learn width only from actual, aligned bilateral measurements.
         common = supports[0] & supports[1]
-        if all(observed) and states == ['observed','observed'] and common.sum() >= 8 and self._valid_pair(output):
+        balanced = min(strength) >= max(strength)/1.15
+        bootstrap = (not trusted_width and min(int(v.sum()) for v in supports) >= 24
+                     and common.sum() >= 16 and np.ptp(self.rows[common]) >= 40)
+        if (balanced or bootstrap) and all(observed) and states == ['observed','observed'] and common.sum() >= 8 and self._valid_pair(output):
             measured_width = observations[1][0][:,0]-observations[0][0][:,0]
             if self.width is None:
                 self.width = np.full(48, np.nan)
@@ -379,42 +464,67 @@ class ImageBoundaryTracker:
             self._contour_width_time = timestamp_s
         for side in (0, 1):
             other = 1-side
-            if observed[side]:
-                self._contour_loss_anchor[side] = None
+            partial = bool(observed[side] or weak[side])
+            if stats[side].get('curvature_pending'):
+                # The suspect candidate contributes nothing. A separately
+                # validated opposite model may still supply trusted spacing.
+                partial = True
+            if observed[side] and not weak[side]:
+                continue
+            if partial and strength[other] <= 1.15*strength[side]:
                 continue
             # 'aligning' is a confirmed observation whose display is catching
             # up. Its filtered motion can already guide the retained side.
             if not observed[other] or self.history[side] is None:
                 continue
-            # Transfer CHANGE since the loss, never the absolute opposite shape.
-            # This preserves an independently observed bend/offset on the lost
-            # side even when there was no bilateral width training.
-            anchor = self._contour_loss_anchor[side]
-            if anchor is None:
-                reference = self.history[other] if self.history[other] is not None else output[other]
-                anchor = (self.history[side].copy(), reference.copy())
-                self._contour_loss_anchor[side] = anchor
-            missing_anchor, opposite_anchor = anchor
-            trusted = (supports[other] & np.isfinite(opposite_anchor[:,0])
-                       & np.isfinite(missing_anchor[:,0]) & np.isfinite(output[side][:,0]))
-            if trusted.sum() < 8 or np.ptp(self.rows[trusted]) < 20:
+            # Copy the supported opposite shape with the last reliably measured
+            # perspective spacing. An affine width cannot preserve an obsolete
+            # bend of the missing side or invent curvature by extrapolation.
+            if self.width is None:
+                continue
+            learned = (self.width_samples >= 3) & np.isfinite(self.width) & (self.width > 6.)
+            if learned.sum() < 8 or np.ptp(self.rows[learned]) < 20:
                 continue
             u = (self.rows-125.)/50.
-            change = output[other][trusted,0]-opposite_anchor[trusted,0]
-            deformation = np.polynomial.polynomial.polyfit(u[trusted],change,2)
-            target = missing_anchor[:,0]+np.polynomial.polynomial.polyval(u,deformation)
-            domain = np.isfinite(output[side][:,0]) & np.isfinite(target)
-            delta = np.where(domain,target-output[side][:,0],0.)
+            spacing_fit = np.polynomial.polynomial.polyfit(u[learned], self.width[learned], 1)
+            spacing = np.polynomial.polynomial.polyval(u, spacing_fit)
+            reliable = supports[other] & np.isfinite(output[other][:,0])
+            if reliable.sum() < 8 or np.ptp(self.rows[reliable]) < 20:
+                continue
+            # Extend only the affine perspective gap, never an old-side bend.
+            # Keep the existing display domain; do not initialize unseen sides.
+            domain = np.isfinite(output[side][:,0]) & (spacing > 6.)
+            if domain.sum() < 8:
+                continue
+            if np.ptp(self.rows[domain]) < 20:
+                continue
+            _,reference_coefficients = quadratic_display(output[other],supports[other])
+            _,previous_coefficients = quadratic_display(output[side])
+            target = np.polyval(reference_coefficients,self.rows) + (-1. if side == 0 else 1.)*spacing
+            previous_values = np.polyval(previous_coefficients,self.rows)
+            delta = np.where(domain,target-previous_values,0.)
             fraction = min(1.-np.exp(-dt/self.config.skeleton_retained_tau_s),
                            self.config.skeleton_retained_max_rate_px_s*dt
                            /max(float(np.max(abs(delta[domain]))),1e-9))
-            candidate = output[side].copy()
-            candidate[domain,0] += fraction*delta[domain]
+            candidate = np.column_stack((np.where(domain,previous_values+fraction*delta,np.nan),self.rows))
             pair = list(output); pair[side] = candidate
             if self._valid_pair(pair):
                 output[side] = candidate
                 states[side] = 'inferred'
+                if partial:
+                    # Weak detections do not become new truth merely because a
+                    # display curve was reconstructed from the stronger side.
+                    stats[side]['weak_observation_rows'] = stats[side].get('weak_observation_rows',int(supports[side].sum()))
+                    observed[side] = False
+                    supports[side][:] = False
+                    self._contour_seen[side] = seen_before[side]
+                    self.scores[side] = scores_before[side]*np.exp(-dt/.6)
+                stats[side]['partial_spacing_guidance'] = partial
                 stats[side]['opposite_curve_applied_px'] = float(np.max(abs(fraction*delta[domain])))
+                stats[side]['opposite_shape_spacing'] = True
+                stats[side]['spacing_reference'] = 'right' if other == 1 else 'left'
+                stats[side]['spacing_target_error_px'] = float(np.max(abs(candidate[domain,0]-target[domain])))
+                stats[side]['spacing_rows'] = int(domain.sum())
             else:
                 stats[side]['opposite_curve_rejected'] = True
 

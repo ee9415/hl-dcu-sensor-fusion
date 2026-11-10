@@ -481,7 +481,10 @@ class Yolopv2Postprocess(dai.node.HostNode):
                     overlay_tracked_skeleton(rendered,boundaries,contours.directional_mask.shape)
                 else:
                     overlay_lane_quadratics(rendered,self._lane_quadratics,contours.directional_mask.shape)
-            self._draw_text(rendered,'MAGENTA SKELETON / YELLOW RETAINED',10,12,(0,220,255))
+            media=getattr(self,'_render_media_time',None)
+            label=(f'{media:.1f}S ' if media is not None else 'CAMERA ')
+            label+=f'LEFT {boundaries.left_state} RIGHT {boundaries.right_state}' if full else 'BASIC'
+            self._draw_text(rendered,label.upper(),10,12,(0,220,255))
         invalid_labels = 0
         for detection, measurement in zip(detections, measurements, strict=True):
             self._draw_box(rendered, detection)
@@ -519,6 +522,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         processing_mode=source.get('processing_mode','full')
         self._boundary_visible=source.get('boundary_visible',True)
         self._contour_visible=source.get('contour_visible',False)
+        self._render_media_time=source.get('source_media_time_s')
         self._lane_overlay_mode=source.get('lane_overlay_mode','normal')
         self._lane_overlay_threshold=source.get('lane_overlay_threshold',.5)
         processing_key=(processing_mode,source.get('processing_epoch',0),source.get('source_media_epoch'))
@@ -659,8 +663,11 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 overlay_lane_quadratics(bev,self._lane_quadratics,lane.shape,
                                         self._top_view.projection,self._top_view.valid)
         bev[~self._top_view.valid] = 0
-        self._draw_text(bev,'TOP TRACKED SKELETON',10,10,(0,220,255))
-        self._draw_text(bev,'MAGENTA REAL / YELLOW VIRTUAL',10,30,(0,220,255))
+        media=source.get('source_media_time_s')
+        label=(f'{media:.1f}S ' if media is not None else 'CAMERA ')
+        label+=f'LEFT {boundaries.left_state} RIGHT {boundaries.right_state}'
+        self._draw_text(bev,label.upper(),10,10,(0,220,255))
+        self._draw_text(bev,'PINK SOLID MEASURED  DASHED GUIDED',10,30,(0,220,255))
         bev_finished = time.monotonic()
         capture_s = preview.getTimestamp().total_seconds()
         capture_wall = time.time() - (dai.Clock.now().total_seconds() - capture_s)

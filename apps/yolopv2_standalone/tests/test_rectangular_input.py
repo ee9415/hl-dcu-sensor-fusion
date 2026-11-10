@@ -1,3 +1,4 @@
+"""postprocess의 레터박스 입력 처리 테스트(정사각형 320x320 / 직사각형 320x192 입력)."""
 import sys
 import unittest
 from pathlib import Path
@@ -10,6 +11,7 @@ from postprocess import map_letterboxed_box_to_source, segmentation_masks
 
 class RectangularInputTest(unittest.TestCase):
     def test_square_default_matches_original_geometry(self):
+        """기본 정사각형 입력은 기존 방식과 동일하게 위아래 패딩(70행)을 잘라내고 박스를 원본 비율 좌표로 변환한다."""
         rng = np.random.default_rng(42)
         road = rng.random((1, 2, 320, 320), dtype=np.float32)
         lane = rng.random((1, 1, 320, 320), dtype=np.float32)
@@ -21,6 +23,7 @@ class RectangularInputTest(unittest.TestCase):
                                       np.array([.1, .1, .9, .9], dtype=np.float32))
 
     def test_rectangular_crop_and_box_mapping(self):
+        """직사각형 입력에서도 패딩(6행)을 정확히 잘라 180x320 마스크를 만들고 박스를 올바르게 변환한다."""
         road = np.zeros((1, 2, 192, 320), dtype=np.float32)
         road[:, 1, 6:186] = 1
         lane = np.zeros((1, 1, 192, 320), dtype=np.float32)
@@ -34,6 +37,7 @@ class RectangularInputTest(unittest.TestCase):
                                    [.1, .1, .9, .9], rtol=0, atol=1e-7)
 
     def test_wrong_output_shape_is_rejected(self):
+        """입력 크기와 맞지 않는 모델 출력은 거부한다."""
         with self.assertRaises(ValueError):
             segmentation_masks(np.zeros((1, 2, 192, 320)), np.zeros((1, 1, 192, 320)),
                                (1920, 1080))

@@ -1,3 +1,10 @@
+"""OAK4 멀티뷰 메인 앱(Tkinter). WSL에서는 tools/run_oak_recorder.sh로 실행한다.
+
+- '인식·검증' 탭: 카메라 앱의 RGB/YOLO 결과/BEV/Depth 4개 RTSP 영상 미리보기, MP4 녹화 + 텔레메트리 CSV 기록,
+  PC 영상 파일 입력 전송, 처리 모드·표시 설정 원격 변경, 카메라 앱 시작/정지.
+- '6대 카메라 녹화' 탭: six_camera_tab.SixCameraTab.
+카메라 앱은 사용자가 버튼을 눌러야만 시작한다(자동 실행 없음).
+"""
 from __future__ import annotations
 
 import argparse
@@ -19,6 +26,7 @@ import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+# RTSP는 TCP로 받고, 연결 초기 분석량을 줄여 빨리 연결되게 한다(cv2 import 전에 설정해야 적용됨).
 os.environ.setdefault('OPENCV_FFMPEG_CAPTURE_OPTIONS',
                       'rtsp_transport;tcp|fpsprobesize;2|analyzeduration;1000000|probesize;262144')
 import cv2
@@ -45,6 +53,7 @@ OAKCTL_PATH = Path(shutil.which("oakctl") or (
 ))
 # WSL can use the authenticated Windows installation without installing a
 # separate CLI or copying credentials into Ubuntu.
+# WSL에 oakctl이 없으면 Windows에 설치된 oakctl.exe를 그대로 사용한다.
 if not IS_WINDOWS and not OAKCTL_PATH.exists():
     windows_cli = Path('/mnt/c/Program Files/oakctl/bin/oakctl.exe')
     if windows_cli.exists():
@@ -55,10 +64,12 @@ CREDENTIAL_FILE = settings_store.DEFAULT_PATH
 
 
 class DataBlob(ctypes.Structure):
+    """Windows DPAPI(CryptProtectData)에 넘기는 바이트 버퍼 구조체."""
     _fields_ = [("size", wintypes.DWORD), ("data", ctypes.POINTER(ctypes.c_byte))]
 
 
 def _crypt_protect(secret: str) -> str:
+    """비밀번호를 현재 Windows 사용자 계정으로 암호화해 base64로 반환한다. WSL에서는 windows_secret을 통해 PowerShell로 처리한다."""
     if not IS_WINDOWS:
         from windows_secret import crypt
         return crypt(secret)
@@ -84,6 +95,7 @@ def _crypt_protect(secret: str) -> str:
 
 
 def _crypt_unprotect(encoded: str) -> str:
+    """_crypt_protect로 암호화한 값을 복호화한다."""
     if not IS_WINDOWS:
         from windows_secret import crypt
         return crypt(encoded, decrypt=True)
@@ -103,6 +115,7 @@ def _crypt_unprotect(encoded: str) -> str:
 
 
 def save_password(device_ip: str, password: str, path=None) -> None:
+    """장치 IP별 비밀번호를 암호화해 settings.json의 credentials 섹션에 저장한다."""
     register_secret(password)
     credential_path=Path(path) if path is not None else CREDENTIAL_FILE
     credentials = settings_store.read(credential_path).get('credentials', {})
@@ -112,6 +125,7 @@ def save_password(device_ip: str, password: str, path=None) -> None:
 
 
 def load_password(device_ip: str, path=None) -> str:
+    """저장된 비밀번호를 복호화해 반환한다. 없거나 실패하면 빈 문자열."""
     try:
         credentials = settings_store.read(Path(path) if path is not None else CREDENTIAL_FILE).get('credentials', {})
         if not isinstance(credentials, dict):
@@ -125,6 +139,7 @@ def load_password(device_ip: str, path=None) -> str:
 
 
 def create_video_writer(path: Path, frame) -> cv2.VideoWriter | None:
+    """MP4 writer를 만든다. Windows Media Foundation(H264)을 먼저 시도하고 실패하면 mp4v 코덱으로 연다."""
     height, width = frame.shape[:2]
     writer = cv2.VideoWriter(
         str(path),
@@ -144,7 +159,9 @@ def create_video_writer(path: Path, frame) -> cv2.VideoWriter | None:
 
 
 class CaptureSource:
+    """RTSP 영상 하나를 받는 수신기. 끊기면 1초 뒤 재접속하고, 녹화 중이면 받은 프레임을 MP4에 쓴다."""
     def __init__(self, key: str, label: str, url: str) -> None:
+        """수신 상태, 최신 프레임, 녹화 writer 상태를 초기화한다."""
         self.key = key
         self.label = label
         self.url = url
@@ -167,6 +184,7 @@ class CaptureSource:
         self.record_finalize_errors = []
 
     def start(self) -> None:
+        """수신 스레드를 시작한다(한 번만)."""
         if self.started:
             return
         self.started = True
@@ -178,6 +196,7 @@ class CaptureSource:
         self.thread.start()
 
     def _capture_loop(self) -> None:
+        """RTSP 연결 → 프레임 읽기 반복. 열기 15초·읽기 5초 제한이 있고, 끊기면 다시 연결한다."""
         while not self.stop_event.is_set():
             capture = cv2.VideoCapture(self.url, cv2.CAP_FFMPEG, [
                 cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 15000,
@@ -220,16 +239,19 @@ class CaptureSource:
                 self.connected = False
 
     def snapshot(self):
+        """(연결 여부, 최신 프레임 복사본)을 반환한다."""
         with self.lock:
             frame,connected = self.latest_frame,self.connected
         return connected, None if frame is None else frame.copy()
 
     def record_snapshot(self):
+        """(연결 여부, 프레임 복사본, 받은 프레임 수, 마지막 수신 시각)을 반환한다(공유 녹화기용)."""
         with self.lock:
             frame,connected,sequence,stamp = self.latest_frame,self.connected,self.frames_received,self.last_frame_at
         return connected, None if frame is None else frame.copy(), sequence, stamp
 
     def info(self):
+        """수신 상태 정보(연결, 프레임 수, 재접속 횟수, 녹화 오류 등)를 반환한다."""
         with self.lock:
             return dict(connected=self.connected,frames_received=self.frames_received,
                         last_frame_age_s=round(time.monotonic()-self.last_frame_at,3),url=self.url,
@@ -239,6 +261,7 @@ class CaptureSource:
     def _write_recording_frame(self, frame, now):
         # Keep the existing 10-FPS recording timebase when live input is 15/20.
         # These recording-only repeats never enter inference or telemetry.
+        """녹화 중이면 실제 경과 시간 기준 10fps가 되도록 프레임을 기록한다(입력이 느리면 같은 프레임을 반복, 한 번에 최대 50장)."""
         with self.writer_lock:
             if self.writer is None:return
             target = int(max(0.,now-self.record_started_at)*DEFAULT_FPS)+1
@@ -247,6 +270,7 @@ class CaptureSource:
                 self.record_written += 1
 
     def start_recording(self, path: Path) -> bool:
+        """현재 연결된 상태에서 임시 경로로 MP4 녹화를 시작한다. 실패하면 False."""
         connected, frame = self.snapshot()
         if not connected or frame is None:
             return False
@@ -266,6 +290,7 @@ class CaptureSource:
         return True
 
     def stop_recording(self) -> Path | None:
+        """녹화를 끝내고 writer를 닫은 뒤 임시 파일 경로를 반환한다."""
         with self.writer_lock:
             writer = self.writer
             path = self.temp_path
@@ -279,6 +304,7 @@ class CaptureSource:
         return path
 
     def close(self) -> None:
+        """수신을 멈추고 녹화를 마무리한 뒤 스레드 종료를 기다린다."""
         self.stop_event.set()
         self.stop_recording()
         if self.thread is not None:
@@ -286,6 +312,9 @@ class CaptureSource:
 
 
 class RecorderApp:
+    """멀티뷰 메인 창. 카메라 앱 연결·수신기·녹화·PC 영상 입력·표시 설정을 관리한다.
+    장치와 통신하는 작업은 백그라운드 스레드에서 하고, 결과는 큐에 넣어 UI 스레드(_update_preview 주기)에서 반영한다.
+    """
     def __init__(
         self,
         root: tk.Tk,
@@ -298,6 +327,7 @@ class RecorderApp:
         camera_settings_path=None,
         use_saved_connection=False,
     ) -> None:
+        """창·탭·위젯을 만들고 저장된 연결/입력/표시 설정을 복원한 뒤 화면 갱신과 카메라 앱 폴링을 시작한다."""
         install_dialog_logging(messagebox)
         self.root = root
         self.device_ip = device_ip
@@ -632,10 +662,12 @@ class RecorderApp:
         self.notebook.bind('<<NotebookTabChanged>>', self._hide_settings_popups)
 
     def _hide_settings_popups(self, event=None):
+        """탭을 바꾸면 열려 있던 설정 창을 모두 숨긴다."""
         for window in (*self.settings_windows.values(), *self.six_camera_tab.windows.values()):
             window.withdraw()
 
     def _build_source_controls(self, controls):
+        """설정 창의 '영상 입력 소스'(카메라/PC 영상 파일, 구간, FPS)와 '인식·표시 설정', 메인 화면의 '영상 재생' 컨트롤을 만든다."""
         panel = ttk.LabelFrame(self.settings_windows['source'], text='영상 입력 소스',
                                style='Control.TLabelframe', padding=8)
         panel.grid(row=0, column=0, sticky='ew', padx=14, pady=14)
@@ -783,6 +815,7 @@ class RecorderApp:
         self._restore_input_settings()
 
     def _restore_input_settings(self):
+        """저장된 영상 입력 설정을 UI에 복원한다. PC 영상 파일이 없어졌으면 다시 선택하라고 안내한다."""
         try:
             saved = video_input_settings.load(self.six_camera_tab.settings_path)
         except (OSError, ValueError):
@@ -805,6 +838,7 @@ class RecorderApp:
         self.source_status.set('영상 입력 설정 복원됨 · 카메라는 소스 적용 / PC 영상은 연결 후 전송 시작')
 
     def _save_preferences(self):
+        """확정된 표시 설정과 녹화 설정을 settings.json의 preferences에 저장한다."""
         try:
             six=self.six_camera_tab
             data=settings_store.preferences(dict(
@@ -823,6 +857,7 @@ class RecorderApp:
             return False
 
     def _restore_preferences(self):
+        """저장된 표시·녹화 설정을 UI에 복원한다. 읽지 못하면 기본값을 쓴다."""
         try:
             data=settings_store.read(self.six_camera_tab.settings_path).get('preferences')
             if data is None:return
@@ -859,6 +894,7 @@ class RecorderApp:
 
     @action(lambda self, key: f'인식·검증 설정 열기 · {key}')
     def _show_settings(self, key):
+        """지정한 설정 창만 메인 창 위쪽 가운데에 띄운다."""
         for other_key, other in self.settings_windows.items():
             if other_key != key:
                 other.withdraw()
@@ -873,12 +909,14 @@ class RecorderApp:
 
     @staticmethod
     def _video_clock(seconds):
+        """초를 'MM:SS.s' 형식 문자열로 바꾼다."""
         tenths = max(0,round(seconds*10))
         minutes, rest = divmod(tenths,600)
         return f'{minutes:02d}:{rest//10:02d}.{rest%10}'
 
     @action('후처리 모드 적용 요청')
     def _apply_processing_mode(self):
+        """체크박스 값에 따라 장치 처리 모드(full/basic)를 백그라운드에서 변경한다. 결과는 processing_events로 받는다."""
         if self.processing_pending or not self.connect_requested:
             return
         desired=bool(self.full_processing.get())
@@ -896,6 +934,7 @@ class RecorderApp:
 
     @action('컨투어 표시 변경 요청')
     def _apply_contour_display(self):
+        """장치의 윤곽선 표시를 백그라운드에서 변경한다."""
         if self.contour_display_pending or not self.connect_requested:
             return
         desired=bool(self.contour_visible.get())
@@ -913,6 +952,7 @@ class RecorderApp:
 
     @action('경계선 표시 변경 요청')
     def _apply_boundary_display(self):
+        """장치의 경계선 표시를 백그라운드에서 변경한다."""
         if self.boundary_display_pending or not self.connect_requested:
             return
         desired=bool(self.boundary_visible.get())
@@ -930,6 +970,7 @@ class RecorderApp:
 
     @action('차선 미리보기 설정 적용 요청')
     def _apply_skeleton_speed(self,event=None):
+        """skeleton 반응 속도를 검사한 뒤 장치에 적용한다. 연결 전이면 설정만 저장해 두었다가 연결 시 적용한다."""
         if self.skeleton_speed_pending:return
         try:
             speed=validate_speed(round(float(self.skeleton_speed.get()),1))
@@ -956,6 +997,7 @@ class RecorderApp:
         threading.Thread(target=change,daemon=True,name='skeleton-speed-control').start()
 
     def _apply_lane_preview(self,event=None):
+        """차선 미리보기 모드·임계값을 장치에 적용한다. 구간색 모드로 처음 바꿀 때는 임계값을 0.05로 맞춘다."""
         if self.lane_preview_pending or not self.connect_requested:
             return
         try:
@@ -987,9 +1029,11 @@ class RecorderApp:
         threading.Thread(target=change,daemon=True,name='lane-preview-control').start()
 
     def _begin_seek(self, event=None):
+        """재생 위치 슬라이더 조작 시작(활성 상태일 때만)."""
         self.source_progress_dragging = str(self.source_progress.cget('state')) != 'disabled'
 
     def _preview_seek(self, value):
+        """슬라이더를 끄는 동안 이동할 위치를 미리 표시한다."""
         if self.source_progress_dragging and self.file_sender:
             status = self.file_sender.snapshot()
             start, end = status.get('range_start_s',0), status.get('range_end_s')
@@ -998,6 +1042,7 @@ class RecorderApp:
                 self.source_progress_text.set(f'이동 예정 {self._video_clock(target)}')
 
     def _finish_seek(self, event=None):
+        """슬라이더를 놓으면 해당 위치로 PC 영상 송신기에 seek를 요청한다."""
         dragging, self.source_progress_dragging = self.source_progress_dragging, False
         if not dragging or not self.file_sender:
             return
@@ -1012,6 +1057,7 @@ class RecorderApp:
                 self.source_progress_text.set(str(exc))
 
     def _update_source_progress(self, status=None):
+        """PC 영상 재생 위치 슬라이더와 시간/회차 표시를 갱신한다. seek 반영 전에는 표시를 덮어쓰지 않는다."""
         if status is None:
             self.source_progress.configure(state=tk.DISABLED)
             self.source_progress_value.set(0.)
@@ -1036,6 +1082,7 @@ class RecorderApp:
 
     @action('영상 파일 선택')
     def _choose_input_file(self):
+        """전송할 영상 파일을 고른다(녹화 중에는 불가)."""
         if self.recording:
             messagebox.showwarning('영상 소스', '녹화를 멈춘 뒤 영상 소스를 변경해 주세요.')
             return
@@ -1047,6 +1094,7 @@ class RecorderApp:
 
     @action('영상 입력 소스 적용 요청')
     def _apply_input_source(self):
+        """입력 소스 설정을 검사해 저장한다. 카메라면 즉시 전환하고, PC 영상이면 '전송 시작' 버튼을 활성화만 한다."""
         if hasattr(self, 'six_camera_tab') and self.six_camera_tab.is_cam01_recording:
             messagebox.showwarning('영상 소스', '6대 녹화 탭의 녹화를 정지한 뒤 소스를 변경해 주세요.')
             return
@@ -1095,6 +1143,7 @@ class RecorderApp:
 
     @action('PC 영상 전송 시작 요청')
     def _start_input_transfer(self):
+        """적용된 PC 영상 설정으로 전송을 시작한다(연결 상태, 녹화 여부, 파일 존재 확인)."""
         if hasattr(self, 'six_camera_tab') and self.six_camera_tab.is_cam01_recording:
             messagebox.showwarning('영상 소스', '6대 녹화 탭의 녹화를 정지한 뒤 소스를 변경해 주세요.')
             return
@@ -1115,6 +1164,7 @@ class RecorderApp:
         self._switch_input_source(self.applied_input_settings)
 
     def _switch_input_source(self, settings):
+        """백그라운드에서 이전 송신기를 닫고 카메라 입력으로 되돌리거나 새 PC 영상 송신기를 시작한다. 결과는 source_events로 받는다."""
         mode, path, loop, start_s, end_s, fps = settings
         self.source_change_pending = True
         self.source_progress_dragging = False
@@ -1150,16 +1200,21 @@ class RecorderApp:
 
     @action('PC 영상 일시정지·재개 요청')
     def _pause_input(self):
+        """PC 영상 전송 일시정지/재개."""
         if self.file_sender:
             self.file_sender.toggle_pause()
 
     @action('PC 영상 전송 정지 요청')
     def _stop_input(self):
+        """PC 영상 전송을 멈춘다."""
         if self.file_sender:
             self.file_sender.close(timeout=.1)
             self.source_pause.configure(state=tk.DISABLED)
 
     def _update_input_status(self):
+        """백그라운드 작업 결과 큐(processing_events, source_events)를 처리해 UI를 갱신한다.
+        실패하면 마지막으로 확정된 값으로 되돌리고, PC 송신기 상태 문구와 재생 위치도 갱신한다.
+        """
         while True:
             try:event,data=self.processing_events.get_nowait()
             except queue.Empty:break
@@ -1277,6 +1332,7 @@ class RecorderApp:
         title: str,
         placeholder: str,
     ) -> None:
+        """미리보기 칸 하나(제목, 상태 표시, 영상 영역)를 만든다."""
         panel = ttk.Frame(parent, style="Panel.TFrame", padding=8)
         panel.grid(row=row, column=column, padx=5, pady=5, sticky="nsew")
         panel.columnconfigure(0, weight=1)
@@ -1306,10 +1362,12 @@ class RecorderApp:
         self.preview_status[key] = status
 
     def _selected_keys(self) -> list[str]:
+        """녹화하도록 선택된 영상 키 목록(rgb, yolopv2)."""
         return [key for key, selected in self.selected.items() if selected.get()]
 
     @action('인식·검증 연결 설정 저장 요청')
     def save_connection_settings(self) -> None:
+        """입력한 IP와(입력했다면) 비밀번호를 저장한다."""
         ip = self.ip_text.get().strip()
         try:
             import ipaddress
@@ -1326,9 +1384,11 @@ class RecorderApp:
         self.status_text.set(f'{ip} 연결 정보 저장 완료 · 다음 실행에서 사용')
 
     def check_camera_status(self) -> None:
+        """카메라 앱 상태를 조회한다."""
         self._camera_app_action('status')
 
     def _poll_camera_app(self):
+        """5초마다 수신 중일 때만 카메라 앱 상태를 조회한다(연결 전에는 장치에 묻지 않음)."""
         if self.source_closing.is_set():
             return
         raw = self.six_camera_tab.extra_sources.get(0)
@@ -1340,6 +1400,9 @@ class RecorderApp:
 
     @action(lambda self, action: None if action == 'poll' else f'카메라 앱 명령 · {action}')
     def _camera_app_action(self, action):
+        """카메라 앱 명령(status/poll/start/stop)을 백그라운드에서 실행한다.
+        정지 명령은 원격 명령 전에 수신기부터 멈추고, 결과는 connection_events로 받는다.
+        """
         raw = self.six_camera_tab.extra_sources.get(0)
         if action == 'stop' and raw and raw.preparing:
             messagebox.showwarning('카메라 앱', '순수 RGB 연결 준비가 끝난 뒤 장치 명령을 실행해 주세요.')
@@ -1378,6 +1441,7 @@ class RecorderApp:
         self.app_led.configure(fg='#8da0af')
         @progress_task(None if action == 'poll' else f'카메라 앱 명령 · {action}')
         def control():
+            """oakctl로 앱 상태 확인 및 시작/정지를 수행하고 결과를 큐에 넣는다."""
             result = dict(ip=ip, action=action)
             try:
                 current = oak_app_control.status(OAKCTL_PATH, ip, password, installed_only=True)
@@ -1411,6 +1475,7 @@ class RecorderApp:
 
     @action('인식·검증 영상 연결 요청')
     def connect_video(self) -> None:
+        """인식·검증 영상 연결 버튼. CAM01 RGB 전용 연결을 내려놓고, IP·비밀번호를 정리한 뒤 앱 준비를 백그라운드로 시작한다."""
         if self.app_action_busy:
             self.status_text.set('카메라 앱 명령을 처리 중입니다.')
             return
@@ -1467,6 +1532,7 @@ class RecorderApp:
 
     @action('인식·검증 IP 자동검색')
     def discover_ip(self) -> None:
+        """oakctl로 장치 시리얼에 맞는 OAK IP를 찾아 입력란에 넣는다."""
         self.status_text.set("OAK IP 검색 중...")
         discovered_ip = self._discover_device_ip()
         if discovered_ip is None:
@@ -1479,6 +1545,7 @@ class RecorderApp:
 
     @staticmethod
     def _rtsp_ports_open(ip: str) -> bool:
+        """카메라 앱의 RTSP 포트 4개(8553 BEV, 8554 YOLO, 8555 RGB, 8556 Depth)가 모두 열렸는지 확인한다."""
         for port in (8553, 8554, 8555, 8556):
             try:
                 with socket.create_connection((ip, port), timeout=1.0):
@@ -1489,6 +1556,9 @@ class RecorderApp:
 
     @progress_task('인식·검증 앱 연결 준비')
     def _prepare_connection(self, ip: str, password: str, force_run=False) -> bool:
+        """설치된 AI 앱으로 전환한 뒤 최대 60초 동안 영상 포트가 열리기를 기다리고, 입력 준비(prepare_preview)를 확인한다.
+        성공하면 'ready', 실패하면 'error' 이벤트를 큐에 넣는다.
+        """
         try:
             oak_app_control.start_installed(OAKCTL_PATH, ip, oak_app_control.IDENTIFIER, password)
         except RuntimeError as exc:
@@ -1521,10 +1591,12 @@ class RecorderApp:
         return False
 
     def make_raw_rgb_source(self, ip, mxid, settings_path):
+        """6대 탭의 CAM01 RGB 전용 수신기를 만든다."""
         return oak4_rgb_source.Oak4RgbSource(ip, mxid, CaptureSource, OAKCTL_PATH,
             self.password_text.get() or load_password(ip, settings_path))
 
     def release_perception_for_rgb(self):
+        """CAM01을 RGB 전용으로 넘기기 위해 인식·검증 수신기를 멈춘다. 녹화·명령·설정 적용 중이면 거부한다."""
         if (self.recording or self.source_change_pending or self.app_action_busy or self.connection_launch_pending
                 or self.processing_pending or self.boundary_display_pending
                 or self.contour_display_pending or self.lane_preview_pending
@@ -1535,6 +1607,7 @@ class RecorderApp:
         return True
 
     def _stop_perception_receivers(self, reason):
+        """인식·검증 쪽 녹화·PC 송신·4개 수신기를 멈추고 새 수신기 객체로 교체한다(정리는 백그라운드)."""
         if self.recording:
             self.stop_recording()
         if self.file_sender:
@@ -1547,6 +1620,7 @@ class RecorderApp:
             source.stop_event.set()
         self.sources = {s.key: CaptureSource(s.key, s.label, s.url) for s in previous}
         def cleanup():
+            """이전 수신기들을 닫는다."""
             for source in previous:
                 source.close()
         threading.Thread(target=cleanup, daemon=True, name='perception-receivers-stop').start()
@@ -1560,6 +1634,7 @@ class RecorderApp:
         log_event(reason)
 
     def _begin_receivers(self, ip: str) -> None:
+        """카메라 앱이 준비되면 4개 RTSP 수신기를 시작하고, 저장된 처리·표시 설정을 장치에 다시 적용한다."""
         self.video_wait_started_at = time.monotonic()
         if hasattr(self, 'six_camera_tab') and not self.six_camera_tab.settings_reset_active:
             self.six_camera_tab.cameras[0]['ip'].set(ip)
@@ -1591,6 +1666,9 @@ class RecorderApp:
             self._apply_lane_preview()
 
     def _drain_connection_events(self) -> None:
+        """connection_events 큐(앱 명령 결과, ready, error)를 처리해 UI 상태를 갱신한다.
+        앱이 멈춘 것이 확인되면 수신기 재접속을 중단한다.
+        """
         while True:
             try:
                 event, detail = self.connection_events.get_nowait()
@@ -1650,6 +1728,7 @@ class RecorderApp:
             messagebox.showerror("영상 연결", detail)
 
     def _discover_device_ip(self) -> str | None:
+        """oakctl device list에서 설정된 시리얼의 IP를 찾는다. 없으면 None."""
         if not OAKCTL_PATH.exists():
             return None
         try:
@@ -1680,6 +1759,7 @@ class RecorderApp:
         return None
 
     def _update_preview(self) -> None:
+        """50ms마다 호출되는 UI 갱신 루프: 큐 처리, CSV 상태, 4개 미리보기, 6대 탭 미리보기, 연결 상태 문구를 갱신한다."""
         self._update_input_status()
         if self.csv_logger is not None:
             log = self.csv_logger
@@ -1783,6 +1863,7 @@ class RecorderApp:
         self.status_text.set(f'20초 동안 영상 수신 확인 실패: {missing}. IP·카메라 앱·영상 입력 소스를 확인하고 다시 연결해 주세요.')
 
     def _discard_unsaved(self) -> bool:
+        """저장하지 않은 이전 녹화가 있으면 버릴지 묻는다."""
         if not self.unsaved_paths:
             return True
         discard = messagebox.askyesno(
@@ -1798,6 +1879,7 @@ class RecorderApp:
 
     @action('인식·검증 녹화 시작 요청')
     def start_recording(self) -> None:
+        """선택한 영상(RGB/YOLO 결과)의 MP4 녹화와 텔레메트리 CSV 기록을 시작한다. 하나라도 실패하면 모두 되돌린다."""
         if self.recording:
             return
         if getattr(self, 'source_change_pending', False):
@@ -1852,6 +1934,7 @@ class RecorderApp:
 
     @action('인식·검증 녹화 정지 요청')
     def stop_recording(self) -> None:
+        """녹화와 CSV 기록을 멈추고 영상 파일을 CSV 세션 폴더로 옮긴다. 옮기지 못하면 임시 파일을 남겨 '파일 저장'으로 다시 시도할 수 있게 한다."""
         if not self.recording:
             return
         self.unsaved_paths = {
@@ -1894,6 +1977,7 @@ class RecorderApp:
 
     @action('인식·검증 녹화 저장 요청')
     def save_recording(self) -> None:
+        """자동 저장에 실패한 녹화 영상을 사용자가 고른 위치로 저장한다."""
         if self.recording:
             self.stop_recording()
         existing = {
@@ -1938,6 +2022,7 @@ class RecorderApp:
 
     @action('멀티뷰 종료 요청')
     def _close(self) -> None:
+        """창 닫기: 녹화 정지, 미저장 영상 확인, 6대 탭 정리, 설정 저장, 송신기·수신기·CSV 로거 종료 후 창을 닫는다."""
         if self.recording:
             self.stop_recording()
         if self.unsaved_paths:
@@ -1969,6 +2054,7 @@ class RecorderApp:
 
 
 def parse_args() -> argparse.Namespace:
+    """명령줄 인자(장치 IP/시리얼, RTSP URL 재지정, 카메라 설정 경로, 출력 폴더)를 읽는다."""
     parser = argparse.ArgumentParser(description="OAK4-D Pro dual MP4 recorder")
     parser.add_argument("--device-ip", default=DEFAULT_DEVICE_IP)
     parser.add_argument("--device-serial", default=DEFAULT_DEVICE_SERIAL)
@@ -1988,6 +2074,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """앱을 만들고 Tk 메인 루프를 실행한다. IP/시리얼 인자를 주지 않으면 저장된 연결 정보를 쓴다."""
     args = parse_args()
     root = tk.Tk()
     app = RecorderApp(

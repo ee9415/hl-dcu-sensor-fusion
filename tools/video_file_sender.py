@@ -1,4 +1,6 @@
 """Paced PC video replay to the OAK's bounded JPEG receiver; no local inference."""
+# PC의 영상 파일을 실시간 속도로 OAK 카메라 앱에 JPEG로 보내는 송신기와, 카메라 앱 제어 명령 함수들.
+# PC에서는 추론하지 않고, 카메라 앱이 받은 프레임을 카메라 영상 대신 처리한다.
 import math
 from pathlib import Path
 import socket
@@ -9,6 +11,7 @@ import time
 import cv2
 import numpy as np
 
+# 카메라 앱과 같은 전송 프로토콜(video_transport)을 쓰기 위해 앱 폴더를 import 경로에 추가한다.
 APP = Path(__file__).resolve().parents[1] / 'apps' / 'yolopv2_standalone'
 if str(APP) not in sys.path:
     sys.path.insert(0, str(APP))
@@ -30,6 +33,7 @@ def parse_video_time(value):
 
 
 def select_camera(ip, port=PORT):
+    """카메라 앱의 입력을 실제 카메라로 되돌린다."""
     with socket.create_connection((ip, port), timeout=3) as connection:
         connection.settimeout(3)
         send_message(connection, dict(op='select', source='camera'))
@@ -41,6 +45,7 @@ def select_camera(ip, port=PORT):
 
 
 def set_skeleton_response_speed(ip, speed, port=PORT):
+    """경계선 skeleton 추종 속도 배율을 실시간으로 바꾼다."""
     from skeleton_response import validate_speed
     speed=validate_speed(speed)
     with socket.create_connection((ip,port),timeout=3) as connection:
@@ -66,6 +71,7 @@ def prepare_preview(ip, port=PORT):
 
 
 def set_processing_mode(ip, mode, port=PORT):
+    """처리 모드를 basic(가벼운 처리) 또는 full(전체 인지)로 바꾼다."""
     if mode not in ('basic','full'):
         raise ValueError('Processing mode must be basic or full')
     with socket.create_connection((ip,port),timeout=3) as connection:
@@ -78,6 +84,7 @@ def set_processing_mode(ip, mode, port=PORT):
 
 
 def set_contour_display(ip, visible, port=PORT):
+    """결과 영상의 윤곽선 표시를 켜고 끈다."""
     if type(visible) is not bool:
         raise ValueError('Contour visibility must be boolean')
     with socket.create_connection((ip,port),timeout=3) as connection:
@@ -90,6 +97,7 @@ def set_contour_display(ip, visible, port=PORT):
 
 
 def set_boundary_display(ip, visible, port=PORT):
+    """결과 영상의 경계선 표시를 켜고 끈다."""
     if type(visible) is not bool:
         raise ValueError('Boundary visibility must be boolean')
     with socket.create_connection((ip,port),timeout=3) as connection:
@@ -102,6 +110,7 @@ def set_boundary_display(ip, visible, port=PORT):
 
 
 def set_lane_overlay(ip,mode,threshold,port=PORT):
+    """차선 미리보기 모드와 임계값을 바꾼다(표시 전용, 인지에는 영향 없음)."""
     from lane_overlay import validate_preview
     validate_preview(mode,threshold)
     with socket.create_connection((ip,port),timeout=3) as connection:
@@ -128,6 +137,9 @@ def fit_frame(bgr):
 
 
 class VideoFileSender:
+    """영상 파일 송신기. 구간(start_s~end_s), 반복, 일시정지, 위치 이동을 지원하며
+    전송 FPS는 요청값·원본 FPS·장치 한도 중 가장 작은 값으로 정한다.
+    """
     def __init__(self, ip, path, loop=True, fps=10, port=PORT, start_s=0., end_s=None):
         self.ip, self.path, self.port = ip, Path(path), port
         if not math.isfinite(fps) or not 0 < fps <= 20:
@@ -148,20 +160,24 @@ class VideoFileSender:
         self.seek_serial = 0
 
     def start(self):
+        """송신 스레드를 시작한다(한 번만)."""
         if self.thread is not None:
             raise RuntimeError('Sender already started')
         self.thread = threading.Thread(target=self._run, daemon=True, name='pc-video-sender')
         self.thread.start()
 
     def _set(self, **values):
+        """상태 dict를 스레드 안전하게 갱신한다."""
         with self.lock:
             self.status.update(values)
 
     def snapshot(self):
+        """현재 상태 dict의 복사본을 반환한다(UI 표시용)."""
         with self.lock:
             return dict(self.status)
 
     def toggle_pause(self):
+        """일시정지/재개를 전환한다."""
         if self.paused.is_set():
             self.paused.clear()
         else:
@@ -178,6 +194,7 @@ class VideoFileSender:
             return self.seek_serial
 
     def close(self, timeout=2):
+        """송신을 멈추고 소켓을 끊은 뒤 스레드 종료를 기다린다."""
         self.stop.set()
         if self.connection:
             try:
@@ -188,6 +205,9 @@ class VideoFileSender:
             self.thread.join(timeout)
 
     def _run(self):
+        """송신 본체: 파일 열기·구간 검사 → 장치 연결 및 PC 입력 선택 → 실시간 속도에 맞춰 프레임을 골라 전송.
+        늦으면 프레임을 건너뛰고, 같은 원본 프레임은 두 번 보내지 않으며, 반복/seek 때마다 media_epoch를 올린다.
+        """
         capture = None
         try:
             self._set(state='영상 여는 중')
@@ -211,6 +231,7 @@ class VideoFileSender:
                 raise ValueError('선택한 구간에 영상 프레임이 없습니다')
 
             def seek_frame(position):
+                """지정 프레임으로 정확히 이동해 읽는다. 위치가 어긋나면 오류."""
                 if not capture.set(cv2.CAP_PROP_POS_FRAMES, position):
                     raise ValueError('선택한 시작 위치로 이동할 수 없습니다')
                 valid, image = capture.read()
@@ -233,6 +254,7 @@ class VideoFileSender:
                 connection.settimeout(3)
                 with connection.makefile('rb') as stream:
                     def exchange(header, payload=b''):
+                        """명령 하나를 보내고 응답을 받는다. 장치가 거부하면 오류."""
                         send_message(connection, header, payload)
                         response, _ = read_message(stream)
                         if not response.get('ok'):
@@ -267,6 +289,7 @@ class VideoFileSender:
                         if self.paused.is_set() and request is None:
                             pause_start = time.monotonic()
                             self._set(state='일시정지')
+                            # 일시정지 중에도 0.2초마다 status를 보내 연결(소유권)을 유지한다.
                             heartbeat = pause_start
                             while self.paused.is_set() and not self.stop.wait(.05):
                                 with self.lock:
@@ -280,6 +303,7 @@ class VideoFileSender:
                             continue
                         if self.stop.wait(max(0, deadline-time.monotonic())):
                             break
+                        # 경과 시간으로 지금 보내야 할 원본 프레임 번호를 계산한다(뒤처지면 중간 프레임은 건너뜀).
                         target = index if request is not None else first + int((time.monotonic()-started)*source_fps)
                         eof = last is not None and target >= last
                         while not eof and index < target:

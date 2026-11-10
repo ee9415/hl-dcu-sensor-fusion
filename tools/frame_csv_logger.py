@@ -1,4 +1,6 @@
 """Direct device telemetry CSV logger (not a ROS subscriber)."""
+# 카메라 앱 텔레메트리 서버(:8557)에 직접 접속해 프레임/객체 정보를 CSV로 저장한다(ROS 구독 아님).
+# 접속 때마다 PC-장치 시계 차이를 추정해 지연 시간을 계산하고, 누락 프레임은 sequence_gap으로 남긴다.
 import csv
 from datetime import datetime, timezone
 import json
@@ -8,6 +10,7 @@ import threading
 import time
 import uuid
 
+# frames.csv 열 목록(텔레메트리 필드 + PC 수신 시각·지연 추정값)
 FRAME_FIELDS = ['session', 'frame_seq', 'nn_seq', 'depth_seq',
                 'input_source', 'source_epoch', 'processing_mode', 'processing_epoch', 'source_file', 'source_frame_index',
                 'source_media_time_s', 'source_media_epoch', 'depth_available', 'capture_timestamp_s',
@@ -35,10 +38,12 @@ OBJECT_FIELDS = ['session', 'frame_seq', 'object_index', 'label', 'confidence',
 
 
 class CsvStorageError(Exception):
+    """CSV 파일 쓰기 실패(디스크 문제 등). 네트워크 오류와 달리 재연결하지 않고 기록을 멈춘다."""
     pass
 
 
 class FrameCsvLogger:
+    """세션 폴더(날짜_시각_랜덤)에 frames.csv와 objects.csv를 만들어 기록하는 로거."""
     def __init__(self, ip, directory, port=8557):
         self.ip = ip
         self.port = port
@@ -50,11 +55,13 @@ class FrameCsvLogger:
         self.connection = None
 
     def start(self):
+        """기록 스레드를 시작한다."""
         if self.thread is None:
             self.thread = threading.Thread(target=self._run, daemon=True)
             self.thread.start()
 
     def close(self):
+        """기록을 멈추고 소켓을 끊은 뒤 최대 3초 기다린다."""
         self.stop.set()
         if self.connection:
             try:
@@ -65,6 +72,9 @@ class FrameCsvLogger:
             self.thread.join(timeout=3)
 
     def _run(self):
+        """CSV를 만들고, 연결 → 시계 동기화(HELLO) → 수신 루프를 반복한다. 5초마다 재접속해 시계 추정을 갱신한다.
+        오래된/중복 프레임은 버리고, 시계 추정이 이상하면 지연값을 비우고 상태를 표시한다.
+        """
         previous = {}
         try:
             self.path.mkdir(parents=True, exist_ok=False)
@@ -88,6 +98,7 @@ class FrameCsvLogger:
                                 clock = json.loads(stream.readline(4096))
                                 t4 = time.time()
                                 m4 = time.monotonic()
+                                # NTP 방식으로 PC와 장치의 시계 차이와 왕복 시간(RTT)을 추정한다.
                                 offset = ((clock['clock_receive_s']-t1)+(clock['clock_send_s']-t4))/2
                                 mono_offset = ((clock['clock_receive_mono_s']-m1)+(clock['clock_send_mono_s']-m4))/2
                                 rtt = max(0., (m4-m1)-(clock['clock_send_mono_s']-clock['clock_receive_mono_s']))

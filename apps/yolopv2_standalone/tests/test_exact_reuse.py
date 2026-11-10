@@ -12,6 +12,7 @@ from image_boundaries import nanmedian_columns
 
 
 def import_node():
+    """가짜 depthai 모듈로 yolopv2_node를 새로 import 한다."""
     class Host:
         def createOutput(self, **kwargs):
             return MagicMock()
@@ -27,6 +28,7 @@ def import_node():
 
 def legacy_draw_text(font, frame, text, x, y, color, scale=2):
     # Verbatim per-cell loop from before the glyph-mask cache.
+    """캐시 도입 전 원래 글자 그리기 구현(비교 기준)."""
     height, width = frame.shape[:2]
     cursor_x = max(x, 0)
     for character in text:
@@ -48,6 +50,7 @@ def legacy_draw_text(font, frame, text, x, y, color, scale=2):
 
 class NanmedianColumnsTests(unittest.TestCase):
     def same(self, values):
+        """nanmedian_columns 결과가 np.nanmedian과 dtype·비트 단위까지 같은지 확인한다."""
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', RuntimeWarning)
             expected = np.nanmedian(values, axis=0)
@@ -57,6 +60,7 @@ class NanmedianColumnsTests(unittest.TestCase):
         self.assertEqual(actual.tobytes(), expected.tobytes())
 
     def test_random_nan_patterns_are_bitwise_identical(self):
+        """임의의 NaN 패턴에서도 결과가 비트 단위로 같다."""
         rng = np.random.default_rng(20261027)
         for rows in (1, 2, 3, 4, 5, 8):
             for _ in range(300):
@@ -67,6 +71,7 @@ class NanmedianColumnsTests(unittest.TestCase):
                 self.same(values)
 
     def test_ties_halves_and_all_nan_columns(self):
+        """동률, 짝수 개 평균, 부호 있는 0, 전부 NaN인 열 등 경계 사례."""
         self.same(np.array([[1., np.nan, 5., np.nan], [1., 2., 6., np.nan], [3., 2., np.nan, np.nan]]))
         self.same(np.array([[0.1, 0.3], [0.2, 0.7]]))
         self.same(np.array([[-0., 0.], [0., -0.]]))
@@ -74,6 +79,7 @@ class NanmedianColumnsTests(unittest.TestCase):
 
     def test_regional_detector_shape(self):
         # Rows are segments sampled on the 53-row grid, as in _detect_regions.
+        """실제 _detect_regions 입력과 비슷한 모양(53행 격자 세그먼트)에서도 같다."""
         rng = np.random.default_rng(7)
         for _ in range(500):
             aligned = np.full((int(rng.integers(2, 4)), 53), np.nan)
@@ -88,9 +94,11 @@ class NanmedianColumnsTests(unittest.TestCase):
 class DrawTextTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        """yolopv2_node 모듈을 한 번만 불러온다."""
         cls.node = import_node()
 
     def test_matches_per_cell_loop_with_clipping(self):
+        """여러 크기·위치·배율·문자열에서 새 _draw_text가 기존 구현과 픽셀 단위로 같다(화면 밖 잘림 포함)."""
         node = self.node
         draw = node.Yolopv2Postprocess._draw_text
         rng = np.random.default_rng(1)
@@ -112,6 +120,7 @@ class DrawTextTests(unittest.TestCase):
                     self.assertEqual(actual.tobytes(), expected.tobytes(), (shape, text, x, y, scale))
 
     def test_edges_and_cache_is_read_only(self):
+        """모서리/화면 밖 위치에서도 같고, 글리프 마스크 캐시는 읽기 전용이며 재사용된다."""
         node = self.node
         for x, y in ((0, 0), (-5, -13), (950, 530), (959, 539), (960, 0), (0, 540), (-100, -100)):
             expected = np.zeros((540, 960, 3), np.uint8)

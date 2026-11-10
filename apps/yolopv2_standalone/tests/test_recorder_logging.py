@@ -14,12 +14,14 @@ from oak_recorder import RecorderApp, CaptureSource
 
 class RecorderLoggingTests(unittest.TestCase):
     def test_owner_catchup_write_does_not_block_shared_frame_snapshot(self):
+        """녹화 파일 쓰기가 느려도(따라잡기 쓰기 중) 다른 소비자의 프레임 스냅샷 조회는 막히지 않는다."""
         source=CaptureSource('test','test','')
         source.connected=True;source.latest_frame=np.zeros((48,64,3),np.uint8)
         source.last_frame_at=time.monotonic()
         writing=threading.Event()
         def slow(frame):writing.set();time.sleep(.03)
         source.writer=Mock();source.writer.write.side_effect=slow
+        # 녹화 시작을 2.9초 전으로 두어, 첫 쓰기에서 밀린 프레임을 따라잡게 만든다.
         now=time.monotonic();source.record_started_at=now-2.9
         capture=Mock();capture.isOpened.return_value=True
         pixels=source.latest_frame
@@ -35,6 +37,7 @@ class RecorderLoggingTests(unittest.TestCase):
             finally:source.close()
 
     def test_short_shared_receiver_reconnect_is_a_source_change(self):
+        """공유 수신기가 잠깐이라도 재연결되면 녹화는 source_changed 오류로 끝난다(끊긴 구간을 이어 붙이지 않음)."""
         from shared_rgb_recorder import SharedRgbRecorder
         source=CaptureSource('test','test','')
         source.connected=True;source.latest_frame=np.zeros((48,64,3),np.uint8)
@@ -49,6 +52,7 @@ class RecorderLoggingTests(unittest.TestCase):
             self.assertEqual(record.snapshot()['error_kind'],'source_changed')
 
     def test_high_rate_recording_keeps_ten_fps_wall_time(self):
+        """입력이 10/15/20fps여도 녹화는 실제 시간 기준 10fps(1초에 11장)로 저장된다."""
         for input_fps in (10,15,20):
             source=CaptureSource('test','test','')
             source.writer=Mock();source.record_started_at=100.
@@ -58,6 +62,7 @@ class RecorderLoggingTests(unittest.TestCase):
             self.assertEqual(source.frames_received,0)  # Never creates inference frames.
 
     def app(self):
+        """Tk 없이 RecorderApp을 만들고 4개 소스와 버튼을 Mock으로 채운다. rgb/yolopv2만 녹화 대상으로 선택."""
         app=RecorderApp.__new__(RecorderApp)
         app.device_ip='192.0.2.1';app.output_dir=Path('unused-recordings')
         app.csv_logger=None;app.recording=False;app.recording_keys=[];app.unsaved_paths={}
@@ -76,6 +81,7 @@ class RecorderLoggingTests(unittest.TestCase):
 
     @patch('oak_recorder.FrameCsvLogger')
     def test_connect_does_not_start_csv(self,logger):
+        """연결만 해서는 CSV 텔레메트리 기록을 시작하지 않는다."""
         app=self.app();app._begin_receivers(app.device_ip)
         logger.assert_not_called()
         self.assertIsNone(app.csv_logger)
@@ -83,6 +89,7 @@ class RecorderLoggingTests(unittest.TestCase):
 
     @patch('oak_recorder.FrameCsvLogger')
     def test_success_stop_and_new_recording(self,logger):
+        """녹화 시작은 한 번만 적용되고, 정지 후 다시 시작하면 새 CSV 로거를 쓴다."""
         first,second=Mock(),Mock();logger.side_effect=[first,second]
         app=self.app();app.start_recording();app.start_recording()
         self.assertEqual(logger.call_count,1)
@@ -95,6 +102,7 @@ class RecorderLoggingTests(unittest.TestCase):
     @patch('oak_recorder.messagebox')
     @patch('oak_recorder.FrameCsvLogger')
     def test_failed_second_video_rolls_back_without_csv(self,logger,dialogs):
+        """두 번째 영상 녹화 시작이 실패하면 먼저 시작한 영상도 되돌리고 CSV는 만들지 않는다."""
         app=self.app();app.sources['yolopv2'].start_recording.return_value=False
         app.start_recording()
         logger.assert_not_called()
@@ -104,11 +112,13 @@ class RecorderLoggingTests(unittest.TestCase):
     @patch('oak_recorder.messagebox')
     @patch('oak_recorder.FrameCsvLogger')
     def test_unavailable_video_creates_no_csv(self,logger,dialogs):
+        """영상이 연결되지 않은 상태에서는 CSV도 만들지 않는다."""
         app=self.app();app.sources['rgb'].snapshot.return_value=(False,None)
         app.start_recording();logger.assert_not_called()
 
     @patch('oak_recorder.FrameCsvLogger')
     def test_window_close_stops_active_recording(self,logger):
+        """창을 닫으면 진행 중인 녹화를 정지한 뒤 창을 없앤다."""
         app=self.app();app.start_recording();app._close()
         self.assertTrue(logger.return_value.close.called)
         self.assertFalse(app.recording)
@@ -116,6 +126,7 @@ class RecorderLoggingTests(unittest.TestCase):
 
     @patch('oak_recorder.FrameCsvLogger')
     def test_stop_saves_both_videos_beside_csv(self,logger):
+        """정지 시 두 영상을 CSV와 같은 세션 폴더에 정해진 이름으로 옮긴다."""
         root=Path(__file__).resolve().parents[3]
         with tempfile.TemporaryDirectory(dir=root/'artifacts') as folder:
             folder=Path(folder);session=folder/'session';session.mkdir()
@@ -136,6 +147,7 @@ class RecorderLoggingTests(unittest.TestCase):
     @patch('oak_recorder.shutil.move',side_effect=OSError('disk unavailable'))
     @patch('oak_recorder.FrameCsvLogger')
     def test_auto_save_failure_retains_video_for_retry(self,logger,move,dialogs):
+        """자동 저장(이동)이 실패하면 원본 영상을 남겨 두고 재시도용 목록에 기록한다."""
         root=Path(__file__).resolve().parents[3]
         with tempfile.TemporaryDirectory(dir=root/'artifacts') as folder:
             folder=Path(folder);source=folder/'rgb.mp4';source.write_bytes(b'video')

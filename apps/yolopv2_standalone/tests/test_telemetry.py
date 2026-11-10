@@ -1,3 +1,4 @@
+"""TelemetryServer → FrameCsvLogger 텔레메트리 CSV 기록 통합 테스트."""
 import csv
 from pathlib import Path
 import sys
@@ -14,12 +15,19 @@ from frame_csv_logger import FrameCsvLogger
 
 class TelemetryTests(unittest.TestCase):
     def test_csv_roundtrip_and_gap(self):
+        """프레임 1,3,3,4를 발행해 CSV 왕복을 확인한다.
+
+        - 중복 프레임(3)은 한 번만 기록되고 1→3 사이 누락은 gap 1회로 센다.
+        - None/빈 리스트/계수 등 필드별 직렬화 형식과 지연 상태(latency_status)를 검증한다.
+        - seq=4는 시각을 미래로 보내 '시계 이상' 판정을 유도한다.
+        """
         server = TelemetryServer(0)
         with tempfile.TemporaryDirectory(dir=ROOT/'artifacts') as directory:
             logger = FrameCsvLogger('127.0.0.1', directory, server.server.server_address[1])
             try:
                 logger.start()
                 deadline = time.monotonic()+5
+                # 로거가 서버에 접속할 때까지 대기
                 while not server.clients and time.monotonic() < deadline:
                     time.sleep(.01)
                 self.assertTrue(server.clients)

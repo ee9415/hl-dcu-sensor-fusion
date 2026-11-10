@@ -40,6 +40,68 @@ set "DEPLOY_TOOL=src\hl_camera_bringup\scripts\deploy_code_release.py"
 
 UUID는 2026-11-10 문서 기준이며 실제 대상은 최신 PROJECT_STATUS와 app list로 확인한다. 녹화 중에는 먼저 저장하고 종료한다. 배포 후 PC 영상 소스·표시 설정은 앱에서 다시 적용하며 사용자 저장 설정을 임의로 덮어쓰지 않는다.
 
+### 변수 설정값 확인
+
+위 set 명령은 정상 실행되어도 별도 메시지가 나오지 않는다. 같은 CMD 창에서 아래 명령으로 값을 확인한다. 여기서 사용하는 값은 CMD 환경 변수이며 카메라의 실제 실행 상태와는 별개다.
+
+```bat
+echo OAKCTL=%OAKCTL%
+echo CAMERA_IP=%CAMERA_IP%
+echo APP_ID=%APP_ID%
+echo DEPLOY_TOOL=%DEPLOY_TOOL%
+```
+
+공통 설정 직후의 예상 출력:
+
+```text
+OAKCTL=C:\Program Files\oakctl\bin\oakctl.exe
+CAMERA_IP=192.168.201.2
+APP_ID=61fbe0c1-ad26-42dc-93c4-a8d2b5191fce
+DEPLOY_TOOL=src\hl_camera_bringup\scripts\deploy_code_release.py
+```
+
+변수 이름 앞뒤에 `%`를 모두 붙인다. `echo OAKCTL`은 이름만 출력하고, `echo %OAKCTL`은 뒤쪽 `%`가 없어 값을 표시하지 못한다. 이름과 값을 함께 조회하는 다음 방식도 가능하다(해당 이름으로 시작하는 변수를 조회한다).
+
+```bat
+set OAKCTL
+set CAMERA_IP
+set APP_ID
+set DEPLOY_TOOL
+```
+
+변수가 미지정됐으면 공통 설정을 같은 창에서 다시 실행한다. set으로 지정한 값은 현재 CMD와 그 창에서 실행한 자식 프로세스에 적용되며, 별도로 연 새 CMD 창에는 자동 적용되지 않는다. 새 패키지 설치 후에는 APP_ID를 갱신하고 다시 확인한다.
+
+### 파일 경로·명령 실행 확인
+
+아래 명령은 PC의 파일 존재와 도구 도움말만 확인하며 카메라를 변경하지 않는다.
+
+```bat
+cd
+if exist "%OAKCTL%" (echo OAKCTL_PATH_OK) else (echo OAKCTL_PATH_ERROR)
+if exist "%DEPLOY_TOOL%" (echo DEPLOY_TOOL_PATH_OK) else (echo DEPLOY_TOOL_PATH_ERROR)
+python --version
+"%OAKCTL%" --version
+python "%DEPLOY_TOOL%" --help
+```
+
+현재 폴더가 저장소 루트이고 두 경로가 OK이며 버전·도움말이 출력되는지 확인한다. ERROR 또는 명령을 찾을 수 없다는 메시지가 나오면 경로·Python 설치/PATH·현재 폴더를 확인한다. DEPLOY_TOOL은 저장소 루트 기준 상대 경로다.
+
+### 카메라 대상·실제 상태 확인
+
+환경 변수 출력은 입력값 확인일 뿐 접속 성공이나 UUID의 유효성을 보장하지 않는다. 아래 읽기 전용 명령으로 실제 장치의 설치 목록과 비교한다.
+
+```bat
+"%OAKCTL%" app list -d %CAMERA_IP%
+```
+
+출력에서 APP_ID와 일치하는 UUID의 패키지 버전·실행 상태를 확인한다. 앱이 실행 중이면 활성 앱 코드도 확인한다.
+
+```bat
+python "%DEPLOY_TOOL%" status --device-ip %CAMERA_IP% --app-id %APP_ID%
+```
+
+status의 active는 활성 코드 release ID이며, pending은 확정 대기 코드, previous는 복구 후보를 나타낸다. 정상 확정 뒤 pending은 비어 있어야 한다. 접속 실패나 UUID 불일치 시 값을 재확인하며, 확인을 위해 앱을 임의로 시작하거나 재시작하지 않는다.
+
 ## 앱 코드 관리
 
 ### 빌드: 구문 검사 및 ZIP 생성
@@ -146,3 +208,6 @@ wsl.exe -d Ubuntu-22.04 -- bash /mnt/d/git_hub/hl-dcu-sensor-fusion/tools/run_oa
 
 - 패키지와 앱 코드 용어를 구분하고 Windows CMD 기준 빌드·업로드·교체·실행·중지·복구·삭제 및 PC 실행 명령을 정리했다.
 - 배포 도구의 인자·자동 재시작 처리와 설치된 oakctl의 build/install/uninstall 도움말을 대조했다. 문서 변경이며 장치 배포·재시작·삭제는 수행하지 않았다.
+
+- CMD 변수 출력에서 양쪽 `%` 표기, 예상값, 현재 창 적용 범위, 파일 경로·도움말 및 실제 장치 상태 확인 절차를 추가했다.
+- 추가 검증: 문서의 공통 설정·echo·경로 확인·버전·도움말 블록을 실제 CMD에서 실행해 예상 변수 값, 두 경로 OK, Python/oakctl 버전 및 배포 도구 도움말 출력을 확인했다. 장치 조회 명령은 실행하지 않았다. git diff --check 통과.

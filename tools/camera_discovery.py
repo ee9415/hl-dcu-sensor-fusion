@@ -1,4 +1,5 @@
 """Read-only OAK4/DepthAI2 device discovery; never starts a camera pipeline."""
+# OAK4(oakctl)와 OAK-D(DepthAI 2) 카메라를 읽기 전용으로 검색한다. 카메라 앱이나 파이프라인을 시작하지 않는다.
 from concurrent.futures import ThreadPoolExecutor
 import json
 import os
@@ -9,6 +10,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 def run(command):
+    """외부 명령을 20초 제한으로 실행하고 stdout을 반환한다. 실패하면 stderr 끝부분을 담아 예외를 낸다."""
     completed=subprocess.run(command,capture_output=True,text=True,encoding='utf-8',
         errors='replace',timeout=20,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     if completed.returncode:
@@ -18,6 +20,7 @@ def run(command):
 
 def parse_oak4(text):
     # oakctl can prepend an update notice; parse only its JSON object.
+    """oakctl device list JSON 출력을 카메라 정보 목록(family/serial/ip/model/state)으로 바꾼다."""
     start=text.find('{')
     if start<0:raise ValueError('oakctl 검색 결과에 JSON이 없습니다.')
     payload=json.JSONDecoder().raw_decode(text[start:])[0]
@@ -27,6 +30,7 @@ def parse_oak4(text):
 
 
 def parse_oakd(text):
+    """discover_oakd_worker.py 출력에서 'OAKDISCOVERY ' 줄의 JSON만 읽는다."""
     for line in text.splitlines():
         if line.startswith('OAKDISCOVERY '):
             return json.loads(line[len('OAKDISCOVERY '):])
@@ -35,6 +39,7 @@ def parse_oakd(text):
 
 def windows_fallback():
     """Use Windows networking when WSL broadcast discovery cannot reach PoE."""
+    # WSL에서는 브로드캐스트가 PoE 카메라에 닿지 않을 수 있어, Windows 쪽 Python과 SDK로 OAK-D 검색을 대신 실행한다.
     profile=run(['cmd.exe','/c','echo','%USERPROFILE%']).strip()
     python=profile+r'\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
     python=run(['wslpath','-u',python]).strip()
@@ -47,6 +52,9 @@ def windows_fallback():
 
 
 def discover_cameras(oakctl,oakd_python):
+    """OAK4와 OAK-D를 병렬로 검색해 (장치 목록, 경고 목록)을 반환한다.
+    한쪽이 실패해도 다른 쪽 결과는 유지하고, WSL에서 OAK-D가 안 보이면 Windows 검색으로 보완한다.
+    """
     devices=[];warnings=[]
     def oak4():
         return parse_oak4(run([str(oakctl),'device','list','--all','--format','json']))
@@ -67,5 +75,6 @@ def discover_cameras(oakctl,oakd_python):
             devices.extend(windows_fallback())
         except Exception as exc:
             warnings.append('Windows 검색: '+str(exc))
+    # 로컬/Windows 검색에서 같은 장치가 중복으로 나올 수 있어 (종류, 시리얼) 기준으로 합친다.
     unique={(d['family'],d['serial']):d for d in devices}
     return list(unique.values()),warnings

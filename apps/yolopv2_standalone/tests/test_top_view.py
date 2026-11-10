@@ -7,6 +7,7 @@ from lane_boundaries import projection_for, BoundaryConfig
 
 class TopViewTests(unittest.TestCase):
     def test_normal_top_colors_scores_above_same_threshold_differently(self):
+        """normal 모드는 임계값 이상 점수의 크기에 따라 색을 다르게 칠하고, 임계값 미만이거나 점수가 없으면 원본 RGB를 보여 준다."""
         renderer = TopViewRenderer()
         rgb = np.full((180, 320, 3), 80, np.uint8)
         lane = np.full((180, 320), 255, np.uint8)
@@ -23,6 +24,7 @@ class TopViewTests(unittest.TestCase):
         np.testing.assert_array_equal(unavailable[400,320], (80,80,80))
 
     def test_rgb_and_score_land_on_same_road_anchor(self):
+        """RGB와 점수(lane_bands)가 탑뷰에서 같은 위치에 투영된다."""
         rgb = np.zeros((180, 320, 3), np.uint8)
         rgb[170:179, 60:68] = (30, 80, 170)
         scores = np.zeros((180, 320), np.float32)
@@ -38,6 +40,7 @@ class TopViewTests(unittest.TestCase):
         self.assertFalse(mask[479, 320].any())
 
     def test_source_pixels_and_scores_are_not_modified_and_cache_invalidates(self):
+        """렌더링은 입력 배열을 바꾸지 않는다. 같은 크기면 투영 맵 캐시를 재사용하고, 입력 크기가 바뀌면 다시 만든다."""
         renderer = TopViewRenderer()
         rgb = np.full((180, 320, 3), 80, np.uint8)
         lane = np.zeros((180, 320), np.uint8)
@@ -54,6 +57,7 @@ class TopViewTests(unittest.TestCase):
         self.assertIsNot(renderer.rx, previous)
 
     def test_outside_camera_is_black_not_wrapped(self):
+        """카메라 시야 밖 영역은 검정으로 남고 반대편 픽셀이 감겨 들어오지 않는다."""
         renderer = TopViewRenderer()
         rgb = np.full((180, 320, 3), 127, np.uint8)
         lane = np.full((180, 320), 255, np.uint8)
@@ -62,6 +66,7 @@ class TopViewTests(unittest.TestCase):
         self.assertFalse(top[~renderer.valid].any())
 
     def test_near_final_row_and_unseen_ground_stay_black_in_all_modes(self):
+        """모든 모드에서 근거리 마지막 행(419) 아래와 보이지 않는 지면은 검정으로 유지된다."""
         from dataclasses import replace
         config=replace(BoundaryConfig(),near_left_u=.02,near_right_u=.98,near_v=1.,
                        far_left_u=.43,far_right_u=.59,far_v=.62)
@@ -78,10 +83,12 @@ class TopViewTests(unittest.TestCase):
         np.testing.assert_array_equal(raw[419,320],(10,20,30))
 
     def test_invalid_near_row_rejected(self):
+        """근거리 행 값이 0이거나 탑뷰 높이(480) 이상이면 거부한다."""
         for row in (0,480):
             with self.assertRaises(ValueError):TopViewRenderer(row)
 
     def test_group_overlay_uses_same_map_and_preserves_unseen_ground(self):
+        """차선 그룹 오버레이는 RGB와 같은 투영 맵을 쓰고, 보이지 않는 영역은 칠하지 않으며, 입력 마스크도 바꾸지 않는다."""
         from lane_contours import extract_lane_contours
         lane=np.zeros((180,320),np.uint8)
         lane[90:180,60:66]=255
@@ -105,6 +112,7 @@ class TopViewTests(unittest.TestCase):
         np.testing.assert_array_equal(lane,original)
 
     def test_group_overlay_empty_and_dimension_validation(self):
+        """빈 결과는 이미지를 바꾸지 않고, 렌더러와 크기가 맞지 않는 이미지·결과는 거부한다."""
         from lane_contours import extract_lane_contours
         lane=np.zeros((180,320),np.uint8)
         result=extract_lane_contours(lane)
@@ -119,6 +127,7 @@ class TopViewTests(unittest.TestCase):
             renderer.overlay_lane_groups(top,extract_lane_contours(np.zeros((90,160),np.uint8)))
 
     def test_only_raw_skeleton_is_drawn_not_group_interpolation(self):
+        """skeleton 표시를 켰을 때 실제 skeleton 픽셀만 시안색으로 그리고, 그룹 사이 보간 구간은 그리지 않는다."""
         from lane_overlay import contour_skeleton_layer
         from lane_contours import extract_lane_contours
         lane=np.zeros((180,320),np.uint8)

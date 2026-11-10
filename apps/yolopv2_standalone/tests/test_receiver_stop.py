@@ -13,6 +13,7 @@ from oak_recorder import CaptureSource, RecorderApp
 
 class ReceiverStopTests(unittest.TestCase):
     def app(self):
+        """Tk 없이 RecorderApp을 만들고 4개 수신기(rgb/yolopv2/bev/depth)와 위젯을 Mock으로 채운다."""
         app=object.__new__(RecorderApp)
         app.sources={key:CaptureSource(key,key,'unused') for key in ('rgb','yolopv2','bev','depth')}
         app.recording=False
@@ -29,10 +30,12 @@ class ReceiverStopTests(unittest.TestCase):
         return app
 
     def result(self,app,state,**extra):
+        """카메라 앱 폴링 결과 이벤트를 넣고 이벤트 큐를 처리한다."""
         app.connection_events.put(('app_result',dict(ip='192.0.2.1',action='poll',state=state,**extra)))
         app._drain_connection_events()
 
     def test_confirmed_stop_retires_all_four_receivers_once(self):
+        """앱 정지가 확인되면 기존 수신기 4개를 모두 멈추고 새 수신기로 교체한다. 다시 stopped가 와도 재교체하지 않는다."""
         app=self.app()
         old=list(app.sources.values())
         for source in old:source.started=True
@@ -45,6 +48,7 @@ class ReceiverStopTests(unittest.TestCase):
         self.assertEqual(fresh,list(app.sources.values()))
 
     def test_manual_stop_signals_receivers_before_remote_command(self):
+        """수동 정지 시 원격 명령을 보내기 전에 수신기에 먼저 정지 신호를 준다."""
         app=self.app()
         old=list(app.sources.values())
         app.app_action_busy=False
@@ -68,12 +72,14 @@ class ReceiverStopTests(unittest.TestCase):
         self.assertFalse(app.connect_requested)
 
     def test_unknown_status_does_not_stop_a_running_receiver(self):
+        """상태를 알 수 없으면 실행 중인 수신기를 멈추지 않는다."""
         app=self.app()
         self.result(app,'unknown')
         self.assertTrue(app.connect_requested)
         self.assertTrue(all(not s.stop_event.is_set() for s in app.sources.values()))
 
     def test_rgb_stop_is_independent_of_ai_receivers(self):
+        """RGB 전용 앱 정지는 AI 수신기에 영향을 주지 않고, 추가 소스 close는 한 번만 호출된다."""
         app=self.app()
         app.connect_requested=False
         raw=Mock(stop_event=threading.Event())
@@ -87,6 +93,7 @@ class ReceiverStopTests(unittest.TestCase):
         raw.close.assert_called_once()
 
     def test_failed_open_retry_stops_and_manual_fresh_start_works(self):
+        """열기 실패 재시도 루프는 close() 후 멈추고, 새로 만든 수신기는 다시 정상 시도한다."""
         opened=threading.Event()
         failed=Mock()
         failed.isOpened.return_value=False
@@ -113,6 +120,7 @@ class ReceiverStopTests(unittest.TestCase):
                 first.close();second.close()
 
     def test_stopping_during_open_prevents_read_and_retry(self):
+        """열기 도중 정지 신호가 오면 열린 캡처를 읽지 않고 바로 해제한다."""
         opening=threading.Event()
         finish=threading.Event()
         capture=Mock()

@@ -1,3 +1,4 @@
+"""NN 차선 마스크 기반 후보 순위(nn_rank) 보조 기능 테스트."""
 import unittest
 import numpy as np
 from image_boundaries import ImageBoundaryTracker
@@ -6,6 +7,7 @@ from lane_boundaries import BoundaryConfig
 
 class NnRankingTests(unittest.TestCase):
     def test_selects_supported_parallel_candidate_without_confidence_boost(self):
+        """평행한 두 페인트 후보 중 NN 차선 마스크가 지지하는 쪽(오른쪽)을 고르되, 신뢰도 점수는 올리지 않는다."""
         paint=np.zeros((180,320),bool)
         lane=np.zeros_like(paint)
         for y in range(90,173):
@@ -13,6 +15,7 @@ class NnRankingTests(unittest.TestCase):
             paint[y,x:x+2]=True
             paint[y,x+28:x+30]=True
             lane[y,x+28:x+30]=True
+        # 가중치 0(기능 끔)인 기준 추적기와 기본 설정 추적기를 비교한다.
         baseline=ImageBoundaryTracker(BoundaryConfig(image_nn_rank_weight=0))
         enabled=ImageBoundaryTracker()
         baseline.nn_rank_mask=lane
@@ -26,6 +29,7 @@ class NnRankingTests(unittest.TestCase):
         self.assertAlmostEqual(a[1],b[1],places=5)
 
     def test_nn_alone_cannot_create_paint_or_pass_geometry(self):
+        """NN 마스크만으로는 페인트가 없거나 기하 조건(수평선, 너무 짧은 선)을 통과하지 못한 후보를 만들 수 없다."""
         t=ImageBoundaryTracker()
         t.nn_rank_mask=np.ones((180,320),bool)
         empty=np.zeros((180,320),bool)
@@ -36,6 +40,7 @@ class NnRankingTests(unittest.TestCase):
         self.assertIsNone(t._detect_full(short,0,None))
 
     def test_empty_frame_clears_support_and_limits_weight(self):
+        """빈 차선 프레임이 들어오면 NN 지지 마스크가 초기화되고, 가중치는 0~0.1 범위만 허용된다."""
         t=ImageBoundaryTracker()
         t.nn_rank_mask=np.ones((180,320),bool)
         t.update(np.ones((180,320),np.uint8),np.zeros((180,320),np.uint8),0,

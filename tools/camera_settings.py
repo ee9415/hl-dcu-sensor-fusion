@@ -1,4 +1,6 @@
 """Local camera registration persistence. No passwords or device operations."""
+# CAM01~CAM06 카메라 등록 정보(IP, 장치 ID, 입력 종류, 녹화 선택)를 settings.json에 저장/로드한다.
+# 비밀번호는 다루지 않으며 장치에 접속하지도 않는다.
 import ipaddress
 import json
 from pathlib import Path
@@ -11,12 +13,16 @@ DEFAULT_PATH=settings_store.DEFAULT_PATH
 
 
 def defaults(ip='',serial='',python=''):
+    """기본 카메라 6대 설정. CAM01은 'OAK4 공유', 나머지는 '실제 OAK-D'이고 CAM01만 녹화 선택 상태다."""
     return dict(version=1,oakd_python=python,cameras=[dict(name=f'CAM{i+1:02d}',
         ip=ip if i==0 else '',serial=serial if i==0 else '',selected=i==0,
         kind='OAK4 공유' if i==0 else '실제 OAK-D') for i in range(6)])
 
 
 def validate(data):
+    """카메라 설정 형식을 검사해 정규화된 dict를 반환한다.
+    IP 형식, 장치 ID 제어문자, 입력 종류, 실제 장치 간 IP/ID 중복(가상 영상은 제외)을 확인한다.
+    """
     if not isinstance(data,dict) or data.get('version')!=1:raise ValueError('지원하지 않는 카메라 설정 형식입니다.')
     if not isinstance(data.get('cameras'),list) or len(data['cameras'])!=6:raise ValueError('카메라 설정은6개여야 합니다.')
     seen_ip=set();seen_id=set();result=[]
@@ -40,11 +46,13 @@ def validate(data):
 
 
 def load(path):
+    """settings.json에서 카메라 설정을 읽는다. 파일이 없으면 None."""
     path=Path(path)
     return validate(json.loads(path.read_text(encoding='utf-8'))) if path.exists() else None
 
 
 def save(path,data):
+    """카메라 설정을 원자적으로 저장한다. 다른 섹션은 유지하고, 내용이 같으면 쓰지 않으며, 이전 파일은 .bak으로 남긴다."""
     path=Path(path);data=validate(data)
     # Camera resets/updates must preserve source, display, recording and secrets.
     try:
@@ -62,6 +70,7 @@ def save(path,data):
             temp=Path(stream.name)
             json.dump(data,stream,ensure_ascii=False,indent=2);stream.flush();os.fsync(stream.fileno())
         if path.exists():shutil.copy2(path,path.with_suffix('.json.bak'))
+        # 임시 파일에 다 쓴 뒤 교체해서, 쓰기 도중 실패해도 원본이 깨지지 않게 한다.
         temp.replace(path)
     finally:
         if temp is not None:temp.unlink(missing_ok=True)
@@ -69,6 +78,8 @@ def save(path,data):
 
 def migrate_recordings(root,base):
     """Use the latest real, nonempty recording per slot, never virtual test data."""
+    # 예전 six_camera_* 녹화 폴더의 session.json에서 카메라별 최신 실제 녹화 정보를 가져와 설정을 채운다.
+    # (설정, 가져온 카메라 수)를 반환한다.
     result=validate(base);found=set()
     for folder in sorted(Path(root).glob('six_camera_*'),reverse=True):
         for path in sorted(folder.glob('*/session.json')):

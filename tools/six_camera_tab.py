@@ -1,4 +1,7 @@
 """Mixed OAK4/OAK-D recorder with explicit per-camera real/virtual inputs."""
+# 멀티뷰 앱의 '6대 카메라 녹화' 탭(Tkinter UI).
+# CAM01은 OAK4 순수 RGB, CAM02~06은 실제 OAK-D 또는 가상 영상이며, 카메라마다 입력 종류를 명시적으로 고른다.
+# AI 처리와 하드웨어 동기화는 하지 않는다.
 from datetime import datetime
 from pathlib import Path
 import re
@@ -19,8 +22,12 @@ from console_log import action, state_event
 
 
 class SixCameraTab:
+    """6대 카메라의 설정·연결·미리보기·그룹 녹화를 관리하는 탭.
+    owner는 메인 앱(RecorderApp)이며 CAM01 소유권 전환, 녹화 상태 확인 등에 쓰인다.
+    """
     def __init__(self, root, parent, device_ip, device_serial, output_dir, owner=None,
                  settings_path=None,restore_cam01=False):
+        """UI 위젯과 카메라 6대 상태를 만들고 저장된 카메라 설정을 불러온다(처음 실행이면 예전 녹화에서 가져옴)."""
         self.root = root
         self.owner = owner
         self.recorder = None
@@ -126,6 +133,7 @@ class SixCameraTab:
         self._refresh()
 
     def _window(self, key, title):
+        """설정용 보조 창(닫으면 숨김)을 만든다."""
         window = tk.Toplevel(self.root)
         window.withdraw()
         window.title(title)
@@ -139,6 +147,7 @@ class SixCameraTab:
         return window
 
     def _build_device_settings(self):
+        """'카메라 설정' 창: 카메라별 IP·장치 ID·입력 종류, OAK-D Python 경로, 장치 검색 결과 표를 만든다."""
         window = self._window('devices', '6대 카메라 설정')
         fields = ttk.Frame(window, style='App.TFrame', padding=16)
         fields.grid(sticky='ew')
@@ -188,11 +197,13 @@ class SixCameraTab:
             row=12,column=0,columnspan=5,sticky='w',padx=6,pady=(8,0))
 
     def _camera_settings(self):
+        """현재 UI 값을 camera_settings 저장 형식 dict로 만든다."""
         return dict(version=1,oakd_python=self.oakd_python.get(),reset=self.settings_reset_active,cameras=[
             dict(name=c['name'],ip=c['ip'].get(),serial=c['serial'].get(),kind=c['kind'].get(),
                  selected=bool(c['selected'].get())) for c in self.cameras])
 
     def _apply_camera_settings(self,data):
+        """저장된 설정 값을 UI에 반영한다."""
         self.settings_reset_active=data.get('reset',False)
         for camera,saved in zip(self.cameras,data['cameras']):
             for key in ('ip','serial','kind','selected'):camera[key].set(saved[key])
@@ -200,6 +211,9 @@ class SixCameraTab:
             self.oakd_python.set(data['oakd_python'])
 
     def _load_camera_settings(self):
+        """시작 시 카메라 설정을 불러온다. 설정이 없으면 예전 녹화 기록에서 가져와 저장한다.
+        restore_cam01이 아니면 CAM01 IP/ID는 실행 인자 값을 우선한다.
+        """
         try:
             data=camera_settings.load(self.settings_path)
             if data is None and self.auto_migrate:
@@ -220,6 +234,7 @@ class SixCameraTab:
 
     @action(lambda self, notify=True: '카메라 정보 저장 요청' if notify else None)
     def save_camera_settings(self,notify=True):
+        """UI의 카메라 정보를 저장한다. 연결 전이라면 메인 앱의 CAM01 IP도 함께 갱신한다."""
         try:
             data=self._camera_settings()
             if any(c['ip'].strip() or c['serial'].strip() for c in data['cameras']):data['reset']=False
@@ -238,6 +253,7 @@ class SixCameraTab:
 
     @action('카메라 정보 초기화 요청')
     def reset_camera_settings(self):
+        """저장된 카메라 정보를 초기화한다(녹화 중에는 불가, 녹화 파일과 현재 연결은 유지)."""
         if self.is_recording or (self.owner and self.owner.recording):
             messagebox.showwarning('카메라 정보 초기화','녹화를 정지한 뒤 초기화해 주세요.')
             return
@@ -257,6 +273,7 @@ class SixCameraTab:
 
     @action('카메라 검색 요청')
     def find_cameras(self):
+        """백그라운드 스레드에서 카메라 검색을 시작한다. 결과는 _drain_discovery가 UI에 반영한다."""
         if self.discovery_pending or not self.owner:
             return
         self.discovery_pending=True
@@ -266,11 +283,13 @@ class SixCameraTab:
         # Import here to keep the UI module independent of its owning app.
         from oak_recorder import OAKCTL_PATH
         def search():
+            """검색 결과(또는 오류)를 큐에 넣는다."""
             try:self.discovery_events.put(discover_cameras(OAKCTL_PATH,python))
             except Exception as exc:self.discovery_events.put(([],[str(exc)]))
         threading.Thread(target=search,daemon=True,name='camera-discovery').start()
 
     def _drain_discovery(self):
+        """검색 결과가 도착했으면 표를 갱신한다(UI 스레드에서 호출)."""
         try:devices,warnings=self.discovery_events.get_nowait()
         except queue.Empty:return
         self.discovery_pending=False
@@ -284,6 +303,7 @@ class SixCameraTab:
             self.discovery_table.selection_set('0')
 
     def _discovery_selected(self,event=None):
+        """검색 결과를 고르면 OAK4는 CAM01, OAK-D는 CAM02를 기본 대상으로 제안한다."""
         selection=self.discovery_table.selection()
         if selection:
             device=self.discovered_devices[int(selection[0])]
@@ -291,6 +311,9 @@ class SixCameraTab:
 
     @action('검색한 카메라 설정 적용')
     def apply_discovered(self):
+        """선택한 검색 결과를 지정 카메라 번호에 적용하고 저장한다.
+        종류가 맞지 않거나, 연결 중이거나, 다른 번호에 이미 등록된 장치면 거부한다.
+        """
         selection=self.discovery_table.selection()
         if not selection or self.is_recording:
             return
@@ -321,6 +344,7 @@ class SixCameraTab:
         self.discovery_status.set(camera['name']+' 설정에 적용'+('·저장했습니다.' if saved else '했습니다. 저장은 실패했습니다.'))
 
     def _build_recording_settings(self):
+        """'녹화 설정' 창: 저장 폴더, 세션 이름, 해상도, FPS, 종료 후 MP4 검증 여부."""
         window = self._window('recording', '6대 녹화 설정')
         fields = ttk.Frame(window, style='App.TFrame', padding=16)
         fields.grid(sticky='ew')
@@ -342,17 +366,20 @@ class SixCameraTab:
         ttk.Button(fields, text='확인', command=lambda: self._confirm('recording')).grid(row=5, column=2, sticky='e')
 
     def _choose_directory(self):
+        """녹화 저장 폴더 선택 대화상자."""
         path = filedialog.askdirectory(parent=self.windows['recording'], title='6대 녹화 저장 폴더')
         if path:
             self.output_dir.set(path)
 
     def _choose_python(self):
+        """DepthAI 2 Python 실행 파일 선택 대화상자."""
         path = filedialog.askopenfilename(parent=self.windows['devices'],title='DepthAI 2 Python 실행 파일')
         if path:
             self.oakd_python.set(path)
 
     @action(lambda self, key: f'6대 카메라 설정 확인 · {key}')
     def _confirm(self, key):
+        """설정 창의 '확인': 설정을 저장하고 창을 닫는다."""
         if key=='devices' and not self.save_camera_settings():return
         if key=='recording' and self.owner is not None:
             if not self.owner._save_preferences():return
@@ -360,6 +387,7 @@ class SixCameraTab:
         self.windows[key].withdraw()
 
     def _refresh(self):
+        """카메라별 상태 문구와 선택 개수, 저장 위치 표시를 갱신한다."""
         for camera in self.cameras:
             address = camera['ip'].get().strip() or camera['serial'].get().strip()
             camera['status'].set((address or '장치 미설정') + ' · '
@@ -370,20 +398,24 @@ class SixCameraTab:
 
     @property
     def is_recording(self):
+        """그룹 녹화가 진행 중이면 True."""
         return self.group is not None and self.group.active
 
     @property
     def is_cam01_recording(self):
+        """CAM01 녹화가 진행 중이면 True."""
         return self.recorder is not None and self.recorder.active
 
     @action('선택 카메라 연결 요청')
     def connect_selected(self):
+        """녹화 선택된 카메라를 모두 연결한다."""
         for index,camera in enumerate(self.cameras):
             if camera['selected'].get():
                 self.connect_camera(index)
 
     @action(lambda self, index: f'CAM{index+1:02d} 연결 요청')
     def connect_camera(self, index):
+        """카메라 한 대를 연결한다. CAM01은 connect_cam01로 넘기고, OAK-D는 IP/MX ID 중복을 검사한 뒤 수신기를 시작한다."""
         if self.is_recording:
             return
         if index == 0:
@@ -426,12 +458,16 @@ class SixCameraTab:
 
     @action(lambda self, index: f'CAM{index+1:02d} 연결 해제 요청')
     def disconnect_camera(self, index):
+        """녹화 중이 아니면 해당 카메라 수신기를 닫는다."""
         if not self.is_recording and index in self.extra_sources:
             source = self.extra_sources[index]
             if source.close(timeout=2):
                 del self.extra_sources[index]
 
     def connect_cam01(self):
+        """CAM01을 RGB 전용으로 연결한다. 메인 앱의 녹화·명령·전환이 끝난 상태여야 하며,
+        먼저 인지(AI) 수신을 내려놓은 뒤 RGB 수신기를 시작한다.
+        """
         if not self.owner:
             return
         ip = self.cameras[0]['ip'].get().strip()
@@ -458,6 +494,7 @@ class SixCameraTab:
         source.start()
 
     def release_cam01_for_perception(self):
+        """인지(AI) 연결을 위해 CAM01 RGB 수신기를 내려놓는다. CAM01 녹화 중이거나 준비 중이면 거부한다."""
         source = self.extra_sources.get(0)
         if source is None:
             return True
@@ -473,6 +510,7 @@ class SixCameraTab:
 
     @action('6대 카메라 선택 녹화 시작 요청')
     def start_recording(self):
+        """선택한 카메라들의 연결 상태와 설정을 검사하고 새 세션 폴더로 그룹 녹화를 시작한다."""
         if not self.owner or self.is_recording:
             return
         selected = [i for i,camera in enumerate(self.cameras) if camera['selected'].get()]
@@ -517,10 +555,14 @@ class SixCameraTab:
 
     @action('6대 카메라 녹화 정지 요청')
     def stop_recording(self):
+        """그룹 녹화 정지를 요청한다."""
         if self.group:
             self.group.stop()
 
     def update_preview(self, connected=None, frame=None):
+        """UI 주기 갱신: 미리보기 이미지, 카메라별 연결/녹화 상태 문구, 버튼 활성 상태를 갱신한다.
+        상태가 바뀔 때만 콘솔 로그를 남긴다.
+        """
         if not self.owner:
             return
         self._drain_discovery()
@@ -577,6 +619,7 @@ class SixCameraTab:
             self.save_status.set(('오류: '+self.group.error+' · ' if self.group.error else '')+str(self.group.session))
 
     def _render_preview(self, preview, connected, frame):
+        """프레임을 미리보기 칸 크기에 맞춰 그린다. 연결이 없으면 대기 문구를 보여 준다."""
         if connected and frame is not None and preview.winfo_ismapped():
             image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             image.thumbnail((max(1,min(480,preview.winfo_width())),
@@ -589,12 +632,14 @@ class SixCameraTab:
             preview.image = None
 
     def close(self):
+        """앱 종료 시 그룹 녹화를 멈추고 모든 수신기를 닫는다. 모두 정리됐는지 반환한다."""
         if self.group and not self.group.stop(timeout=6):
             return False
         return all([source.close(timeout=3) for source in self.extra_sources.values()])
 
     @action(lambda self, key: f'6대 카메라 설정 열기 · {key}')
     def show_settings(self, key):
+        """지정한 설정 창을 메인 창 가운데 위쪽에 띄운다."""
         for other in self.windows.values():
             other.withdraw()
         window = self.windows[key]

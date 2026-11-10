@@ -1,4 +1,6 @@
 """Isolated DepthAI 2 worker. Stdout carries framed MJPEG; stderr carries errors."""
+# OAK-D RGB 수신용 독립 워커 프로세스(DepthAI 2 전용).
+# stdout으로 'OAKRGB <헤더 JSON>\n<JPEG 바이트>' 형식 패킷을 보내고, 오류는 stderr로 보낸다.
 import argparse
 import json
 import os
@@ -9,12 +11,14 @@ PACKETS = None
 
 
 def emit(data, sequence, device_time, mxid=''):
+    """JPEG 한 장을 헤더(길이, 시퀀스, 장치 시각, MX ID)와 함께 stdout 패킷으로 보낸다."""
     header = dict(length=len(data), sequence=sequence, device_time_s=device_time, mxid=mxid)
     PACKETS.write(b'OAKRGB '+json.dumps(header).encode()+b'\n'+data)
     PACKETS.flush()
 
 
 def build_pipeline(dai, width, height, fps):
+    """컬러 카메라(1080p→ISP 2/3 축소) → MJPEG 인코더 → XLink 출력 파이프라인을 만든다."""
     pipeline = dai.Pipeline()
     camera = pipeline.create(dai.node.ColorCamera)
     camera.setBoardSocket(dai.CameraBoardSocket.RGB)
@@ -33,8 +37,12 @@ def build_pipeline(dai, width, height, fps):
 
 
 def main():
+    """가상 모드면 카메라별 색 패턴 영상을 만들어 보내고, 실제 모드면 지정한 OAK-D에 접속해 JPEG을 계속 보낸다.
+    5초간 프레임이 없거나 MX ID가 다르면 오류로 종료한다.
+    """
     global PACKETS
     # Native SDK logging must never interleave with binary frame packets.
+    # 원래 stdout은 패킷 전용으로 복제해 두고, 이후 일반 출력은 stderr로 돌린다.
     PACKETS = os.fdopen(os.dup(sys.stdout.fileno()), 'wb', buffering=0)
     os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
     parser = argparse.ArgumentParser()
@@ -54,6 +62,7 @@ def main():
         sequence = 0
         started = time.monotonic()
         while True:
+            # 카메라 번호마다 다른 배경색 + 움직이는 세로선으로 가상 영상을 만든다.
             image = np.full((args.height, args.width, 3), (index*31 % 160, 40, 80), np.uint8)
             x = (sequence*9) % args.width
             cv2.line(image, (x, 0), (x, args.height-1), (255, 255, 255), 3)

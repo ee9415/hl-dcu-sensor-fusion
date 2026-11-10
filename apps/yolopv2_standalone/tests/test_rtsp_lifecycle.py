@@ -10,6 +10,9 @@ import unittest
 
 
 def factory(media_factory=False):
+    """GStreamer 없이 rtsp_server.py의 _H264Feed/_H264MediaFactory 클래스만 떼어 내 가짜 Gst로 실행한다.
+    media_factory=True면 미디어 팩토리, 아니면 단일 피드를 큐 크기 20으로 만든다.
+    """
     tree = ast.parse((Path(__file__).parents[1]/'rtsp_server.py').read_text())
     classes = [n for n in tree.body if isinstance(n, ast.ClassDef)
                and n.name in ('_H264Feed', '_H264MediaFactory')]
@@ -24,6 +27,7 @@ def factory(media_factory=False):
     return namespace['_H264MediaFactory' if media_factory else '_H264Feed'](20)
 
 
+# H.264 NAL 단위 테스트 데이터: SPS(7), PPS(8), IDR(5), P프레임(1)
 SPS = b'\x00\x00\x00\x01\x67sps'
 PPS = b'\x00\x00\x01\x68pps'
 IDR = b'\x00\x00\x01\x65idr'
@@ -32,6 +36,7 @@ PFRAME = b'\x00\x00\x01\x41pframe'
 
 class RtspContinuityTests(unittest.TestCase):
     def test_overlapping_media_have_independent_queues_and_lifetimes(self):
+        """동시에 열린 두 RTSP 미디어는 큐와 수명이 독립적이다. 한쪽이 멈추거나 제거돼도 다른 쪽은 계속 받는다."""
         f = factory(media_factory=True)
         f.send_data(SPS+PPS)
         deliveries = [[], []]
@@ -70,6 +75,7 @@ class RtspContinuityTests(unittest.TestCase):
                     f._remove_feed(item,f._feeds[id(item)])
 
     def test_transient_flushing_can_resume_at_next_idr(self):
+        """일시적 flushing 오류 후에는 다음 IDR 프레임부터 SPS/PPS를 붙여 재개한다."""
         f = factory()
         interrupted = threading.Event()
         received = []
@@ -94,6 +100,7 @@ class RtspContinuityTests(unittest.TestCase):
         self.assertEqual(received, [SPS+PPS+IDR])
 
     def test_prepared_restarts_supply_without_another_need_data(self):
+        """unprepared 후 다시 prepared되면 need-data 신호 없이도 공급을 재개한다."""
         f = factory()
         received = threading.Event()
         def emit(_signal, _buffer):
@@ -107,6 +114,7 @@ class RtspContinuityTests(unittest.TestCase):
         self.assertTrue(received.wait(1))
 
     def test_empty_input_callback_returns_without_waiting_for_unprepared(self):
+        """입력이 비어 있어도 need-data 콜백이 블로킹되지 않아 미디어 종료를 막지 않는다."""
         f = factory()
         callback = threading.Thread(target=f._on_need_data, args=(None, 0, 0), daemon=True)
         callback.start()
@@ -118,6 +126,7 @@ class RtspContinuityTests(unittest.TestCase):
             callback.join(1)
 
     def test_worker_preserves_order_and_obeys_backpressure(self):
+        """전송 순서를 유지하고 enough-data(역압) 신호가 오면 멈췄다가 need-data에 다시 보낸다."""
         f = factory()
         received = []
         def emit(_signal, buffer):
@@ -137,6 +146,7 @@ class RtspContinuityTests(unittest.TestCase):
         f._on_unprepared(None, f._generation)
 
     def test_new_media_discards_backlog_and_waits_for_fresh_idr(self):
+        """새 미디어 연결 시 밀린 데이터를 버리고 새 IDR을 기다린다. 콜백은 현재 generation으로 연결된다."""
         f = factory()
         f.send_data(SPS+PPS+IDR)
         callbacks = []
@@ -153,6 +163,7 @@ class RtspContinuityTests(unittest.TestCase):
         self.assertTrue(all(c[-1] == f._generation for c in callbacks))
 
     def test_decoder_starts_only_with_parameter_sets_and_idr(self):
+        """SPS/PPS와 IDR이 모두 갖춰져야 큐에 넣기 시작한다(디코더가 시작할 수 있는 지점)."""
         f = factory()
         f.send_data(PFRAME)
         f.send_data(IDR)
@@ -166,6 +177,7 @@ class RtspContinuityTests(unittest.TestCase):
         self.assertEqual(f._queue.popleft(), PFRAME)
 
     def test_overflow_drops_entire_broken_gop_then_recovers(self):
+        """큐가 넘치면 깨진 GOP 전체를 버리고 다음 IDR부터 복구한다."""
         f = factory()
         f.send_data(SPS+PPS+IDR)
         for _ in range(40):
@@ -176,6 +188,7 @@ class RtspContinuityTests(unittest.TestCase):
         self.assertEqual(f._queue.popleft(), SPS+PPS+IDR)
 
     def test_old_media_cannot_steal_new_media_frames_or_clear_them(self):
+        """이전 generation 미디어의 콜백은 새 미디어의 큐를 가져가거나 비울 수 없다."""
         f = factory()
         f._generation = 3
         f.send_data(SPS+PPS+IDR)
@@ -188,6 +201,7 @@ class RtspContinuityTests(unittest.TestCase):
         self.assertFalse(f._queue)
 
     def test_shared_media_can_resume_after_unprepared_without_reconfiguration(self):
+        """공유 미디어는 unprepared 후 재설정 없이 같은 source로 다음 IDR부터 재개한다."""
         f = factory()
         received = []
         def emit(_signal, buffer):

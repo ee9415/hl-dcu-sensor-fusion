@@ -10,6 +10,7 @@ import numpy as np
 
 
 class Frame:
+    """depthai ImgFrame/NNData 등을 흉내 내는 가짜 프레임. 1920x1080 RGB/깊이를 0으로 돌려준다."""
     Type = types.SimpleNamespace(NV12=0, BGR888i=1)
 
     def __init__(self):
@@ -44,6 +45,7 @@ class Frame:
 
 class BoundaryPipelineTests(unittest.TestCase):
     def test_temporal_overlay_survives_display_changes_and_resets_on_source_epoch(self):
+        """표시 설정(경계선 숨김, raw_rgb)이 바뀌어도 경계선 추적은 그대로 유지되고, source epoch가 바뀔 때만 초기화된다."""
         class Host:
             def createOutput(self, **kwargs):
                 return MagicMock()
@@ -67,21 +69,31 @@ class BoundaryPipelineTests(unittest.TestCase):
             processor.video_input = MagicMock()
             metadata = dict(input_source='pc',source_epoch=1,processing_mode='full',processing_epoch=0)
             processor.video_input.metadata.return_value = metadata
+            reference = node.Yolopv2Postprocess()
+            reference._tensor = MagicMock()
+            reference.video_input = MagicMock()
+            reference.video_input.metadata.return_value = metadata.copy()
             for i in range(10):
                 frame = Frame();frame.timestamp = timedelta(seconds=10+i*.05);frame.sequence = i
                 processor.process(frame,frame,frame)
-            before = processor._lane_quadratics.left.coefficients.copy()
+                reference.process(frame,frame,frame)
+            # 10프레임 정상 처리 후 왼쪽 2차식을 저장해 둔다.
+            # 미검출 쪽은 간격 보정으로 움직일 수 있다. 표시 설정이 다른
+            # 대조 처리기와 추적 결과가 같아야 한다.
             lane[:,:160] = 0
             metadata.update(boundary_visible=False,lane_overlay_mode='raw_rgb')
             frame.timestamp = timedelta(seconds=10.5)
             processor.process(frame,frame,frame)
             self.assertTrue(processor._lane_quadratics.left.is_virtual)
-            np.testing.assert_allclose(processor._lane_quadratics.left.coefficients,before,atol=1e-7)
+            reference.process(frame,frame,frame)
+            np.testing.assert_allclose(processor._lane_quadratics.left.coefficients,
+                                       reference._lane_quadratics.left.coefficients,atol=1e-7)
             metadata.update(boundary_visible=True,lane_overlay_mode='normal')
             frame.timestamp = timedelta(seconds=10.55)
             processor.process(frame,frame,frame)
             self.assertTrue(processor._lane_quadratics.left.is_virtual)
             self.assertTrue(server.return_value.publish.call_args.args[0]['left_boundary_valid'])
+            # 입력 소스가 바뀌면(epoch 증가) 추적 이력을 버린다.
             metadata['source_epoch'] = 2
             frame.timestamp = timedelta(seconds=10.6)
             processor.process(frame,frame,frame)
@@ -90,12 +102,19 @@ class BoundaryPipelineTests(unittest.TestCase):
 
     def setUp(self):
         # These assertions specify the legacy/off rendering and telemetry.
+        """기본적으로 가상 가이던스를 끈 상태(기존 렌더링/텔레메트리 기준)로 테스트한다."""
         from virtual_guidance import GuidanceConfig
         patcher = patch.object(GuidanceConfig, 'load', return_value=GuidanceConfig(enabled=False))
         patcher.start()
         self.addCleanup(patcher.stop)
 
     def test_guidance_enabled_publishes_separate_path_and_basic_bypasses_it(self):
+        """가이던스를 켜면 기존 중심선과 별도로 경로를 발행한다.
+
+        - 경계선 표시를 꺼도 추적기·경로는 그대로이고 화면에서만 숨긴다.
+        - 미리보기 임계값은 RGB 결과만 바꾸고 인지 마스크/경로에는 영향이 없다.
+        - basic 모드에서는 가이던스 계산 자체를 건너뛴다.
+        """
         from virtual_guidance import GuidanceConfig
         node = sys.modules.get('yolopv2_node')
         if node is None:
@@ -143,6 +162,7 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertFalse(np.any(np.all(hidden==(255,255,0),axis=2)))
             # Preview settings alter the RGB result only, not perception masks
             # or the existing path/trackers. All callbacks use the same input.
+            # 미리보기 임계값 0.2 / 0.9 두 번 처리해서 결과를 비교한다.
             preview_paths=[];mask_frames=[];selected=[]
             processor._tensor=MagicMock(return_value=np.full((1,1,320,320),.7,np.float32))
             for threshold in (.2,.9):
@@ -166,6 +186,13 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertEqual(server.return_value.publish.call_args.args[0]['guidance_reason'],'basic_mode')
 
     def test_result_bev_and_telemetry_use_boundary_pair(self):
+        """결과 영상, BEV, 텔레메트리가 같은 경계선 쌍을 사용하는지 통합 확인한다.
+
+        - 윤곽 표시/경계선 숨김 조합별 그리기 색상
+        - 한쪽 차선만 있을 때 반대쪽을 만들어 내지 않음
+        - PC 입력이면 깊이 거리를 쓰지 않고 추적을 초기화
+        - basic 모드는 무거운 알고리즘을 아예 실행하지 않음
+        """
         class Host:
             def createOutput(self, **kwargs):
                 return MagicMock()
@@ -232,6 +259,7 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertFalse(np.any(np.all(contour_only==(255,0,255),axis=2)))
             self.assertFalse(np.any(np.all(contour_only==(255,255,0),axis=2)))
             self.assertIs(processor._boundary_tracker,tracker)
+            # lane 마스크가 비어 있으면(RGB만 있음) 경계선 쌍은 유효하지 않다.
             processor.video_input=None
             with patch.object(node,'segmentation_masks',return_value=(road,np.zeros_like(lane))):
                 rgb_only=node.Yolopv2Postprocess()

@@ -27,7 +27,7 @@ def overlay_contour_skeleton(frame,result):
 def overlay_lane_quadratics(frame,selected,mask_shape,projection=None,valid=None):
     """Magenta polynomial fits, distinct from measured cyan skeleton pixels.
 
-    Observed fits are solid magenta; explicitly virtual fits are dashed yellow.
+    Observed fits are solid magenta; explicitly virtual fits are dashed magenta.
     A TOP homography maps canvas to mask; use its inverse for these vectors.
     """
     import cv2
@@ -60,7 +60,7 @@ def overlay_lane_quadratics(frame,selected,mask_shape,projection=None,valid=None
             visible,start,end=cv2.clipLine((0,0,w,h),tuple(a),tuple(b))
             if visible:
                 if not fit.is_virtual:
-                    cv2.line(frame,start,end,(255,0,255),3)
+                    cv2.line(frame,start,end,(255,0,255),5)
                 else:
                     start=np.asarray(start,dtype=float)
                     end=np.asarray(end,dtype=float)
@@ -69,7 +69,7 @@ def overlay_lane_quadratics(frame,selected,mask_shape,projection=None,valid=None
                         for distance in np.arange(0,length+.01,.75):
                             if int((dash_distance+distance)//10)%2==0:
                                 point=np.rint(start+(end-start)*(distance/length)).astype(int)
-                                cv2.circle(frame,tuple(point),1,(0,255,255),-1)
+                                cv2.circle(frame,tuple(point),2,(255,0,255),-1)
                         dash_distance+=length
     if valid is not None:
         frame[~valid]=0
@@ -77,17 +77,18 @@ def overlay_lane_quadratics(frame,selected,mask_shape,projection=None,valid=None
 
 
 def overlay_tracked_skeleton(frame, estimate, mask_shape, projection=None, valid=None):
-    """Draw the retained tracker samples directly, without a quadratic refit.
+    """Draw one quadratic per side, preserving measured/remembered dash flags.
 
-    Current supported skeleton segments are magenta; remembered/deformed ones
-    are dashed yellow. The same 320x180 samples are exported in telemetry.
+    Display samples and coefficients share the telemetry geometry. Raw tracker
+    skeleton points remain available separately for perception diagnostics.
     """
     import cv2
     h,w = frame.shape[:2]
     matrix = (np.diag([w/320.,h/180.,1.]) if projection is None else
               np.linalg.inv(projection) @ np.diag([mask_shape[1]/320.,mask_shape[0]/180.,1.]))
     for side in ('left','right'):
-        points = getattr(estimate,'image_'+side)
+        from image_boundaries import quadratic_display
+        points,_ = quadratic_display(getattr(estimate,'image_'+side),getattr(estimate,side+'_support'))
         if len(points) < 2:
             continue
         mapped = np.column_stack((points,np.ones(len(points)))) @ matrix.T
@@ -107,7 +108,7 @@ def overlay_tracked_skeleton(frame, estimate, mask_shape, projection=None, valid
             if not visible:
                 continue
             if measured and supported[i] and supported[i+1]:
-                cv2.line(frame,start,end,(255,0,255),3)
+                cv2.line(frame,start,end,(255,0,255),5)
                 continue
             start,end = np.asarray(start,float),np.asarray(end,float)
             length = float(np.linalg.norm(end-start))
@@ -116,7 +117,7 @@ def overlay_tracked_skeleton(frame, estimate, mask_shape, projection=None, valid
             for offset in np.arange(0.,length+.01,.75):
                 if int((distance+offset)//10)%2 == 0:
                     point = np.rint(start+(end-start)*min(1.,offset/length)).astype(int)
-                    cv2.circle(frame,tuple(point),1,(0,255,255),-1)
+                    cv2.circle(frame,tuple(point),2,(255,0,255),-1)
             distance += length
     if valid is not None:
         frame[~valid] = 0

@@ -1,3 +1,7 @@
+"""lane_boundaries.BoundaryTracker(BEV 평면의 고정 폭 2차식 경계선 쌍) 테스트.
+
+경계선 시작점은 차량 폭+여유로 고정되고, 좌우 간격은 항상 설정된 폭(허용 오차 내)을 유지해야 한다.
+"""
 import json
 import unittest
 import numpy as np
@@ -7,11 +11,13 @@ from lane_boundaries import (BoundaryConfig, BoundaryTracker, draw_boundaries,
 
 class BoundaryTests(unittest.TestCase):
     def setUp(self):
+        """BEV 격자(전방 0~25m 81칸, 좌우 -6~6m 241칸)와 기본 추적기를 준비한다."""
         self.forward=np.linspace(0,25,81)
         self.lateral=np.linspace(-6,6,241)
         self.tracker=BoundaryTracker()
 
     def masks(self,left=-5.,right=5.,markings=False):
+        """좌우 경계(left/right, m) 사이를 도로로 채운 마스크를 만든다. markings=True면 경계에 차선 페인트도 그린다."""
         left=np.broadcast_to(left,(81,))
         right=np.broadcast_to(right,(81,))
         x=self.lateral[None,:]
@@ -23,9 +29,17 @@ class BoundaryTests(unittest.TestCase):
         return road,lane
 
     def update(self,masks,t=0):
+        """(road, lane) 마스크로 BEV 추적기를 한 프레임 갱신한다."""
         return self.tracker.update_bev(self.forward,self.lateral,*masks,t)
 
     def assert_geometry(self,result):
+        """경계선 쌍의 불변 조건을 확인한다.
+
+        - 시작점(전방 0m)은 차량 폭/2 + 좌우 여유로 고정
+        - 점과 계수가 일치
+        - 한쪽 선 위 각 점에서 반대쪽 선까지의 최단 거리가 설정 폭 ± 허용 오차
+        - 텔레메트리가 엄격한 JSON으로 직렬화됨
+        """
         c=self.tracker.config
         self.assertTrue(result.pair_valid)
         self.assertEqual(result.forward[0],0.)
@@ -46,6 +60,7 @@ class BoundaryTests(unittest.TestCase):
         json.dumps(result.telemetry(c),allow_nan=False)
 
     def test_initial_empty_input_still_has_fixed_quadratic_pair(self):
+        """입력이 비어 있어도 고정 폭의 기본 쌍을 held 상태로 제공하고, 통과 가능 여부는 미정(None)이다."""
         empty=np.zeros((81,241),bool)
         result=self.update((empty,empty))
         self.assert_geometry(result)
@@ -54,6 +69,7 @@ class BoundaryTests(unittest.TestCase):
         self.assertIsNone(result.telemetry(self.tracker.config)['clearance_sufficient'])
 
     def test_settings_control_anchors_and_normal_width(self):
+        """차량 폭/여유 설정이 시작점 간격에 반영되고, 잘못된 설정값은 거부한다."""
         self.tracker=BoundaryTracker(BoundaryConfig(vehicle_width_m=2.,left_margin_m=.2,right_margin_m=.6))
         result=self.update(self.masks())
         self.assert_geometry(result)
@@ -63,6 +79,7 @@ class BoundaryTests(unittest.TestCase):
             with self.assertRaises(ValueError): BoundaryConfig(**kw)
 
     def test_road_widening_and_paint_never_expand_width(self):
+        """도로가 넓어지거나 페인트가 바깥에 있어도 경계선 폭은 늘어나지 않는다."""
         first=self.update(self.masks(-1.5,1.5,True))
         for n in range(1,8):
             result=self.update(self.masks(-5,5,True),n*.1)
@@ -71,6 +88,7 @@ class BoundaryTests(unittest.TestCase):
             np.testing.assert_allclose(result.right,first.right)
 
     def test_seek_wider_side_with_fixed_start_and_smooth_return(self):
+        """굽은 도로에서 넓은 쪽으로 서서히 휘어지되 시작점은 고정되고 프레임당 변화는 0.1m 이내다. 직선 도로로 돌아오면 다시 복귀한다."""
         for sign in (-1,1):
             self.tracker=BoundaryTracker()
             shift=sign*.004*self.forward**2
@@ -91,12 +109,14 @@ class BoundaryTests(unittest.TestCase):
             self.assert_geometry(result)
 
     def test_narrow_road_reports_blocked_without_shrinking(self):
+        """도로가 차량보다 좁으면 폭을 줄이지 않고 통과 불가로 보고한다."""
         result=self.update(self.masks(-.6,.6))
         self.assert_geometry(result)
         self.assertFalse(result.corridor_feasible)
         self.assertEqual(result.state,'held')
 
     def test_missing_road_and_time_errors_do_not_erase_pair(self):
+        """도로가 사라지거나 타임스탬프가 이상해도(NaN, 역행) 기존 쌍을 지우지 않는다."""
         first=self.update(self.masks())
         empty=np.zeros((81,241),bool)
         for timestamp in (60.,120.,float('nan'),119.,120.):
@@ -106,6 +126,7 @@ class BoundaryTests(unittest.TestCase):
             np.testing.assert_allclose(result.right,first.right)
 
     def test_all_search_candidates_meet_normal_width_tolerance(self):
+        """탐색 후보(곡률, 진행 방향) 모두 폭 조건을 만족한다."""
         self.assertGreater(len(self.tracker.candidates),5)
         for (value,heading),geometry in self.tracker.candidates:
             self.tracker.curvature=value
@@ -114,11 +135,13 @@ class BoundaryTests(unittest.TestCase):
             self.assert_geometry(result)
 
     def test_one_painted_edge_does_not_hide_virtual_opposite(self):
+        """한쪽에만 페인트가 있어도 반대쪽 경계선은 사라지지 않는다."""
         road,lane=self.masks(-2,2,True)
         lane[:,self.lateral>0]=False
         self.assert_geometry(self.update((road,lane)))
 
     def test_confidence_current_history_then_opposite_priority(self):
+        """상태 우선순위: 현재 관측 → 이력(held) → 반대쪽 기반 추정(inferred). 둘 다 없으면 위치를 그대로 유지한다."""
         self.tracker=BoundaryTracker(BoundaryConfig.load())
         road,lane=self.masks(-1.05,1.05,True)
         left_only=lane.copy();left_only[:,self.lateral>0]=False
@@ -136,6 +159,7 @@ class BoundaryTests(unittest.TestCase):
         np.testing.assert_array_equal(result.right,previous.right)
 
     def test_either_single_side_drives_pair_and_missing_both_holds(self):
+        """좌/우 어느 한쪽만으로도 쌍 전체를 이끌 수 있고, 둘 다 없으면 유지한다. 오래 끊긴 뒤 다시 나타나도 dt 상한 덕분에 튀지 않는다."""
         for side in (0,1):
             self.tracker=BoundaryTracker(BoundaryConfig.load())
             target=self.tracker._geometry(-.004,.1)
@@ -162,6 +186,7 @@ class BoundaryTests(unittest.TestCase):
             self.assert_geometry(restored)
 
     def test_width_reduction_changes_image_width_without_rescaling_camera(self):
+        """여유 폭을 줄이면 영상 투영 행렬은 그대로이고 영상 속 경계선 간격만 비례해서 줄어든다."""
         from lane_boundaries import boundary_points
         wide=BoundaryConfig()
         narrow=BoundaryConfig(left_margin_m=.15,right_margin_m=.15)
@@ -176,6 +201,7 @@ class BoundaryTests(unittest.TestCase):
         self.assertAlmostEqual(widths[1]/widths[0],2.1/2.4)
 
     def test_paint_disappears_and_returns_without_jump_at_narrow_width(self):
+        """페인트가 사라졌다 다시 나타나도 경계선이 튀지 않는다."""
         self.tracker=BoundaryTracker(BoundaryConfig.load())
         target=self.tracker._geometry(.004,-.1)
         road,lane=self.masks()
@@ -192,6 +218,7 @@ class BoundaryTests(unittest.TestCase):
             previous=result
 
     def test_coarse_search_local_tracking_and_periodic_reacquisition(self):
+        """첫 프레임은 전체 후보를 탐색하고, 이후에는 주변만 탐색하다가 주기적으로 또는 크게 바뀌면 전체 재탐색한다."""
         self.assertLess(len(self.tracker.candidates),60)
         self.update(self.masks(-1.2,1.2,True),0)
         full=self.tracker.last_candidate_count
@@ -204,6 +231,7 @@ class BoundaryTests(unittest.TestCase):
         self.assertEqual(self.tracker.last_candidate_count,full)
 
     def test_batched_stroke_matches_original_raster(self):
+        """일괄 처리한 draw_polyline이 기존 점 단위 그리기와 픽셀 단위로 같다(실선/점선)."""
         from lane_boundaries import draw_polyline
         points=np.array([[-5.,3.],[15.5,27.2],[40.,10.],[85.,70.]])
         for dashed in (False,True):
@@ -222,6 +250,7 @@ class BoundaryTests(unittest.TestCase):
             np.testing.assert_array_equal(actual,expected)
 
     def test_heading_follows_paint_in_broad_road_without_moving_anchors(self):
+        """넓은 도로에서는 시작점을 고정한 채 진행 방향만 페인트를 따라간다."""
         target=self.tracker._geometry(-.002,.15)
         road,lane=self.masks()
         for edge in target[:2]:
@@ -233,6 +262,7 @@ class BoundaryTests(unittest.TestCase):
         self.assertLess(np.mean(abs(result.left-target[0])),np.mean(abs(first.left-target[0])))
 
     def test_fixed_image_anchors_and_continuous_lines_when_blocked(self):
+        """통과 불가 상태에서도 영상 속 시작점 위치는 고정이고, BEV에는 좌우 경계선이 끊김 없이 그려진다."""
         from lane_boundaries import boundary_points
         result=self.update(self.masks(-.6,.6))
         h,w=180,320
@@ -247,12 +277,14 @@ class BoundaryTests(unittest.TestCase):
             self.assertTrue(np.all(image[points[:,1],points[:,0]]==color))
 
     def test_unobserved_forward_range_is_not_reported_feasible(self):
+        """전방 일부만 관측됐으면 통과 가능으로 보고하지 않는다."""
         road,lane=self.masks()
         result=self.tracker.update_bev(self.forward[:30],self.lateral,road[:30],lane[:30],0)
         self.assert_geometry(result)
         self.assertFalse(result.corridor_feasible)
 
     def test_mask_projection_render_and_json(self):
+        """영상 마스크 → BEV 투영, BEV/RGB 렌더링, 텔레메트리 JSON 전체 경로를 확인한다. 차량 축에 중앙선은 그리지 않는다."""
         h, w = 180, 320
         projection = projection_for((h, w))
         source = np.array([[.12*(w-1), .98*(h-1)], [.54*(w-1), .60*(h-1)]])
@@ -281,6 +313,7 @@ class BoundaryTests(unittest.TestCase):
         json.dumps(payload, allow_nan=False)
 
     def test_white_paint_refinement_rejects_green_and_matches_stripe(self):
+        """NN 차선 영역 안에서도 흰색 페인트만 근거로 쓰고 녹색 등은 제외한다."""
         rgb=np.full((180,320,3),60,np.uint8)
         rgb[:,90:93]=230
         rgb[:,240:243]=(40,180,40)
@@ -293,6 +326,7 @@ class BoundaryTests(unittest.TestCase):
         self.assertFalse(np.any(paint[:,:85]))
 
     def test_rgb_detects_paint_without_nn_and_rejects_broad_bright_edge(self):
+        """NN 마스크 없이도 RGB만으로 가는 페인트를 찾고, 넓은 밝은 영역은 제외한다."""
         rgb=np.full((180,320,3),60,np.uint8)
         rgb[:,90:93]=220
         rgb[:,180:240]=230

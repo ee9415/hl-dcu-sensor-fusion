@@ -24,6 +24,7 @@ spec.loader.exec_module(rgb_app)
 
 class RawModeTests(unittest.TestCase):
     def test_rgb_connection_starts_installed_app_only(self):
+        """RGB 연결은 설치된 RGB 전용 앱만 시작하고 준비 완료를 기다린다."""
         stop = threading.Event()
         with (patch.object(raw.oak_app_control, 'start_installed', return_value='installed-rgb') as start,
               patch.object(raw, 'wait_rgb_ready') as wait):
@@ -32,6 +33,7 @@ class RawModeTests(unittest.TestCase):
             wait.assert_called_once()
 
     def test_cancelled_rgb_connection_never_starts_an_app(self):
+        """이미 취소된 연결 요청은 앱을 시작하지 않는다."""
         stop = threading.Event()
         stop.set()
         with patch.object(raw.oak_app_control, 'start_installed') as start:
@@ -40,6 +42,7 @@ class RawModeTests(unittest.TestCase):
 
 
     def test_running_without_frames_still_times_out(self):
+        """앱이 running이어도 프레임이 오지 않으면 결국 타임아웃 오류가 난다."""
         clock = [0.]
         stop = Mock()
         stop.is_set.return_value = False
@@ -55,6 +58,7 @@ class RawModeTests(unittest.TestCase):
 
 
     def test_building_status_is_explicitly_available_to_rgb_connection(self):
+        """allow_preparing을 켜면 building 상태를 preparing으로 보고한다."""
         payload = [dict(identifier=raw.IDENTIFIER, app_id='rgb', status='building')]
         with patch.object(raw.oak_app_control, 'command', return_value=json.dumps(payload)):
             result = raw.oak_app_control.status('cli', 'ip', identifier=raw.IDENTIFIER,
@@ -62,6 +66,7 @@ class RawModeTests(unittest.TestCase):
             self.assertEqual(result['state'], 'preparing')
 
     def test_status_distinguishes_ai_and_rgb_apps(self):
+        """AI 앱과 RGB 앱 상태를 identifier로 구분해서 조회한다."""
         payload = [dict(identifier=raw.oak_app_control.IDENTIFIER, app_id='ai', status='stopped'),
                    dict(identifier=raw.IDENTIFIER, app_id='rgb', status='running')]
         with patch.object(raw.oak_app_control, 'command', return_value=json.dumps(payload)):
@@ -69,6 +74,7 @@ class RawModeTests(unittest.TestCase):
             self.assertEqual(raw.oak_app_control.status('cli', 'ip', identifier=raw.IDENTIFIER)['app_id'], 'rgb')
 
     def test_pipeline_creates_only_camera_and_encoder(self):
+        """RGB 전용 파이프라인은 카메라와 인코더 노드만 만들고(30fps, 큐 4 blocking), AI 노드는 없다."""
         dai = Mock()
         pipeline, queue = rgb_app.build_pipeline(dai, object())
         self.assertEqual([call.args[0] for call in pipeline.create.call_args_list],
@@ -79,6 +85,7 @@ class RawModeTests(unittest.TestCase):
                          dict(maxSize=4, blocking=True))
 
     def test_live_status_marks_stalled_camera_unhealthy(self):
+        """마지막 프레임 이후 일정 시간(여기선 4초)이 지나면 /status가 ok=false로 바뀐다."""
         state = dict(mode='rgb_only', source='camera', ai_enabled=False,
                      source_epoch='epoch', mxid='cam01', frames=1, last_frame_at=time.monotonic())
         lock = threading.Lock()
@@ -96,6 +103,7 @@ class RawModeTests(unittest.TestCase):
             server.server_close()
 
     def test_ai_service_or_wrong_camera_cannot_be_used_as_raw_input(self):
+        """AI 모드, PC 입력, 다른 카메라(mxid), epoch 없음 등 조건이 하나라도 다르면 RGB 원본 입력으로 쓰지 않는다."""
         good = dict(ok=True, mode='rgb_only', source='camera', ai_enabled=False,
                     source_epoch='epoch', mxid='cam01')
         for change in (dict(mode='full'), dict(ai_enabled=True), dict(source='pc'),
@@ -109,6 +117,7 @@ class RawModeTests(unittest.TestCase):
 
 
     def test_recording_blocks_return_to_ai(self):
+        """CAM01 녹화 중에는 AI 모드로 돌아갈 수 없고 RGB 소스도 닫지 않는다."""
         tab = object.__new__(SixCameraTab)
         tab.extra_sources = {0: Mock()}
         tab.recorder = Mock(active=True)
@@ -118,6 +127,7 @@ class RawModeTests(unittest.TestCase):
 
     def test_cam01_preview_never_uses_perception_rgb(self):
         # No CAM01 receiver: even a connected AI frame must not enable raw recording.
+        """CAM01 미리보기·녹화에는 AI(인지) 경로의 RGB 프레임을 쓰지 않는다."""
         tab = object.__new__(SixCameraTab)
         tab.owner = Mock()
         tab._drain_discovery = Mock()
@@ -138,6 +148,7 @@ class RawModeTests(unittest.TestCase):
         self.assertEqual(tab.start_button.configure.call_args.kwargs['state'], 'disabled')
 
     def test_six_virtual_workers_record_and_report_rates(self):
+        """가상 카메라 6대를 10fps로 함께 녹화하고, 세션별 검증 결과와 수신/저장 FPS를 기록한다."""
         sources = [OakdRgbSource(f'CAM{i:02d}', virtual=True, width=160, height=96, fps=15)
                    for i in range(1, 7)]
         group = None
