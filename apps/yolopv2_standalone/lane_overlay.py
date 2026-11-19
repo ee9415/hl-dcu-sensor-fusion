@@ -150,13 +150,16 @@ class TopViewRenderer:
         self.horizontal_scale = float(horizontal_scale)
         self.key = None
 
-    def render(self, rgb, lane, projection, mode='normal', threshold=.5, scores=None):
+    def display_projection(self, projection):
         # Existing projection maps BEV -> native mask. The horizontal display
         # scale controls zoom; lower values show more road on both sides.
         scale=self.horizontal_scale
         expand = np.array([[1/scale, 0, 319.5*(1-1/scale)],
                            [0, 479/self.near_row, 0], [0, 0, 1.]])
-        self.projection = np.asarray(projection) @ expand
+        return np.asarray(projection) @ expand
+
+    def render(self, rgb, lane, projection, mode='normal', threshold=.5, scores=None):
+        self.projection = self.display_projection(projection)
         key = (rgb.shape, lane.shape, self.projection.tobytes())
         if key != self.key:
             yy, xx = np.indices((480, 640))

@@ -268,6 +268,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._guidance = VirtualGuidance(GuidanceConfig.load())
         self._guidance_estimate = GuidanceEstimate()
         self._boundary_visible = True
+        self._guidance_visible = True
         self._contour_visible = False
         self._lane_overlay_mode = 'normal'
         self._lane_overlay_threshold = .5
@@ -481,6 +482,8 @@ class Yolopv2Postprocess(dai.node.HostNode):
                     overlay_tracked_skeleton(rendered,boundaries,contours.directional_mask.shape)
                 else:
                     overlay_lane_quadratics(rendered,self._lane_quadratics,contours.directional_mask.shape)
+            if full and self._guidance_visible:
+                draw_guidance(rendered,self._guidance_estimate,show_boundaries=False)
             media=getattr(self,'_render_media_time',None)
             label=(f'{media:.1f}S ' if media is not None else 'CAMERA ')
             label+=f'LEFT {boundaries.left_state} RIGHT {boundaries.right_state}' if full else 'BASIC'
@@ -521,6 +524,7 @@ class Yolopv2Postprocess(dai.node.HostNode):
             self._skeleton_speed=speed
         processing_mode=source.get('processing_mode','full')
         self._boundary_visible=source.get('boundary_visible',True)
+        self._guidance_visible=source.get('guidance_visible',True)
         self._contour_visible=source.get('contour_visible',False)
         self._render_media_time=source.get('source_media_time_s')
         self._lane_overlay_mode=source.get('lane_overlay_mode','normal')
@@ -624,6 +628,9 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 self._lane_scores=crop_lane_scores(self._tensor(nn_data,self.TENSOR_NAMES[4]),lane.shape,self.model_size)
             except ValueError as exc:
                 self._lane_preview_error=str(exc)
+        from top_view_controls import top_view_config
+        top_projection = projection_for(lane.shape, top_view_config(self._top_config,
+            source.get('top_view_spread',0.),source.get('top_view_ahead',0.)))
         if processing_mode=='full':
             boundaries = self._boundary_tracker.update_contours(
                 self._lane_contour_result, lane.shape, nn_data.getTimestamp().total_seconds(),
@@ -634,8 +641,10 @@ class Yolopv2Postprocess(dai.node.HostNode):
             stop_line=self._stop_line_tracker.update(preview.getCvFrame(),boundaries,
                              nn_data.getTimestamp().total_seconds(),detection_messages)
             stop_finished=time.monotonic()
-            self._guidance_estimate = self._guidance.update(
-                drivable, boundaries, nn_data.getTimestamp().total_seconds())
+            from top_midpoint_guidance import displayed_midpoint_guidance
+            self._guidance_estimate=displayed_midpoint_guidance(boundaries,
+                self._top_view.display_projection(top_projection),self._guidance.config,
+                near_row=self._top_view.near_row)
         else:
             empty=np.empty((0,2),float)
             boundaries=ImageBoundaryEstimate(empty,empty,np.eye(3),'disabled','disabled',0.,0.,0.,
@@ -649,7 +658,6 @@ class Yolopv2Postprocess(dai.node.HostNode):
                 add_virtual_side(select_ego_quadratics(self._lane_contour_result,lane.shape),
                                  self._lane_contour_result,lane.shape), self._lane_contour_result,lane.shape)
         # TOP video remains available in basic mode; no boundary tracking needed.
-        top_projection = projection_for(lane.shape, self._top_config)
         bev = self._top_view.render(preview.getCvFrame(), lane, top_projection, 'raw_rgb')
         if self._contour_visible and self._lane_overlay_mode != 'raw_rgb':
             self._top_view.overlay_lane_groups(bev,self._lane_contour_result)
@@ -662,12 +670,19 @@ class Yolopv2Postprocess(dai.node.HostNode):
             else:
                 overlay_lane_quadratics(bev,self._lane_quadratics,lane.shape,
                                         self._top_view.projection,self._top_view.valid)
+        if processing_mode == 'full' and self._guidance_visible and self._lane_overlay_mode != 'raw_rgb':
+            draw_guidance(bev,self._guidance_estimate,projection=self._top_view.projection,show_boundaries=False)
         bev[~self._top_view.valid] = 0
         media=source.get('source_media_time_s')
         label=(f'{media:.1f}S ' if media is not None else 'CAMERA ')
         label+=f'LEFT {boundaries.left_state} RIGHT {boundaries.right_state}'
         self._draw_text(bev,label.upper(),10,10,(0,220,255))
         self._draw_text(bev,'PINK SOLID MEASURED  DASHED GUIDED',10,30,(0,220,255))
+        if (self._guidance_visible and processing_mode == 'full' and self._lane_overlay_mode != 'raw_rgb'
+                and self._guidance_estimate.visible_path is not None):
+            state=('CURRENT' if self._guidance_estimate.valid else 'ESTIMATED'
+                   if self._guidance_estimate.visible_path is not None else 'UNAVAILABLE')
+            self._draw_text(bev,'CYAN FOLLOW '+state,10,50,(255,255,0))
         bev_finished = time.monotonic()
         capture_s = preview.getTimestamp().total_seconds()
         capture_wall = time.time() - (dai.Clock.now().total_seconds() - capture_s)
@@ -693,6 +708,9 @@ class Yolopv2Postprocess(dai.node.HostNode):
             'capture_monotonic_est_s': capture_mono,
             # Legacy columns remain empty/disabled for older CSV consumers.
             'centerline_valid': False,
+            'guidance_visible': self._guidance_visible,
+            'guidance_path_rendered': bool(self._guidance_visible and processing_mode=='full'
+                and self._lane_overlay_mode!='raw_rgb' and self._guidance_estimate.visible_path is not None),
             'tracking_state': 'disabled',
             'coefficients': None,
             'turn_mode': 'disabled',

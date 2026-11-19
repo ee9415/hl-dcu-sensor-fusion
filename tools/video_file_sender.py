@@ -44,6 +44,32 @@ def select_camera(ip, port=PORT):
         return response
 
 
+def set_guidance_display(ip, visible, port=PORT):
+    """Toggle central path rendering independently of perception and boundaries."""
+    if type(visible) is not bool:raise ValueError('Guidance visible must be boolean')
+    with socket.create_connection((ip,port),timeout=3) as connection:
+        connection.settimeout(3)
+        send_message(connection,dict(op='guidance_display',visible=visible))
+        with connection.makefile('rb') as stream:response,_=read_message(stream)
+        if not response.get('ok') or response.get('guidance_visible') is not visible:
+            raise RuntimeError(response.get('error','카메라 중앙 추종선 표시 지원 코드를 업데이트하세요'))
+        return response
+
+
+def set_top_view(ip, spread, ahead, port=PORT):
+    """Apply display-only TOP settings, checking the remote acknowledgement."""
+    from top_view_controls import validate_top_view
+    spread,ahead=validate_top_view(spread,ahead)
+    with socket.create_connection((ip,port),timeout=3) as connection:
+        connection.settimeout(3)
+        send_message(connection,dict(op='top_view',spread=spread,ahead=ahead))
+        with connection.makefile('rb') as stream:response,_=read_message(stream)
+        if (not response.get('ok') or response.get('top_view_spread')!=spread
+                or response.get('top_view_ahead')!=ahead):
+            raise RuntimeError(response.get('error','카메라 TOP 조절 지원 코드를 먼저 업데이트하세요'))
+        return response
+
+
 def set_skeleton_response_speed(ip, speed, port=PORT):
     """경계선 skeleton 추종 속도 배율을 실시간으로 바꾼다."""
     from skeleton_response import validate_speed

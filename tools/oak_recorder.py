@@ -40,6 +40,9 @@ import settings_store
 from console_log import action, event as log_event, state_event, register_secret, install_dialog_logging, progress_task
 from video_file_sender import VideoFileSender, select_camera, parse_video_time, set_processing_mode, set_boundary_display, set_contour_display, set_lane_overlay, set_skeleton_response_speed
 from skeleton_response import validate_speed
+from top_view_controls import validate_top_view
+from video_file_sender import set_top_view
+from video_file_sender import set_guidance_display
 from video_file_sender import prepare_preview
 
 RESAMPLE_LANCZOS = getattr(Image, "Resampling", Image).LANCZOS
@@ -348,10 +351,14 @@ class RecorderApp:
         self.confirmed_full_processing = True
         self.boundary_display_pending = False
         self.confirmed_boundary_visible = True
+        self.confirmed_guidance_visible = True
+        self.guidance_display_pending = False
         self.contour_display_pending = False
         self.confirmed_contour_visible = False
         self.skeleton_speed_pending = False
         self.confirmed_skeleton_speed = 1.0
+        self.confirmed_top_view = (0.,0.)
+        self.top_view_pending = False
         self.lane_preview_pending = False
         self.confirmed_lane_preview = ('normal',.5)
         self.source_closing = threading.Event()
@@ -778,6 +785,40 @@ class RecorderApp:
         self.skeleton_speed_status=tk.StringVar(value='0.5배 느리게 ↔ 3.0배 빠르게 · 1.0배 현재 기준 · full 모드')
         ttk.Label(panel,textvariable=self.skeleton_speed_status,style='App.TLabel').grid(
             row=10,column=0,columnspan=7,sticky='w')
+        self.guidance_visible=tk.BooleanVar(value=True)
+        self.guidance_display_check=ttk.Checkbutton(panel,text='중앙 추종선 표시 (청록색)',
+            variable=self.guidance_visible,command=self._apply_guidance_display,style='App.TCheckbutton')
+        self.guidance_display_check.grid(row=11,column=0,columnspan=3,sticky='w',pady=(8,0))
+        self.guidance_display_status=tk.StringVar(value='실선: 현재 경로 / 점선: 추정 경로 · 전체 후처리에서 표시')
+        ttk.Label(panel,textvariable=self.guidance_display_status,style='App.TLabel').grid(
+            row=12,column=0,columnspan=7,sticky='w')
+        top_controls=ttk.LabelFrame(panel,text='TOP 뷰 원근 조절',style='Control.TLabelframe',padding=8)
+        top_controls.grid(row=13,column=0,columnspan=7,sticky='ew',pady=(10,0))
+        self.top_view_spread=tk.DoubleVar(value=0.)
+        self.top_view_ahead=tk.DoubleVar(value=0.)
+        self.top_view_widgets=[]
+        for row,(label,var,lo,hi,hint) in enumerate((
+                ('상단 벌어짐 보정',self.top_view_spread,-30,100,'넓게 ← 0: 기존 → 좁게'),
+                ('앞쪽 도로 포함 범위',self.top_view_ahead,0,100,'0: 기존 ← → 100: 더 먼 도로'))):
+            ttk.Label(top_controls,text=label,style='App.TLabel').grid(row=row,column=0,sticky='w',pady=4)
+            scale=ttk.Scale(top_controls,from_=lo,to=hi,variable=var,length=230)
+            scale.grid(row=row,column=1,padx=8)
+            scale.bind('<ButtonRelease-1>',self._apply_top_view)
+            scale.bind('<KeyRelease>',self._apply_top_view)
+            spin=ttk.Spinbox(top_controls,from_=lo,to=hi,increment=1,textvariable=var,width=6,
+                format='%.0f',command=self._apply_top_view)
+            spin.grid(row=row,column=2)
+            spin.bind('<Return>',self._apply_top_view)
+            ttk.Label(top_controls,text=hint,style='App.TLabel').grid(row=row,column=3,padx=8,sticky='w')
+            self.top_view_widgets.extend((scale,spin))
+        self.top_view_apply=ttk.Button(top_controls,text='적용·저장',command=self._apply_top_view)
+        self.top_view_apply.grid(row=2,column=1,sticky='e',pady=6)
+        self.top_view_reset=ttk.Button(top_controls,text='기본값 복원',command=self._reset_top_view)
+        self.top_view_reset.grid(row=2,column=2,columnspan=2,sticky='w',padx=8)
+        self.top_view_widgets.extend((self.top_view_apply,self.top_view_reset))
+        self.top_view_status=tk.StringVar(value='연결 없이 저장 가능 · 조절 후 놓으면 적용 · 영상 연결 시 저장값 전송')
+        ttk.Label(top_controls,textvariable=self.top_view_status,style='App.TLabel').grid(
+            row=3,column=0,columnspan=4,sticky='w')
         progress = ttk.LabelFrame(controls, text='영상 재생',
                                   style='Control.TLabelframe', padding=8)
         progress.grid(row=0,column=0,sticky='ew',pady=(4,0))
@@ -844,8 +885,10 @@ class RecorderApp:
             data=settings_store.preferences(dict(
                 display=dict(full_processing=self.confirmed_full_processing,
                     boundary_visible=self.confirmed_boundary_visible,
+                    guidance_visible=self.confirmed_guidance_visible,
                     contour_visible=self.confirmed_contour_visible,
                     skeleton_speed=self.confirmed_skeleton_speed,
+                    top_view_spread=self.confirmed_top_view[0],top_view_ahead=self.confirmed_top_view[1],
                     lane_mode=self.confirmed_lane_preview[0],threshold=self.confirmed_lane_preview[1]),
                 selected={key:var.get() for key,var in self.selected.items()},
                 recording={key:getattr(six,key).get() for key in
@@ -866,10 +909,15 @@ class RecorderApp:
             self.full_processing.set(display['full_processing'])
             self.confirmed_boundary_visible=display['boundary_visible']
             self.boundary_visible.set(display['boundary_visible'])
+            self.confirmed_guidance_visible=display.get('guidance_visible',True)
+            self.guidance_visible.set(self.confirmed_guidance_visible)
             self.confirmed_contour_visible=display.get('contour_visible',False)
             self.contour_visible.set(self.confirmed_contour_visible)
             self.confirmed_skeleton_speed=display.get('skeleton_speed',1.0)
             self.skeleton_speed.set(self.confirmed_skeleton_speed)
+            self.confirmed_top_view=validate_top_view(display.get('top_view_spread',0.),display.get('top_view_ahead',0.))
+            self.top_view_spread.set(self.confirmed_top_view[0])
+            self.top_view_ahead.set(self.confirmed_top_view[1])
             self.confirmed_lane_preview=(display['lane_mode'],display['threshold'])
             self.lane_preview_view.set(next(k for k,v in self.lane_preview_modes.items() if v==display['lane_mode']))
             self.lane_preview_threshold.set(display['threshold'])
@@ -968,6 +1016,32 @@ class RecorderApp:
                 self.processing_events.put(('boundary_error',str(exc)))
         threading.Thread(target=change,daemon=True,name='boundary-display-control').start()
 
+    def _apply_guidance_display(self):
+        """Save offline; drawing only, leaving calculated guidance untouched."""
+        if self.guidance_display_pending:return
+        desired=bool(self.guidance_visible.get())
+        previous=self.confirmed_guidance_visible
+        self.confirmed_guidance_visible=desired
+        if not self._save_preferences():
+            self.confirmed_guidance_visible=previous
+            self.guidance_visible.set(previous)
+            self.guidance_display_status.set('중앙 추종선 표시 설정 저장 실패')
+            return
+        if not self.connect_requested:
+            self.guidance_display_status.set('표시 설정 저장됨 · 영상 연결 시 적용 · 계산은 유지')
+            return
+        self.guidance_display_pending=True
+        self.guidance_display_check.configure(state=tk.DISABLED)
+        self.guidance_display_status.set('표시 설정 저장됨 · 카메라 적용 중...')
+        ip=self.device_ip
+        def change():
+            try:
+                set_guidance_display(ip,desired)
+                self.processing_events.put(('guidance_display_ok',desired))
+            except (OSError,ValueError,RuntimeError,EOFError) as exc:
+                self.processing_events.put(('guidance_display_error',str(exc)))
+        threading.Thread(target=change,daemon=True,name='guidance-display-control').start()
+
     @action('차선 미리보기 설정 적용 요청')
     def _apply_skeleton_speed(self,event=None):
         """skeleton 반응 속도를 검사한 뒤 장치에 적용한다. 연결 전이면 설정만 저장해 두었다가 연결 시 적용한다."""
@@ -995,6 +1069,41 @@ class RecorderApp:
             except (OSError,ValueError,RuntimeError,EOFError) as exc:
                 self.processing_events.put(('skeleton_speed_error',str(exc)))
         threading.Thread(target=change,daemon=True,name='skeleton-speed-control').start()
+
+    def _reset_top_view(self):
+        self.top_view_spread.set(0.)
+        self.top_view_ahead.set(0.)
+        self._apply_top_view()
+
+    def _apply_top_view(self,event=None):
+        """Save desired TOP settings offline; apply asynchronously when connected."""
+        if self.top_view_pending:return
+        try:
+            values=validate_top_view(round(float(self.top_view_spread.get())),round(float(self.top_view_ahead.get())))
+        except (ValueError,TypeError,tk.TclError) as exc:
+            self.top_view_status.set(f'입력 확인: {exc}')
+            return
+        previous=self.confirmed_top_view
+        self.confirmed_top_view=values
+        if not self._save_preferences():
+            self.confirmed_top_view=previous
+            self.top_view_status.set('TOP 설정 저장 실패 · 설정 파일 경로를 확인하세요')
+            return
+        self.top_view_spread.set(values[0]);self.top_view_ahead.set(values[1])
+        if not self.connect_requested:
+            self.top_view_status.set('TOP 설정 저장됨 · 영상 연결 시 적용 · 현재 장치에는 미적용')
+            return
+        self.top_view_pending=True
+        for widget in self.top_view_widgets:widget.configure(state=tk.DISABLED)
+        self.top_view_status.set('TOP 설정 저장됨 · 카메라 적용 중...')
+        ip=self.device_ip
+        def change():
+            try:
+                set_top_view(ip,*values)
+                self.processing_events.put(('top_view_ok',values))
+            except (OSError,ValueError,RuntimeError,EOFError) as exc:
+                self.processing_events.put(('top_view_error',str(exc)))
+        threading.Thread(target=change,daemon=True,name='top-view-control').start()
 
     def _apply_lane_preview(self,event=None):
         """차선 미리보기 모드·임계값을 장치에 적용한다. 구간색 모드로 처음 바꿀 때는 임계값을 0.05로 맞춘다."""
@@ -1218,6 +1327,19 @@ class RecorderApp:
         while True:
             try:event,data=self.processing_events.get_nowait()
             except queue.Empty:break
+            if event in ('guidance_display_ok','guidance_display_error'):
+                self.guidance_display_pending=False
+                self.guidance_display_check.configure(state=tk.NORMAL)
+                self.guidance_display_status.set(
+                    ('중앙 추종선 '+('표시' if data else '숨김')+' 적용·저장됨 · 계산은 유지')
+                    if event=='guidance_display_ok' else f'저장됨 · 장치 미적용: {data}')
+                continue
+            if event in ('top_view_ok','top_view_error'):
+                self.top_view_pending=False
+                for widget in self.top_view_widgets:widget.configure(state=tk.NORMAL)
+                self.top_view_status.set('TOP 설정 적용·저장됨' if event=='top_view_ok' else
+                    f'저장됨 · 장치 미적용: {data} · 연결·카메라 코드 버전 확인 후 적용 재시도')
+                continue
             if event in ('skeleton_speed_ok','skeleton_speed_error'):
                 self.skeleton_speed_pending=False
                 for widget in (self.skeleton_speed_scale,self.skeleton_speed_spin,self.skeleton_speed_apply):
@@ -1600,7 +1722,8 @@ class RecorderApp:
         if (self.recording or self.source_change_pending or self.app_action_busy or self.connection_launch_pending
                 or self.processing_pending or self.boundary_display_pending
                 or self.contour_display_pending or self.lane_preview_pending
-                or getattr(self,'skeleton_speed_pending',False)):
+                or getattr(self,'skeleton_speed_pending',False) or getattr(self,'top_view_pending',False)
+                or getattr(self,'guidance_display_pending',False)):
             messagebox.showwarning('순수 RGB 연결', '인식·검증의 녹화·장치 명령·영상 전환이 끝난 뒤 연결해 주세요.')
             return False
         self._stop_perception_receivers('6대 녹화용 순수 RGB로 전환 · 인식·검증 영상 연결을 누르면 AI 모드로 복귀합니다.')
@@ -1661,6 +1784,10 @@ class RecorderApp:
             self._apply_contour_display()
         if hasattr(self,'skeleton_speed_apply'):
             self._apply_skeleton_speed()
+        if hasattr(self,'top_view_apply'):
+            self._apply_top_view()
+        if hasattr(self,'guidance_display_check'):
+            self._apply_guidance_display()
         if hasattr(self,'lane_preview_apply'):
             self.lane_preview_apply.configure(state=tk.NORMAL)
             self._apply_lane_preview()

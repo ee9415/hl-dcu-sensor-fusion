@@ -68,6 +68,12 @@ class GuidanceEstimate:
     boundary_state: str = 'current'
     road_supported: bool = True
     display_path: object = None
+    path_top: object = None
+    target_top: object = None
+    start_top: object = None
+    target_edges_top: object = None
+    top_coefficients: object = None
+    path_geometry: str = 'image_quadratic'
 
     @property
     def visible_path(self):
@@ -97,7 +103,11 @@ class GuidanceEstimate:
                     guidance_path_image=points(self.path),
                     guidance_target=points(self.target),
                     guidance_coefficients=points(self.coefficients),
-                    guidance_polynomial='x=c0+c1*y+c2*y^2')
+                    guidance_polynomial=('projected_top_quadratic' if self.path_geometry=='top_quadratic' else 'x=c0+c1*y+c2*y^2'),
+                    guidance_path_geometry=self.path_geometry,guidance_path_top=points(self.path_top),
+                    guidance_start_top=points(self.start_top),guidance_target_top=points(self.target_top),
+                    guidance_target_edges_top=points(self.target_edges_top),
+                    guidance_top_coefficients=points(self.top_coefficients))
 
 
 def _runs(row):
@@ -450,7 +460,8 @@ def draw_guidance(frame, estimate, mask_size=(320, 180), projection=None,show_bo
     if path is None:
         return
     color=(255,255,0) if estimate.valid else (180,180,0)
-    draw_polyline(frame, mapped(path), color, thickness=2,dashed=not estimate.valid)
+    draw_polyline(frame, mapped(path), (15,15,15), thickness=6,dashed=not estimate.valid)
+    draw_polyline(frame, mapped(path), color, thickness=4,dashed=not estimate.valid)
     for p in (path[0],path[-1]):
         q = mapped(np.array([p]))[0]
         if np.isfinite(q).all():

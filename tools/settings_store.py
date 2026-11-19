@@ -22,12 +22,18 @@ def preferences(data):
         raise ValueError('잘못된 표시 설정')
     if type(display.get('contour_visible',False)) is not bool:
         raise ValueError('잘못된 컨투어 표시 설정')
+    if type(display.get('guidance_visible',True)) is not bool:
+        raise ValueError('잘못된 중앙 추종선 표시 설정')
     if display['lane_mode'] not in ('normal','lane_score','lane_mask','raw_rgb','lane_bands','lane_bands_rgb','lane_compare'):
         raise ValueError('잘못된 차선 표시 모드')
     threshold=display['threshold']
     if type(threshold) not in (int,float) or not math.isfinite(threshold) or not 0<=threshold<=1:
         raise ValueError('잘못된 차선 임계값')
     speed=display.get('skeleton_speed',1.0)
+    for key,lo,hi in (('top_view_spread',-30,100),('top_view_ahead',0,100)):
+        value=display.get(key,0.)
+        if type(value) not in (int,float) or not math.isfinite(value) or not lo<=value<=hi:
+            raise ValueError('잘못된 TOP 표시 설정: '+key)
     if type(speed) not in (int,float) or not math.isfinite(speed) or not .5<=speed<=3:
         raise ValueError('잘못된 스켈레톤 반응 속도')
     if set(selected)!={'rgb','yolopv2'} or any(type(v) is not bool for v in selected.values()):

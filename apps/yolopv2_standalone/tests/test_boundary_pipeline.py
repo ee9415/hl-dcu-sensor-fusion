@@ -128,21 +128,23 @@ class BoundaryPipelineTests(unittest.TestCase):
             with patch.dict(sys.modules,{'depthai':dai}):
                 node=importlib.import_module('yolopv2_node')
         road = np.full((180,320),255,np.uint8)
+        lanes=np.zeros_like(road);lanes[82:176,79:82]=255;lanes[82:176,239:242]=255
         with patch.object(node.GuidanceConfig,'load',return_value=GuidanceConfig(enabled=True)), \
              patch.object(node,'TelemetryServer') as server, \
              patch.object(node,'decode_heads'), \
              patch.object(node,'non_max_suppression',return_value=[]), \
-             patch.object(node,'segmentation_masks',return_value=(road,np.zeros_like(road))):
+             patch.object(node,'segmentation_masks',return_value=(road,lanes)):
             processor=node.Yolopv2Postprocess()
             processor._tensor=MagicMock()
             processor.process(Frame(),Frame(),Frame())
             payload=server.return_value.publish.call_args.args[0]
             self.assertTrue(payload['guidance_valid'], payload['guidance_reason'])
-            self.assertEqual(payload['guidance_source'],'road')
+            self.assertEqual(payload['guidance_source'],'displayed_pair')
             self.assertFalse(payload['centerline_valid'])
             self.assertIsNone(payload['coefficients'])
-            # No lane mask means no skeleton, even when guidance is valid.
-            self.assertFalse(np.any(np.all(processor.result.send.call_args.args[0].data==(255,255,0),axis=2)))
+            # The central path uses the same displayed bilateral lane pair.
+            self.assertTrue(np.any(np.all(processor.result.send.call_args.args[0].data==(255,255,0),axis=2)))
+            self.assertTrue(np.any(np.all(processor.bev.send.call_args.args[0].data==(255,255,0),axis=2)))
             processor.video_input=MagicMock()
             processor.video_input.metadata.return_value=dict(input_source='camera',source_epoch=1,
                 processing_mode='full',processing_epoch=0,boundary_visible=True)
@@ -159,7 +161,16 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertEqual(before['guidance_path_image'],after['guidance_path_image'])
             self.assertFalse(after['boundary_visible'])
             self.assertFalse(np.any(np.all(hidden==(0,150,255),axis=2)))
-            self.assertFalse(np.any(np.all(hidden==(255,255,0),axis=2)))
+            self.assertTrue(np.any(np.all(hidden==(255,255,0),axis=2)))
+            processor.video_input.metadata.return_value['guidance_visible']=False
+            processor.process(Frame(),Frame(),Frame())
+            off=server.return_value.publish.call_args.args[0]
+            self.assertEqual(after['guidance_path_image'],off['guidance_path_image'])
+            self.assertIs(processor._guidance,guidance)
+            self.assertFalse(off['guidance_path_rendered'])
+            self.assertFalse(np.any(np.all(processor.result.send.call_args.args[0].data==(255,255,0),axis=2)))
+            self.assertFalse(np.any(np.all(processor.bev.send.call_args.args[0].data==(255,255,0),axis=2)))
+            processor.video_input.metadata.return_value['guidance_visible']=True
             # Preview settings alter the RGB result only, not perception masks
             # or the existing path/trackers. All callbacks use the same input.
             # 미리보기 임계값 0.2 / 0.9 두 번 처리해서 결과를 비교한다.

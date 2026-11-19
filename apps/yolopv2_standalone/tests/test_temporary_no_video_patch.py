@@ -18,7 +18,7 @@ class NoVideoDiagnosticPatchTests(unittest.TestCase):
         node = patch.patch_node((ROOT/'apps/yolopv2_standalone/yolopv2_node.py').read_text(encoding='utf-8'))
         for name in ('self._boundary_tracker.update_contours(', 'segmentation_masks(', 'self.drivable.send(',
                      'self.lane.send(', 'self._telemetry.publish(', 'self._stop_line_tracker.update(',
-                     'self._guidance.update('):
+                     'displayed_midpoint_guidance('):
             self.assertIn(name, node)
         for name in ('self.result.send(', 'self.bev.send(', 'render_boundary_bev(boundaries)'):
             self.assertNotIn(name, node)

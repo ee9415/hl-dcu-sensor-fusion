@@ -7,6 +7,7 @@ import threading
 import time
 from lane_overlay import validate_preview
 from skeleton_response import validate_speed
+from top_view_controls import validate_top_view
 
 PORT = 8558
 MAX_PACKET = 2 * 1024 * 1024
@@ -86,7 +87,12 @@ class VideoInputServer:
         self.processing_epoch = 0
         self.skeleton_response_speed = 1.0
         self.skeleton_response_epoch = 0
+        self.top_view_spread = 0.
+        self.top_view_ahead = 0.
+        self.top_view_epoch = 0
         self.boundary_visible = True
+        self.guidance_visible = True
+        self.guidance_display_epoch = 0
         self.boundary_display_epoch = 0
         self.contour_visible = False
         self.contour_display_epoch = 0
@@ -165,6 +171,19 @@ class VideoInputServer:
                 self.last_frame_index, self.last_media_epoch = index, media_epoch
                 self.received += 1
                 self.last_received = time.monotonic()
+            elif op == 'top_view':
+                spread,ahead=validate_top_view(header.get('spread'),header.get('ahead'))
+                if payload:raise ValueError('TOP control has no image payload')
+                if (spread,ahead)!=(self.top_view_spread,self.top_view_ahead):
+                    self.top_view_spread,self.top_view_ahead=spread,ahead
+                    self.top_view_epoch+=1
+            elif op == 'guidance_display':
+                visible=header.get('visible')
+                if type(visible) is not bool or payload:
+                    raise ValueError('Guidance display requires a boolean and no image payload')
+                if visible != self.guidance_visible:
+                    self.guidance_visible=visible
+                    self.guidance_display_epoch+=1
             elif op == 'skeleton_response':
                 speed=validate_speed(header.get('speed'))
                 if payload:
@@ -233,6 +252,9 @@ class VideoInputServer:
 
     def _preview_metadata(self):
         return dict(skeleton_response_speed=self.skeleton_response_speed,
+                    guidance_visible=self.guidance_visible,guidance_display_epoch=self.guidance_display_epoch,
+                    top_view_spread=self.top_view_spread,top_view_ahead=self.top_view_ahead,
+                    top_view_epoch=self.top_view_epoch,
                     skeleton_response_epoch=self.skeleton_response_epoch,
                     contour_visible=self.contour_visible,contour_display_epoch=self.contour_display_epoch,
                     lane_overlay_mode=self.lane_overlay_mode,lane_overlay_threshold=self.lane_overlay_threshold,
