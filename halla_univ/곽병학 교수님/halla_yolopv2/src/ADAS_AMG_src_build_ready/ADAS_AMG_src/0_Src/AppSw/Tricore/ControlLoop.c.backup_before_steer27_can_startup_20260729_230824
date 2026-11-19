@@ -1,0 +1,2298 @@
+#include "ControlLoop.h"
+
+#include "Board_Pins.h"
+#include "CCU6_PWM_Generation.h"
+#include "Can_SpeedTx.h"
+#include "Drive_PWM.h"
+#include "ERU_Interrupt.h"
+#include "IfxPort.h"
+#include "Ps2_Controller.h"
+#include "Speed_Calculate.h"
+#include "Steering_ADC.h"
+
+#define CONTROL_LOOP_PERIOD_SEC       (0.005f)
+#define STEERING_KP_US_PER_DEG        (12.0f)
+#define STEERING_KI_US_PER_DEG_SEC    (0.0f)
+#define STEERING_INTEGRAL_LIMIT_US    (150.0f)
+#define STEERING_DEADBAND_DEG         (0.5f)
+#define STEERING_MIN_MOVE_OFFSET_US   (120.0f)
+#define STEERING_CONTROL_SIGN         (1.0f)
+#define STEERING_TARGET_LIMIT_DEG     (28.0f)
+#define STEERING_PWM_ONLY_TEST_ENABLE (0u)
+#define STEERING_PWM_TEST_STEP_PERIOD_LOOPS (100u)
+#define STEERING_PWM_TEST_STEP_US     (2u)
+#define STEERING_POT_PID_ENABLE       (1u)
+#define STEERING_POT_PID_KP_US_PER_RAW (0.06f)
+#define STEERING_POT_PID_KI_US_PER_RAW_SEC (0.0f)
+#define STEERING_POT_PID_KD_US_PER_RAW_PER_SEC (0.0f)
+#define STEERING_POT_PID_INTEGRAL_LIMIT_US (120.0f)
+#define STEERING_POT_PID_CORRECTION_LIMIT_US (220.0f)
+#define STEERING_POT_PID_DEADBAND_RAW (20u)
+#define STEERING_POT_PID_MAX_STEP_US  (5u)
+#define SPEED_TARGET_KMH              (0.0f)
+#define SPEED_TARGET_MPS              (0.0f)
+#define SPEED_TARGET_LIMIT_MPS        (4.0f)
+#define SPEED_CONTROL_START_DUTY      (10.0f)
+#define SPEED_CONTROL_MAX_RPM_AT_100_DUTY (336.0f)
+#define SPEED_PID_KP_DUTY_PER_RPM     (0.35f)
+#define SPEED_PID_KI_DUTY_PER_RPM_SEC (0.60f)
+#define SPEED_PID_KD_DUTY_PER_RPM_PER_SEC (0.001f)
+#define SPEED_CONTROL_INTEGRAL_LIMIT_DUTY (10.0f)
+#define SPEED_CONTROL_DERIVATIVE_LIMIT_DUTY (5.0f)
+#define SPEED_CONTROL_MAX_DUTY        (100.0f)
+#define SPEED_CONTROL_DUTY_RAMP_PER_LOOP (1.0f)
+#define SPEED_HOLD_ENABLE             (1u)
+#define SPEED_HOLD_POSITION_DEADBAND_M (0.003f)
+#define SPEED_HOLD_SPEED_DEADBAND_MPS (0.005f)
+#define SPEED_HOLD_POSITION_KP_DUTY_PER_M (220.0f)
+#define SPEED_HOLD_POSITION_KI_DUTY_PER_M_SEC (35.0f)
+#define SPEED_HOLD_POSITION_KD_DUTY_PER_MPS (28.0f)
+#define SPEED_HOLD_INTEGRAL_LIMIT_DUTY (25.0f)
+#define SPEED_HOLD_FORWARD_MAX_DUTY   (45.0f)
+#define SPEED_HOLD_REVERSE_MAX_DUTY   (50.0f)
+#define SPEED_HOLD_DUTY_RAMP_PER_LOOP (10.0f)
+#define SPEED_BRAKE_MAX_DUTY          (70.0f)
+#define SPEED_OVERSPEED_BRAKE_RPM     (1.0f)
+#define SPEED_OVERSPEED_BRAKE_GAIN    (2.0f)
+#define SPEED_CALIBRATION_FIXED_DUTY_ENABLE (0u)
+#define SPEED_CALIBRATION_FIXED_DUTY_PERCENT (100.0f)
+#define SPEED_BUFFER_AUTO_TEST_DUTY_PERCENT (100u)
+#define SPEED_BUFFER_AUTO_TEST_START_SIZE   (SPEED_BUFFER_FIXED_COUNT)
+#define SPEED_BUFFER_AUTO_TEST_END_SIZE     (SPEED_BUFFER_FIXED_COUNT)
+#define SPEED_BUFFER_AUTO_TEST_STEP_SIZE    (SPEED_BUFFER_FIXED_COUNT)
+#define SPEED_BUFFER_AUTO_TEST_STAGE_MS     (2000u)
+#define SPEED_BUFFER_AUTO_TEST_STATUS_IDLE  (0u)
+#define SPEED_BUFFER_AUTO_TEST_STATUS_RUN   (1u)
+#define SPEED_BUFFER_AUTO_TEST_STATUS_DONE  (2u)
+#define UNIT_TEST_CASE_NONE                 (0u)
+#define UNIT_TEST_CASE_MAX_SPEED            (1u)
+#define UNIT_TEST_CASE_DRIVE_DEADBAND       (2u)
+#define UNIT_TEST_CASE_CANCEL               (255u)
+#define UNIT_TEST_STATUS_IDLE               (0u)
+#define UNIT_TEST_STATUS_RUN                (1u)
+#define UNIT_TEST_STATUS_DONE               (2u)
+#define UNIT_TEST_STATUS_NO_MOTION          (3u)
+#define UNIT_TEST_STATUS_CANCELLED          (4u)
+#define MAX_SPEED_TEST_PHASE_IDLE           (0u)
+#define MAX_SPEED_TEST_PHASE_ZERO_DUTY      (1u)
+#define MAX_SPEED_TEST_PHASE_FULL_DUTY      (2u)
+#define MAX_SPEED_TEST_PHASE_DONE           (3u)
+#define MAX_SPEED_TEST_DUTY_PERCENT         (100u)
+#define MAX_SPEED_TEST_ZERO_DUTY_MS         (1000u)
+#define MAX_SPEED_TEST_RUN_MS               (6000u)
+#define MAX_SPEED_TEST_BUFFER_SIZE          (SPEED_BUFFER_FIXED_COUNT)
+#define DRIVE_DEADBAND_TEST_START_DUTY_PERCENT (0u)
+#define DRIVE_DEADBAND_TEST_END_DUTY_PERCENT   (12u)
+#define DRIVE_DEADBAND_TEST_STEP_DUTY_PERCENT  (1u)
+#define DRIVE_DEADBAND_TEST_STAGE_MS           (1000u)
+#define DRIVE_DEADBAND_TEST_MOVE_STABLE_MS     (500u)
+#define DRIVE_DEADBAND_TEST_MOVE_THRESHOLD_RPM (20.0f)
+#define DRIVE_DEADBAND_TEST_BUFFER_SIZE        (SPEED_BUFFER_FIXED_COUNT)
+#define UNIT_TEST_DONE_HOLD_MS                 (2000u)
+#define JOYSTICK_PRIORITY_TIMEOUT_MS           (200u)
+#define JOYSTICK_DRIVE_BLOCK_NONE              (0u)
+#define JOYSTICK_DRIVE_BLOCK_DISABLED          (1u)
+#define JOYSTICK_DRIVE_BLOCK_NO_PAD            (2u)
+#define DRIVE_DIRECTION_STOP                   (0u)
+#define DRIVE_DIRECTION_FORWARD                (1u)
+#define DRIVE_DIRECTION_REVERSE                (2u)
+
+volatile float32 g_targetSteeringDeg = 0.0f;
+volatile float32 g_limitedSteeringTargetDeg = 0.0f;
+volatile float32 g_currentSteeringDeg = 0.0f;
+volatile float32 g_dbgSteeringErrorDeg = 0.0f;
+volatile float32 g_dbgSteeringCorrectionUs = 0.0f;
+volatile float32 g_currentVehicleMps = 0.0f;
+volatile float32 g_targetVehicleKph = SPEED_TARGET_KMH;
+volatile float32 g_targetVehicleMps = SPEED_TARGET_MPS;
+volatile float32 g_currentVehicleRpm = 0.0f;
+volatile float32 g_targetVehicleRpm = 0.0f;
+volatile float32 g_speedControlErrorMps = 0.0f;
+volatile float32 g_speedControlErrorRpm = 0.0f;
+volatile float32 g_speedControlFeedforwardDuty = 0.0f;
+volatile float32 g_speedControlProportionalDuty = 0.0f;
+volatile float32 g_speedControlDutyCommand = 0.0f;
+volatile float32 g_motorAppliedDutyPct = 0.0f;
+volatile float32 g_speedControlIntegralDuty = 0.0f;
+volatile float32 g_speedControlDerivativeDuty = 0.0f;
+volatile float32 g_speedControlPidDuty = 0.0f;
+volatile uint8   g_speedControlEnabled = 1u;
+volatile uint8   g_speedHoldEnabled = SPEED_HOLD_ENABLE;
+volatile float32 g_speedHoldHomePositionM = 0.0f;
+volatile float32 g_speedHoldPositionErrorM = 0.0f;
+volatile float32 g_speedHoldDutyCommand = 0.0f;
+volatile uint8   g_speedBrakeActive = 0u;
+volatile uint8   g_speedCalibrationFixedDutyEnable = SPEED_CALIBRATION_FIXED_DUTY_ENABLE;
+volatile float32 g_speedCalibrationFixedDutyPercent = SPEED_CALIBRATION_FIXED_DUTY_PERCENT;
+volatile uint8   g_manualDutyTestEnable = 0u;
+volatile float32 g_manualDutyTestPercent = 0.0f;
+volatile float32 g_manualDutyTestCurrentRpm = 0.0f;
+volatile float32 g_manualDutyTestCurrentKph = 0.0f;
+volatile uint8   g_joystickDriveModeEnabled = 1u;
+volatile uint8   g_joystickDriveModeActive = 0u;
+volatile uint8   g_joystickDriveModeBlockedReason = JOYSTICK_DRIVE_BLOCK_NO_PAD;
+volatile uint8   g_joystickPriorityActive = 0u;
+volatile float32 g_joystickTargetRpm = 0.0f;
+volatile uint8   g_pcCommandControlActive = 0u;
+volatile uint8   g_pcCommandFailsafeActive = 0u;
+volatile uint16  g_pcCommandAppliedSteeringRaw = STEERING_ADC_RAW_CENTER;
+volatile uint8   g_speedBufferAutoTestStart = 0u;
+volatile uint8   g_speedBufferAutoTestActive = 0u;
+volatile uint8   g_speedBufferAutoTestDone = 0u;
+volatile uint8   g_speedBufferAutoTestStatus = SPEED_BUFFER_AUTO_TEST_STATUS_IDLE;
+volatile uint8   g_speedBufferAutoTestCurrentSize = SPEED_BUFFER_AUTO_TEST_START_SIZE;
+volatile uint8   g_speedBufferAutoTestStageIndex = 0u;
+volatile uint8   g_speedBufferAutoTestDutyPercent = SPEED_BUFFER_AUTO_TEST_DUTY_PERCENT;
+volatile uint16  g_speedBufferAutoTestStageMs = SPEED_BUFFER_AUTO_TEST_STAGE_MS;
+volatile uint16  g_speedBufferAutoTestElapsedMs = 0u;
+volatile float32 g_speedBufferAutoTestAvgVehicleRpm = 0.0f;
+volatile uint32  g_speedBufferAutoTestHoldZeroCount = 0u;
+volatile uint8   g_unitTestCaseCommand = UNIT_TEST_CASE_NONE;
+volatile uint8   g_unitTestCaseActive = 0u;
+volatile uint8   g_unitTestCaseDone = 0u;
+volatile uint8   g_unitTestCaseId = UNIT_TEST_CASE_NONE;
+volatile uint8   g_unitTestCaseStatus = UNIT_TEST_STATUS_IDLE;
+volatile uint8   g_maxSpeedTestPhase = MAX_SPEED_TEST_PHASE_IDLE;
+volatile uint8   g_maxSpeedTestDutyPercent = MAX_SPEED_TEST_DUTY_PERCENT;
+volatile uint16  g_maxSpeedTestZeroDutyMs = MAX_SPEED_TEST_ZERO_DUTY_MS;
+volatile uint16  g_maxSpeedTestRunMs = MAX_SPEED_TEST_RUN_MS;
+volatile uint16  g_maxSpeedTestElapsedMs = 0u;
+volatile float32 g_maxSpeedTestCurrentRpm = 0.0f;
+volatile float32 g_maxSpeedTestCurrentKph = 0.0f;
+volatile float32 g_maxSpeedTestAvgRpm = 0.0f;
+volatile float32 g_maxSpeedTestAvgKph = 0.0f;
+volatile float32 g_maxSpeedTestMaxRpm = 0.0f;
+volatile float32 g_maxSpeedTestMaxKph = 0.0f;
+volatile uint32  g_maxSpeedTestSampleCount = 0u;
+volatile uint8   g_driveDeadbandTestCurrentDutyPercent = 0u;
+volatile uint8   g_driveDeadbandTestLastStoppedDutyPercent = 0u;
+volatile uint8   g_driveDeadbandTestFirstMovingDutyPercent = 0u;
+volatile uint8   g_driveDeadbandTestMaxDutyPercent = DRIVE_DEADBAND_TEST_END_DUTY_PERCENT;
+volatile uint16  g_driveDeadbandTestStageMs = DRIVE_DEADBAND_TEST_STAGE_MS;
+volatile uint16  g_driveDeadbandTestElapsedMs = 0u;
+volatile uint16  g_driveDeadbandTestMoveStableMs = 0u;
+volatile float32 g_driveDeadbandTestMoveThresholdRpm = DRIVE_DEADBAND_TEST_MOVE_THRESHOLD_RPM;
+volatile float32 g_driveDeadbandTestCurrentRpm = 0.0f;
+volatile float32 g_driveDeadbandTestCurrentKph = 0.0f;
+volatile float32 g_driveDeadbandTestFinalRpm = 0.0f;
+volatile float32 g_driveDeadbandTestFirstMovingRpm = 0.0f;
+volatile float32 g_driveDeadbandTestFirstMovingKph = 0.0f;
+volatile uint16  g_currentSteeringPulseUs = STEERING_SERVO_NO_JOYSTICK_US;
+volatile uint16  g_manualSteeringPulseUs = STEERING_SERVO_NO_JOYSTICK_US;
+volatile boolean g_manualSteeringPulseValid = FALSE;
+volatile uint8   g_steeringPotPidEnabled = STEERING_POT_PID_ENABLE;
+volatile uint8   g_steeringPotTargetValid = 0u;
+volatile uint16  g_steeringPotTargetRaw = STEERING_ADC_RAW_CENTER;
+volatile sint32  g_steeringPotErrorRaw = 0;
+volatile float32 g_steeringPotPidKpUsPerRaw = STEERING_POT_PID_KP_US_PER_RAW;
+volatile float32 g_steeringPotPidKiUsPerRawSec = STEERING_POT_PID_KI_US_PER_RAW_SEC;
+volatile float32 g_steeringPotPidKdUsPerRawPerSec = STEERING_POT_PID_KD_US_PER_RAW_PER_SEC;
+volatile float32 g_steeringPotPidIntegralUs = 0.0f;
+volatile float32 g_steeringPotPidCorrectionUs = 0.0f;
+volatile uint16  g_steeringPotPidFeedforwardPulseUs = STEERING_SERVO_CENTER_US;
+volatile uint16  g_steeringPotPidCommandPulseUs = STEERING_SERVO_CENTER_US;
+volatile uint16  g_steeringPotPidDeadbandRaw = STEERING_POT_PID_DEADBAND_RAW;
+volatile uint16  g_steeringPotPidMaxStepUs = STEERING_POT_PID_MAX_STEP_US;
+volatile uint8   g_steeringPotPidAtTarget = 0u;
+volatile uint8   g_currentDriveDutyPercent = 0u;
+volatile uint8   g_driveForwardEnabled = 0u;
+volatile uint8   g_driveReverseEnabled = 0u;
+volatile uint8   g_driveDirection = DRIVE_DIRECTION_STOP;
+volatile uint8   g_ackermannState = (uint8)AckermannState_Init;
+volatile uint8   g_estopPinHigh = 1u;
+volatile uint8   g_estopActive = 0u;
+volatile uint32  g_dbgControlLoopInitCount = 0u;
+volatile uint8   g_steeringPwmOnlyTestEnabled = STEERING_PWM_ONLY_TEST_ENABLE;
+volatile sint32  g_steeringPwmTestDirection = 0;
+volatile uint16  g_steeringPwmTestPulseUs = STEERING_SERVO_CENTER_US;
+volatile uint8   g_steeringPwmTestAtLimit = 0u;
+volatile uint8   g_steeringCenterTuneEnabled = 0u;
+volatile uint16  g_steeringCenterTunePulseUs = STEERING_SERVO_CENTER_US;
+volatile sint32  g_steeringCenterTuneDirection = 0;
+volatile uint16  g_steeringCenterTuneStepUs = 1u;
+volatile uint8   g_steeringCenterTuneAtLimit = 0u;
+
+static float32 g_steeringIntegralUs = 0.0f;
+static sint32 g_steeringPotPidPreviousErrorRaw = 0;
+static boolean g_steeringPotPidHasPreviousError = FALSE;
+static VehicleSpeedValue g_lastSpeed;
+static float32 g_driveDutyCommandFloat = 0.0f;
+static float32 g_speedControlPreviousErrorRpm = 0.0f;
+static boolean g_speedControlHasPreviousError = FALSE;
+static float32 g_speedHoldIntegralDuty = 0.0f;
+static boolean g_speedHoldPositionLatched = FALSE;
+static uint16 g_encoderDebugPrevLeftCount = 0u;
+static uint16 g_encoderDebugPrevRightCount = 0u;
+static boolean g_encoderDebugHasPrevious = FALSE;
+static uint16 g_steeringPwmTestLoopCount = 0u;
+static uint32 g_speedBufferAutoTestStageLoopCount = 0u;
+static uint32 g_maxSpeedTestPhaseLoopCount = 0u;
+static uint32 g_maxSpeedTestRunLoopCount = 0u;
+static float32 g_maxSpeedTestRpmSum = 0.0f;
+static float32 g_maxSpeedTestKphSum = 0.0f;
+static uint32 g_driveDeadbandTestStageLoopCount = 0u;
+static uint32 g_driveDeadbandTestMoveLoopCount = 0u;
+static uint32 g_driveDeadbandTestTotalLoopCount = 0u;
+static uint32 g_unitTestDoneHoldLoopCount = 0u;
+
+static float32 ControlLoop_ClampFloat(float32 value, float32 minValue, float32 maxValue)
+{
+    if (value < minValue)
+    {
+        return minValue;
+    }
+
+    if (value > maxValue)
+    {
+        return maxValue;
+    }
+
+    return value;
+}
+
+static float32 ControlLoop_AbsFloat(float32 value)
+{
+    return (value < 0.0f) ? -value : value;
+}
+
+static sint32 ControlLoop_AbsSint32(sint32 value)
+{
+    return (value < 0) ? -value : value;
+}
+
+static uint16 ControlLoop_ClampSteeringPotTargetRaw(uint16 targetRaw)
+{
+    uint16 rawMin = g_steeringPotRawMin;
+    uint16 rawCenter = g_steeringPotRawCenter;
+    uint16 rawMax = g_steeringPotRawMax;
+
+    if ((rawMin >= rawCenter) || (rawCenter >= rawMax))
+    {
+        return STEERING_ADC_RAW_CENTER;
+    }
+
+    if (targetRaw < rawMin)
+    {
+        return rawMin;
+    }
+
+    if (targetRaw > rawMax)
+    {
+        return rawMax;
+    }
+
+    return targetRaw;
+}
+
+static uint16 ControlLoop_MapPcSteeringDegX10ToRaw(sint16 steeringDegX10)
+{
+    uint16 rawMin = g_steeringPotRawMin;
+    uint16 rawCenter = g_steeringPotRawCenter;
+    uint16 rawMax = g_steeringPotRawMax;
+    uint32 magnitude;
+    uint32 offset;
+
+    if ((rawMin >= rawCenter) || (rawCenter >= rawMax))
+    {
+        rawMin = STEERING_ADC_RAW_MIN;
+        rawCenter = STEERING_ADC_RAW_CENTER;
+        rawMax = STEERING_ADC_RAW_MAX;
+    }
+
+    if (steeringDegX10 >= 0)
+    {
+        magnitude = (uint32)steeringDegX10;
+        if (magnitude > (uint32)ACKERMANN_CAN_PC_COMMAND_MAX_STEER_X10)
+        {
+            magnitude = (uint32)ACKERMANN_CAN_PC_COMMAND_MAX_STEER_X10;
+        }
+
+        offset = ((magnitude * (uint32)(rawMax - rawCenter)) + 125u) / 250u;
+        return ControlLoop_ClampSteeringPotTargetRaw((uint16)((uint32)rawCenter + offset));
+    }
+
+    magnitude = (uint32)(-(sint32)steeringDegX10);
+    if (magnitude > (uint32)ACKERMANN_CAN_PC_COMMAND_MAX_STEER_X10)
+    {
+        magnitude = (uint32)ACKERMANN_CAN_PC_COMMAND_MAX_STEER_X10;
+    }
+
+    offset = ((magnitude * (uint32)(rawCenter - rawMin)) + 125u) / 250u;
+    return ControlLoop_ClampSteeringPotTargetRaw((uint16)((uint32)rawCenter - offset));
+}
+
+static uint16 ControlLoop_MapSteeringPotRawToPulse(uint16 targetRaw)
+{
+    uint32 deltaRaw;
+    uint32 deltaPulse;
+    uint16 rawMin = g_steeringPotRawMin;
+    uint16 rawCenter = g_steeringPotRawCenter;
+    uint16 rawMax = g_steeringPotRawMax;
+
+    targetRaw = ControlLoop_ClampSteeringPotTargetRaw(targetRaw);
+
+    if ((rawMin >= rawCenter) || (rawCenter >= rawMax))
+    {
+        return STEERING_SERVO_CENTER_US;
+    }
+
+    if (targetRaw <= rawMin)
+    {
+        return STEERING_SERVO_RIGHT_US;
+    }
+
+    if (targetRaw >= rawMax)
+    {
+        return STEERING_SERVO_LEFT_US;
+    }
+
+    if (targetRaw <= rawCenter)
+    {
+        deltaRaw = (uint32)(rawCenter - targetRaw);
+        deltaPulse = (deltaRaw * (uint32)(STEERING_SERVO_RIGHT_US - STEERING_SERVO_CENTER_US)) /
+                     (uint32)(rawCenter - rawMin);
+        return (uint16)(STEERING_SERVO_CENTER_US + deltaPulse);
+    }
+
+    deltaRaw = (uint32)(targetRaw - rawCenter);
+    deltaPulse = (deltaRaw * (uint32)(STEERING_SERVO_CENTER_US - STEERING_SERVO_LEFT_US)) /
+                 (uint32)(rawMax - rawCenter);
+    return (uint16)(STEERING_SERVO_CENTER_US - deltaPulse);
+}
+
+static float32 ControlLoop_MapSteeringPotRawToAngle(uint16 raw)
+{
+    uint16 rawMin = g_steeringPotRawMin;
+    uint16 rawCenter = g_steeringPotRawCenter;
+    uint16 rawMax = g_steeringPotRawMax;
+
+    if ((rawMin >= rawCenter) || (rawCenter >= rawMax))
+    {
+        return 0.0f;
+    }
+
+    if (raw >= rawCenter)
+    {
+        return ((float32)(raw - rawCenter) * STEERING_MAX_ANGLE_DEG) /
+               (float32)(rawMax - rawCenter);
+    }
+
+    return -((float32)(rawCenter - raw) * STEERING_MAX_ANGLE_DEG) /
+           (float32)(rawCenter - rawMin);
+}
+
+static uint16 ControlLoop_ApplySteeringPulseSlew(uint16 desiredPulse)
+{
+    uint16 currentPulse = g_currentSteeringPulseUs;
+    uint16 stepUs = g_steeringPotPidMaxStepUs;
+
+    if (currentPulse < STEERING_SERVO_MIN_US)
+    {
+        currentPulse = STEERING_SERVO_MIN_US;
+    }
+    else if (currentPulse > STEERING_SERVO_MAX_US)
+    {
+        currentPulse = STEERING_SERVO_MAX_US;
+    }
+
+    if (stepUs == 0u)
+    {
+        stepUs = 1u;
+    }
+    else if (stepUs > 50u)
+    {
+        stepUs = 50u;
+    }
+
+    g_steeringPotPidMaxStepUs = stepUs;
+
+    if (desiredPulse > currentPulse)
+    {
+        if ((uint16)(desiredPulse - currentPulse) > stepUs)
+        {
+            return (uint16)(currentPulse + stepUs);
+        }
+    }
+    else if (currentPulse > desiredPulse)
+    {
+        if ((uint16)(currentPulse - desiredPulse) > stepUs)
+        {
+            return (uint16)(currentPulse - stepUs);
+        }
+    }
+
+    return desiredPulse;
+}
+
+static uint16 ControlLoop_ComputeSteeringPotPidPulse(SteeringAdcValue steering)
+{
+    uint16 targetRaw = ControlLoop_ClampSteeringPotTargetRaw(g_steeringPotTargetRaw);
+    uint16 feedforwardPulse = ControlLoop_MapSteeringPotRawToPulse(targetRaw);
+    sint32 errorRaw = (sint32)targetRaw - (sint32)steering.raw;
+    sint32 derivativeRaw = 0;
+    float32 correctionUs;
+    float32 desiredPulse;
+
+    g_steeringPotTargetRaw = targetRaw;
+    g_steeringPotErrorRaw = errorRaw;
+    g_steeringPotPidFeedforwardPulseUs = feedforwardPulse;
+    g_limitedSteeringTargetDeg = ControlLoop_MapSteeringPotRawToAngle(targetRaw);
+
+    if (g_steeringPotPidHasPreviousError != FALSE)
+    {
+        derivativeRaw = (sint32)(errorRaw - g_steeringPotPidPreviousErrorRaw);
+    }
+
+    g_steeringPotPidPreviousErrorRaw = errorRaw;
+    g_steeringPotPidHasPreviousError = TRUE;
+
+    if (ControlLoop_AbsSint32(errorRaw) <= (sint32)g_steeringPotPidDeadbandRaw)
+    {
+        g_steeringPotPidAtTarget = 1u;
+        g_steeringPotPidIntegralUs = 0.0f;
+        g_steeringPotPidCorrectionUs = 0.0f;
+        g_dbgSteeringErrorDeg = g_limitedSteeringTargetDeg - steering.angleDeg;
+        g_dbgSteeringCorrectionUs = 0.0f;
+        /*
+         * Preserve the last stable corrective output while the potentiometer
+         * remains inside the deadband.  Returning to an imperfect feed-forward
+         * pulse here repeatedly re-creates the error and causes hunting.
+         */
+        g_steeringPotPidCommandPulseUs = g_currentSteeringPulseUs;
+        if (g_steeringPotPidCommandPulseUs < STEERING_SERVO_MIN_US)
+        {
+            g_steeringPotPidCommandPulseUs = STEERING_SERVO_MIN_US;
+        }
+        else if (g_steeringPotPidCommandPulseUs > STEERING_SERVO_MAX_US)
+        {
+            g_steeringPotPidCommandPulseUs = STEERING_SERVO_MAX_US;
+        }
+        return g_steeringPotPidCommandPulseUs;
+    }
+
+    g_steeringPotPidAtTarget = 0u;
+    g_steeringPotPidIntegralUs +=
+        (-(float32)errorRaw) * g_steeringPotPidKiUsPerRawSec * CONTROL_LOOP_PERIOD_SEC;
+    g_steeringPotPidIntegralUs = ControlLoop_ClampFloat(g_steeringPotPidIntegralUs,
+                                                        -STEERING_POT_PID_INTEGRAL_LIMIT_US,
+                                                        STEERING_POT_PID_INTEGRAL_LIMIT_US);
+
+    correctionUs =
+        (-(float32)errorRaw * g_steeringPotPidKpUsPerRaw) +
+        g_steeringPotPidIntegralUs +
+        (-(float32)derivativeRaw * g_steeringPotPidKdUsPerRawPerSec / CONTROL_LOOP_PERIOD_SEC);
+    correctionUs = ControlLoop_ClampFloat(correctionUs,
+                                          -STEERING_POT_PID_CORRECTION_LIMIT_US,
+                                          STEERING_POT_PID_CORRECTION_LIMIT_US);
+
+    desiredPulse = (float32)feedforwardPulse + correctionUs;
+    desiredPulse = ControlLoop_ClampFloat(desiredPulse,
+                                          (float32)STEERING_SERVO_MIN_US,
+                                          (float32)STEERING_SERVO_MAX_US);
+
+    g_steeringPotPidCorrectionUs = correctionUs;
+    g_dbgSteeringErrorDeg = g_limitedSteeringTargetDeg - steering.angleDeg;
+    g_dbgSteeringCorrectionUs = correctionUs;
+    g_steeringPotPidCommandPulseUs = ControlLoop_ApplySteeringPulseSlew((uint16)desiredPulse);
+
+    return g_steeringPotPidCommandPulseUs;
+}
+
+static float32 ControlLoop_GetClampedSteeringTarget(void)
+{
+    float32 targetDeg = ControlLoop_ClampFloat(g_targetSteeringDeg,
+                                               -STEERING_TARGET_LIMIT_DEG,
+                                               STEERING_TARGET_LIMIT_DEG);
+
+    g_limitedSteeringTargetDeg = targetDeg;
+    return targetDeg;
+}
+
+static uint16 ControlLoop_ComputeSteeringPulse(float32 targetDeg, float32 measuredDeg)
+{
+    float32 errorDeg = targetDeg - measuredDeg;
+    float32 correctionUs;
+    float32 pulse;
+
+    if (ControlLoop_AbsFloat(errorDeg) <= STEERING_DEADBAND_DEG)
+    {
+        g_steeringIntegralUs = 0.0f;
+        g_dbgSteeringErrorDeg = errorDeg;
+        g_dbgSteeringCorrectionUs = 0.0f;
+        return STEERING_SERVO_CENTER_US;
+    }
+
+    g_steeringIntegralUs += errorDeg * STEERING_KI_US_PER_DEG_SEC * CONTROL_LOOP_PERIOD_SEC;
+    g_steeringIntegralUs = ControlLoop_ClampFloat(g_steeringIntegralUs,
+                                                  -STEERING_INTEGRAL_LIMIT_US,
+                                                  STEERING_INTEGRAL_LIMIT_US);
+
+    correctionUs = STEERING_CONTROL_SIGN *
+                   ((STEERING_KP_US_PER_DEG * errorDeg) + g_steeringIntegralUs);
+
+    if (ControlLoop_AbsFloat(correctionUs) < STEERING_MIN_MOVE_OFFSET_US)
+    {
+        correctionUs = (correctionUs < 0.0f) ?
+                       -STEERING_MIN_MOVE_OFFSET_US :
+                       STEERING_MIN_MOVE_OFFSET_US;
+    }
+
+    g_dbgSteeringErrorDeg = errorDeg;
+    g_dbgSteeringCorrectionUs = correctionUs;
+
+    pulse = (float32)STEERING_SERVO_CENTER_US + correctionUs;
+
+    pulse = ControlLoop_ClampFloat(pulse,
+                                   (float32)STEERING_SERVO_MIN_US,
+                                   (float32)STEERING_SERVO_MAX_US);
+
+    return (uint16)pulse;
+}
+
+#if (DRIVE_ONLY_TEST == 0u)
+static uint16 ControlLoop_ClampSteeringPulseUs(uint16 pulseUs)
+{
+    if (pulseUs < STEERING_SERVO_MIN_US)
+    {
+        return STEERING_SERVO_MIN_US;
+    }
+
+    if (pulseUs > STEERING_SERVO_MAX_US)
+    {
+        return STEERING_SERVO_MAX_US;
+    }
+
+    return pulseUs;
+}
+
+static void ControlLoop_UpdateSteeringPwmOnlyTest(void)
+{
+    uint16 pulseUs = ControlLoop_ClampSteeringPulseUs(g_steeringPwmTestPulseUs);
+    uint16 stepUs = STEERING_PWM_TEST_STEP_US;
+
+    g_steeringPwmTestLoopCount++;
+    if (g_steeringPwmTestLoopCount >= STEERING_PWM_TEST_STEP_PERIOD_LOOPS)
+    {
+        g_steeringPwmTestLoopCount = 0u;
+
+        if (g_steeringPwmTestDirection > 0)
+        {
+            if (pulseUs <= (uint16)(STEERING_SERVO_MAX_US - stepUs))
+            {
+                pulseUs = (uint16)(pulseUs + stepUs);
+                g_steeringPwmTestAtLimit = 0u;
+            }
+            else
+            {
+                pulseUs = STEERING_SERVO_MAX_US;
+                g_steeringPwmTestAtLimit = 1u;
+            }
+        }
+        else if (g_steeringPwmTestDirection < 0)
+        {
+            if (pulseUs >= (uint16)(STEERING_SERVO_MIN_US + stepUs))
+            {
+                pulseUs = (uint16)(pulseUs - stepUs);
+                g_steeringPwmTestAtLimit = 0u;
+            }
+            else
+            {
+                pulseUs = STEERING_SERVO_MIN_US;
+                g_steeringPwmTestAtLimit = 1u;
+            }
+        }
+        else
+        {
+            g_steeringPwmTestAtLimit = 0u;
+        }
+    }
+
+    pulseUs = ControlLoop_ClampSteeringPulseUs(pulseUs);
+    g_steeringPwmTestPulseUs = pulseUs;
+    g_currentSteeringPulseUs = pulseUs;
+    g_dbgSteeringCorrectionUs = (float32)pulseUs - (float32)STEERING_SERVO_CENTER_US;
+    SteeringPwm_SetPulseUs(pulseUs);
+}
+
+static void ControlLoop_UpdateSteeringCenterTune(void)
+{
+    uint16 pulseUs = ControlLoop_ClampSteeringPulseUs(g_steeringCenterTunePulseUs);
+    uint16 stepUs = g_steeringCenterTuneStepUs;
+
+    if (stepUs == 0u)
+    {
+        stepUs = 1u;
+    }
+    else if (stepUs > 50u)
+    {
+        stepUs = 50u;
+    }
+
+    g_steeringCenterTuneStepUs = stepUs;
+
+    if (g_steeringCenterTuneDirection > 0)
+    {
+        if (pulseUs <= (uint16)(STEERING_SERVO_MAX_US - stepUs))
+        {
+            pulseUs = (uint16)(pulseUs + stepUs);
+            g_steeringCenterTuneAtLimit = 0u;
+        }
+        else
+        {
+            pulseUs = STEERING_SERVO_MAX_US;
+            g_steeringCenterTuneAtLimit = 1u;
+        }
+    }
+    else if (g_steeringCenterTuneDirection < 0)
+    {
+        if (pulseUs >= (uint16)(STEERING_SERVO_MIN_US + stepUs))
+        {
+            pulseUs = (uint16)(pulseUs - stepUs);
+            g_steeringCenterTuneAtLimit = 0u;
+        }
+        else
+        {
+            pulseUs = STEERING_SERVO_MIN_US;
+            g_steeringCenterTuneAtLimit = 1u;
+        }
+    }
+    else
+    {
+        g_steeringCenterTuneAtLimit = 0u;
+    }
+
+    pulseUs = ControlLoop_ClampSteeringPulseUs(pulseUs);
+    g_steeringCenterTunePulseUs = pulseUs;
+    g_currentSteeringPulseUs = pulseUs;
+    g_manualSteeringPulseUs = pulseUs;
+    g_manualSteeringPulseValid = TRUE;
+    g_dbgSteeringCorrectionUs = (float32)pulseUs - (float32)STEERING_SERVO_CENTER_US;
+    SteeringPwm_SetPulseUs(pulseUs);
+}
+#endif
+
+static sint32 ControlLoop_ComputeU16Delta(uint16 previousCount, uint16 currentCount)
+{
+    return (sint32)((sint16)(currentCount - previousCount));
+}
+
+static void ControlLoop_SendEncoderDebug(void)
+{
+    uint16 leftCount = dbgEncoderLeftHwCount;
+    uint16 rightCount = dbgEncoderRightHwCount;
+    sint32 leftDelta = 0;
+    sint32 rightDelta = 0;
+
+    if (g_encoderDebugHasPrevious != FALSE)
+    {
+        leftDelta = ControlLoop_ComputeU16Delta(g_encoderDebugPrevLeftCount, leftCount);
+        rightDelta = ControlLoop_ComputeU16Delta(g_encoderDebugPrevRightCount, rightCount);
+        leftDelta *= (sint32)ENCODER_LEFT_COUNT_SIGN;
+        rightDelta *= (sint32)ENCODER_RIGHT_COUNT_SIGN;
+    }
+
+    g_encoderDebugPrevLeftCount = leftCount;
+    g_encoderDebugPrevRightCount = rightCount;
+    g_encoderDebugHasPrevious = TRUE;
+
+    CanSpeedTx_SendEncoderDebug(leftCount, rightCount, leftDelta, rightDelta);
+}
+
+static void ControlLoop_ApplyDriveDutyDirected(uint8 dutyPercent, uint8 driveDirection)
+{
+    if ((dutyPercent == 0u) || (driveDirection == DRIVE_DIRECTION_STOP))
+    {
+        DrivePwm_Stop();
+        g_currentDriveDutyPercent = 0u;
+        g_motorAppliedDutyPct = 0.0f;
+        g_driveForwardEnabled = 0u;
+        g_driveReverseEnabled = 0u;
+        g_driveDirection = DRIVE_DIRECTION_STOP;
+        SpeedCalc_SetBufferScanDutyPercent(0u);
+        return;
+    }
+
+    if ((g_driveDirection != DRIVE_DIRECTION_STOP) && (g_driveDirection != driveDirection))
+    {
+        DrivePwm_Stop();
+        g_currentDriveDutyPercent = 0u;
+        g_motorAppliedDutyPct = 0.0f;
+        g_driveForwardEnabled = 0u;
+        g_driveReverseEnabled = 0u;
+        g_driveDirection = DRIVE_DIRECTION_STOP;
+        SpeedCalc_SetBufferScanDutyPercent(0u);
+        return;
+    }
+
+    if (driveDirection == DRIVE_DIRECTION_REVERSE)
+    {
+        DrivePwm_Reverse(dutyPercent);
+        g_driveForwardEnabled = 0u;
+        g_driveReverseEnabled = 1u;
+        g_driveDirection = DRIVE_DIRECTION_REVERSE;
+    }
+    else
+    {
+        DrivePwm_Forward(dutyPercent);
+        g_driveForwardEnabled = 1u;
+        g_driveReverseEnabled = 0u;
+        g_driveDirection = DRIVE_DIRECTION_FORWARD;
+    }
+
+    g_currentDriveDutyPercent = dutyPercent;
+    g_motorAppliedDutyPct = (float32)dutyPercent;
+    SpeedCalc_SetBufferScanDutyPercent(dutyPercent);
+}
+
+static void ControlLoop_ApplyDriveDuty(uint8 dutyPercent)
+{
+    ControlLoop_ApplyDriveDutyDirected(dutyPercent, DRIVE_DIRECTION_FORWARD);
+}
+
+static uint8 ControlLoop_DutyFloatToPercent(float32 duty)
+{
+    duty = ControlLoop_ClampFloat(duty, 0.0f, 100.0f);
+    return (uint8)(duty + 0.5f);
+}
+
+static uint8 ControlLoop_ClampDutyPercent(uint8 dutyPercent)
+{
+    return (dutyPercent > 100u) ? 100u : dutyPercent;
+}
+
+static float32 ControlLoop_MpsToRpm(float32 mps)
+{
+    return (mps * 60.0f) / (3.14159265f * WHEEL_DIAMETER_M);
+}
+
+static float32 ControlLoop_RpmToMps(float32 rpm)
+{
+    return (rpm * 3.14159265f * WHEEL_DIAMETER_M) / 60.0f;
+}
+
+static float32 ControlLoop_RpmToKph(float32 rpm)
+{
+    return ControlLoop_RpmToMps(rpm) * 3.6f;
+}
+
+static float32 ControlLoop_ComputeFeedforwardDuty(float32 targetRpm)
+{
+    float32 duty;
+
+    if (targetRpm <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    duty = (targetRpm * 100.0f) / SPEED_CONTROL_MAX_RPM_AT_100_DUTY;
+
+    if (duty < SPEED_CONTROL_START_DUTY)
+    {
+        duty = SPEED_CONTROL_START_DUTY;
+    }
+
+    return ControlLoop_ClampFloat(duty, 0.0f, SPEED_CONTROL_MAX_DUTY);
+}
+
+static void ControlLoop_ResetSpeedPid(void)
+{
+    g_speedControlProportionalDuty = 0.0f;
+    g_speedControlIntegralDuty = 0.0f;
+    g_speedControlDerivativeDuty = 0.0f;
+    g_speedControlPidDuty = 0.0f;
+    g_speedControlPreviousErrorRpm = 0.0f;
+    g_speedControlHasPreviousError = FALSE;
+    g_speedHoldIntegralDuty = 0.0f;
+    g_speedHoldPositionLatched = FALSE;
+    g_speedHoldPositionErrorM = 0.0f;
+    g_speedHoldDutyCommand = 0.0f;
+    g_speedBrakeActive = 0u;
+}
+
+void ControlLoop_StopDriveNow(void)
+{
+    g_targetVehicleKph = 0.0f;
+    g_targetVehicleMps = 0.0f;
+    g_targetVehicleRpm = 0.0f;
+    g_speedControlErrorMps = 0.0f;
+    g_speedControlErrorRpm = 0.0f;
+    g_speedControlFeedforwardDuty = 0.0f;
+    g_speedControlDutyCommand = 0.0f;
+    g_driveDutyCommandFloat = 0.0f;
+    ControlLoop_ResetSpeedPid();
+    ControlLoop_ApplyDriveDutyDirected(0u, DRIVE_DIRECTION_STOP);
+}
+
+static float32 ControlLoop_ApplyDutyRamp(float32 currentDuty, float32 targetDuty, float32 ratePerLoop)
+{
+    float32 delta = targetDuty - currentDuty;
+
+    if (delta > ratePerLoop)
+    {
+        return currentDuty + ratePerLoop;
+    }
+
+    if (delta < -ratePerLoop)
+    {
+        return currentDuty - ratePerLoop;
+    }
+
+    return targetDuty;
+}
+
+static void ControlLoop_UpdateDriveSpeedControl(boolean speedValid, float32 measuredMps, float32 measuredRpm)
+{
+    float32 targetMpsSigned;
+    float32 targetMps;
+    float32 targetRpm;
+    float32 targetRpmSigned;
+    float32 measuredSignedMps;
+    float32 measuredSignedRpm;
+    float32 feedforwardDuty;
+    float32 derivativeRpmPerSec;
+    float32 desiredDuty;
+    float32 desiredDutySigned;
+    float32 holdDutySigned;
+    float32 rampRate;
+    uint8 requestedDriveDirection;
+    uint8 driveDirection;
+
+#if (ESTOP_ENABLE != 0u)
+    g_estopPinHigh = IfxPort_getPinState(ESTOP_PORT, ESTOP_PIN) ? 1u : 0u;
+    g_estopActive = (g_estopPinHigh == 0u) ? 1u : 0u;
+#else
+    g_estopPinHigh = 1u;
+    g_estopActive = 0u;
+#endif
+
+    if (g_estopActive != 0u)
+    {
+        ControlLoop_ResetSpeedPid();
+        g_speedControlDutyCommand = 0.0f;
+        g_driveDutyCommandFloat = 0.0f;
+        ControlLoop_ApplyDriveDuty(0u);
+        return;
+    }
+
+    if (g_speedControlEnabled == 0u)
+    {
+        ControlLoop_ResetSpeedPid();
+        g_speedControlDutyCommand = 0.0f;
+        g_driveDutyCommandFloat = 0.0f;
+        ControlLoop_ApplyDriveDuty(0u);
+        return;
+    }
+
+    g_speedBrakeActive = 0u;
+    rampRate = SPEED_CONTROL_DUTY_RAMP_PER_LOOP;
+
+    targetMpsSigned = ControlLoop_ClampFloat(g_targetVehicleMps,
+                                             -SPEED_TARGET_LIMIT_MPS,
+                                             SPEED_TARGET_LIMIT_MPS);
+    targetMps = ControlLoop_AbsFloat(targetMpsSigned);
+    requestedDriveDirection = (targetMpsSigned < 0.0f) ? DRIVE_DIRECTION_REVERSE : DRIVE_DIRECTION_FORWARD;
+    driveDirection = requestedDriveDirection;
+    if (targetMps <= 0.0f)
+    {
+        driveDirection = DRIVE_DIRECTION_STOP;
+        requestedDriveDirection = DRIVE_DIRECTION_STOP;
+    }
+
+    targetRpm = ControlLoop_MpsToRpm(targetMps);
+    targetRpmSigned = (driveDirection == DRIVE_DIRECTION_REVERSE) ? -targetRpm : targetRpm;
+    measuredSignedMps = (driveDirection == DRIVE_DIRECTION_REVERSE) ? -measuredMps : measuredMps;
+    measuredSignedRpm = (driveDirection == DRIVE_DIRECTION_REVERSE) ? -measuredRpm : measuredRpm;
+
+    if (g_speedCalibrationFixedDutyEnable != 0u)
+    {
+        g_targetVehicleRpm = targetRpmSigned;
+        g_currentVehicleMps = measuredSignedMps;
+        g_currentVehicleRpm = measuredSignedRpm;
+        g_speedControlErrorMps = targetMps - measuredMps;
+        g_speedControlErrorRpm = targetRpm - measuredRpm;
+        g_speedControlFeedforwardDuty = 0.0f;
+        ControlLoop_ResetSpeedPid();
+        desiredDuty = ControlLoop_ClampFloat(g_speedCalibrationFixedDutyPercent, 0.0f, 100.0f);
+        g_driveDutyCommandFloat = ControlLoop_ApplyDutyRamp(g_driveDutyCommandFloat,
+                                                            desiredDuty,
+                                                            rampRate);
+        g_speedControlDutyCommand = g_driveDutyCommandFloat;
+        ControlLoop_ApplyDriveDutyDirected(ControlLoop_DutyFloatToPercent(g_driveDutyCommandFloat),
+                                           driveDirection);
+        return;
+    }
+
+    feedforwardDuty = ControlLoop_ComputeFeedforwardDuty(targetRpm);
+
+    g_targetVehicleRpm = targetRpmSigned;
+    g_currentVehicleMps = measuredSignedMps;
+    g_currentVehicleRpm = measuredSignedRpm;
+    g_speedControlFeedforwardDuty = feedforwardDuty;
+    g_speedControlErrorMps = targetMps - measuredMps;
+    g_speedControlErrorRpm = targetRpm - measuredRpm;
+
+    if (targetMps <= 0.0f)
+    {
+        rampRate = SPEED_HOLD_DUTY_RAMP_PER_LOOP;
+        g_targetVehicleRpm = 0.0f;
+        g_currentVehicleMps = g_lastSpeed.vehicleMpsSigned;
+        g_currentVehicleRpm = g_lastSpeed.vehicleRpmSigned;
+        g_speedControlFeedforwardDuty = 0.0f;
+        g_speedControlErrorMps = -g_lastSpeed.vehicleMpsSigned;
+        g_speedControlErrorRpm = -g_lastSpeed.vehicleRpmSigned;
+        g_speedControlPreviousErrorRpm = 0.0f;
+        g_speedControlHasPreviousError = FALSE;
+
+        if ((g_speedHoldEnabled == 0u) || (speedValid == FALSE))
+        {
+            ControlLoop_ResetSpeedPid();
+            desiredDuty = 0.0f;
+            driveDirection = DRIVE_DIRECTION_STOP;
+        }
+        else
+        {
+            if (g_speedHoldPositionLatched == FALSE)
+            {
+                g_speedHoldHomePositionM = g_lastSpeed.vehiclePositionM;
+                g_speedHoldIntegralDuty = 0.0f;
+                g_speedHoldPositionLatched = TRUE;
+            }
+
+            g_speedHoldPositionErrorM = g_speedHoldHomePositionM - g_lastSpeed.vehiclePositionM;
+
+            if ((ControlLoop_AbsFloat(g_speedHoldPositionErrorM) <= SPEED_HOLD_POSITION_DEADBAND_M) &&
+                (ControlLoop_AbsFloat(g_lastSpeed.vehicleMpsSigned) <= SPEED_HOLD_SPEED_DEADBAND_MPS))
+            {
+                g_speedControlProportionalDuty = 0.0f;
+                g_speedControlIntegralDuty = 0.0f;
+                g_speedControlDerivativeDuty = 0.0f;
+                g_speedControlPidDuty = 0.0f;
+                g_speedHoldDutyCommand = 0.0f;
+                desiredDuty = 0.0f;
+                driveDirection = DRIVE_DIRECTION_STOP;
+            }
+            else
+            {
+                g_speedControlProportionalDuty =
+                    SPEED_HOLD_POSITION_KP_DUTY_PER_M * g_speedHoldPositionErrorM;
+                g_speedHoldIntegralDuty += g_speedHoldPositionErrorM *
+                                           SPEED_HOLD_POSITION_KI_DUTY_PER_M_SEC *
+                                           CONTROL_LOOP_PERIOD_SEC;
+                g_speedHoldIntegralDuty = ControlLoop_ClampFloat(g_speedHoldIntegralDuty,
+                                                                 -SPEED_HOLD_INTEGRAL_LIMIT_DUTY,
+                                                                 SPEED_HOLD_INTEGRAL_LIMIT_DUTY);
+                g_speedControlIntegralDuty = g_speedHoldIntegralDuty;
+                g_speedControlDerivativeDuty =
+                    -SPEED_HOLD_POSITION_KD_DUTY_PER_MPS * g_lastSpeed.vehicleMpsSigned;
+                g_speedControlPidDuty = g_speedControlProportionalDuty +
+                                        g_speedControlIntegralDuty +
+                                        g_speedControlDerivativeDuty;
+                holdDutySigned = ControlLoop_ClampFloat(g_speedControlPidDuty,
+                                                        -SPEED_HOLD_REVERSE_MAX_DUTY,
+                                                        SPEED_HOLD_FORWARD_MAX_DUTY);
+                g_speedHoldDutyCommand = holdDutySigned;
+
+                if (holdDutySigned < 0.0f)
+                {
+                    desiredDuty = -holdDutySigned;
+                    driveDirection = DRIVE_DIRECTION_REVERSE;
+                }
+                else
+                {
+                    desiredDuty = holdDutySigned;
+                    driveDirection = DRIVE_DIRECTION_FORWARD;
+                }
+            }
+        }
+    }
+    else if (speedValid == FALSE)
+    {
+        ControlLoop_ResetSpeedPid();
+        desiredDuty = feedforwardDuty;
+        g_speedHoldIntegralDuty = 0.0f;
+        g_speedHoldPositionLatched = FALSE;
+        g_speedHoldPositionErrorM = 0.0f;
+        g_speedHoldDutyCommand = 0.0f;
+    }
+    else
+    {
+        g_speedHoldIntegralDuty = 0.0f;
+        g_speedHoldPositionLatched = FALSE;
+        g_speedHoldPositionErrorM = 0.0f;
+        g_speedHoldDutyCommand = 0.0f;
+        g_speedControlProportionalDuty = SPEED_PID_KP_DUTY_PER_RPM * g_speedControlErrorRpm;
+
+        g_speedControlIntegralDuty += g_speedControlErrorRpm *
+                                      SPEED_PID_KI_DUTY_PER_RPM_SEC *
+                                      CONTROL_LOOP_PERIOD_SEC;
+        g_speedControlIntegralDuty = ControlLoop_ClampFloat(g_speedControlIntegralDuty,
+                                                            -SPEED_CONTROL_INTEGRAL_LIMIT_DUTY,
+                                                            SPEED_CONTROL_INTEGRAL_LIMIT_DUTY);
+
+        if (g_speedControlHasPreviousError == FALSE)
+        {
+            derivativeRpmPerSec = 0.0f;
+            g_speedControlHasPreviousError = TRUE;
+        }
+        else
+        {
+            derivativeRpmPerSec = (g_speedControlErrorRpm - g_speedControlPreviousErrorRpm) /
+                                  CONTROL_LOOP_PERIOD_SEC;
+        }
+
+        g_speedControlPreviousErrorRpm = g_speedControlErrorRpm;
+        g_speedControlDerivativeDuty = SPEED_PID_KD_DUTY_PER_RPM_PER_SEC * derivativeRpmPerSec;
+        g_speedControlDerivativeDuty = ControlLoop_ClampFloat(g_speedControlDerivativeDuty,
+                                                              -SPEED_CONTROL_DERIVATIVE_LIMIT_DUTY,
+                                                              SPEED_CONTROL_DERIVATIVE_LIMIT_DUTY);
+        g_speedControlPidDuty = g_speedControlProportionalDuty +
+                                g_speedControlIntegralDuty +
+                                g_speedControlDerivativeDuty;
+
+        if (g_speedControlErrorRpm < -SPEED_OVERSPEED_BRAKE_RPM)
+        {
+            desiredDutySigned = g_speedControlPidDuty * SPEED_OVERSPEED_BRAKE_GAIN;
+        }
+        else
+        {
+            desiredDutySigned = feedforwardDuty + g_speedControlPidDuty;
+        }
+        desiredDutySigned = ControlLoop_ClampFloat(desiredDutySigned,
+                                                  -SPEED_BRAKE_MAX_DUTY,
+                                                  SPEED_CONTROL_MAX_DUTY);
+        if (desiredDutySigned < 0.0f)
+        {
+            desiredDuty = -desiredDutySigned;
+            g_speedBrakeActive = 1u;
+            rampRate = SPEED_HOLD_DUTY_RAMP_PER_LOOP;
+            driveDirection = (requestedDriveDirection == DRIVE_DIRECTION_REVERSE) ?
+                             DRIVE_DIRECTION_FORWARD :
+                             DRIVE_DIRECTION_REVERSE;
+        }
+        else
+        {
+            desiredDuty = desiredDutySigned;
+            driveDirection = requestedDriveDirection;
+        }
+    }
+
+    g_driveDutyCommandFloat = ControlLoop_ApplyDutyRamp(g_driveDutyCommandFloat,
+                                                        desiredDuty,
+                                                        rampRate);
+    g_speedControlDutyCommand = g_driveDutyCommandFloat;
+    ControlLoop_ApplyDriveDutyDirected(ControlLoop_DutyFloatToPercent(g_driveDutyCommandFloat),
+                                       driveDirection);
+}
+
+static void ControlLoop_StartSpeedBufferAutoTest(void)
+{
+    g_speedBufferAutoTestStart = 0u;
+    g_speedBufferAutoTestActive = 1u;
+    g_speedBufferAutoTestDone = 0u;
+    g_speedBufferAutoTestStatus = SPEED_BUFFER_AUTO_TEST_STATUS_RUN;
+    g_speedBufferAutoTestCurrentSize = SPEED_BUFFER_AUTO_TEST_START_SIZE;
+    g_speedBufferAutoTestStageIndex = 0u;
+    g_speedBufferAutoTestElapsedMs = 0u;
+    g_speedBufferAutoTestAvgVehicleRpm = 0.0f;
+    g_speedBufferAutoTestHoldZeroCount = 0u;
+    g_speedBufferAutoTestStageLoopCount = 0u;
+
+    g_targetVehicleKph = 0.0f;
+    g_targetVehicleMps = 0.0f;
+    g_speedCalibrationFixedDutyEnable = 0u;
+    ControlLoop_ResetSpeedPid();
+    SpeedCalc_SetAverageBufferSize(SPEED_BUFFER_AUTO_TEST_START_SIZE, TRUE);
+}
+
+static void ControlLoop_StopSpeedBufferAutoTest(void)
+{
+    g_speedBufferAutoTestActive = 0u;
+    g_speedBufferAutoTestDone = 1u;
+    g_speedBufferAutoTestStatus = SPEED_BUFFER_AUTO_TEST_STATUS_DONE;
+    g_speedBufferAutoTestElapsedMs = g_speedBufferAutoTestStageMs;
+    g_speedBufferAutoTestStageLoopCount = 0u;
+
+    g_targetVehicleKph = 0.0f;
+    g_targetVehicleMps = 0.0f;
+    g_speedControlDutyCommand = 0.0f;
+    g_driveDutyCommandFloat = 0.0f;
+    ControlLoop_ResetSpeedPid();
+    ControlLoop_ApplyDriveDuty(0u);
+    SpeedCalc_SetAverageBufferSize(SPEED_BUFFER_FIXED_COUNT, TRUE);
+}
+
+static void ControlLoop_AdvanceSpeedBufferAutoTest(void)
+{
+    uint8 nextSize;
+
+    if (g_speedBufferAutoTestCurrentSize >= SPEED_BUFFER_AUTO_TEST_END_SIZE)
+    {
+        ControlLoop_StopSpeedBufferAutoTest();
+        return;
+    }
+
+    nextSize = (uint8)(g_speedBufferAutoTestCurrentSize + SPEED_BUFFER_AUTO_TEST_STEP_SIZE);
+    if (nextSize > SPEED_BUFFER_AUTO_TEST_END_SIZE)
+    {
+        nextSize = SPEED_BUFFER_AUTO_TEST_END_SIZE;
+    }
+
+    g_speedBufferAutoTestCurrentSize = nextSize;
+    g_speedBufferAutoTestStageIndex++;
+    g_speedBufferAutoTestElapsedMs = 0u;
+    g_speedBufferAutoTestStageLoopCount = 0u;
+    SpeedCalc_SetAverageBufferSize((uint16)nextSize, TRUE);
+}
+
+static void ControlLoop_UpdateSpeedBufferAutoTest(void)
+{
+    uint8 dutyPercent;
+    uint32 elapsedMs;
+    uint16 stageMs;
+
+    if (g_speedBufferAutoTestStart != 0u)
+    {
+        ControlLoop_StartSpeedBufferAutoTest();
+    }
+
+    if (g_speedBufferAutoTestActive == 0u)
+    {
+        return;
+    }
+
+    dutyPercent = ControlLoop_ClampDutyPercent(g_speedBufferAutoTestDutyPercent);
+    g_speedBufferAutoTestDutyPercent = dutyPercent;
+
+    if ((g_lastSpeed.valid == TRUE) && (g_lastSpeed.vehicleRpm > 0.1f))
+    {
+        g_speedBufferAutoTestAvgVehicleRpm = g_lastSpeed.vehicleRpm;
+    }
+    else if (g_speedBufferAutoTestAvgVehicleRpm > 0.1f)
+    {
+        g_speedBufferAutoTestHoldZeroCount++;
+    }
+
+    g_speedControlFeedforwardDuty = 0.0f;
+    g_speedControlDutyCommand = (float32)dutyPercent;
+    g_driveDutyCommandFloat = (float32)dutyPercent;
+    ControlLoop_ResetSpeedPid();
+    ControlLoop_ApplyDriveDuty(dutyPercent);
+
+    stageMs = (g_speedBufferAutoTestStageMs == 0u) ?
+              SPEED_BUFFER_AUTO_TEST_STAGE_MS :
+              g_speedBufferAutoTestStageMs;
+
+    g_speedBufferAutoTestStageLoopCount++;
+    elapsedMs = g_speedBufferAutoTestStageLoopCount * 5u;
+    g_speedBufferAutoTestElapsedMs = (elapsedMs > 65535u) ? 65535u : (uint16)elapsedMs;
+
+    if (elapsedMs >= (uint32)stageMs)
+    {
+        ControlLoop_AdvanceSpeedBufferAutoTest();
+    }
+}
+
+static void ControlLoop_SendSpeedBufferAutoTestTelemetry(void)
+{
+    VehicleSpeedValue txSpeed = g_lastSpeed;
+
+    if ((g_speedBufferAutoTestAvgVehicleRpm > 0.1f) &&
+        ((txSpeed.valid == FALSE) || (txSpeed.vehicleRpm <= 0.1f)))
+    {
+        txSpeed.left.rawRpm = g_speedBufferAutoTestAvgVehicleRpm;
+        txSpeed.left.avgRpm = g_speedBufferAutoTestAvgVehicleRpm;
+        txSpeed.right.rawRpm = g_speedBufferAutoTestAvgVehicleRpm;
+        txSpeed.right.avgRpm = g_speedBufferAutoTestAvgVehicleRpm;
+        txSpeed.vehicleRpm = g_speedBufferAutoTestAvgVehicleRpm;
+        txSpeed.vehicleMps = ControlLoop_RpmToMps(g_speedBufferAutoTestAvgVehicleRpm);
+        txSpeed.valid = TRUE;
+    }
+
+    CanSpeedTx_SendWheelSpeed(&txSpeed);
+    CanSpeedTx_SendRpmDebug(&txSpeed);
+    CanSpeedTx_SendDriveStatus(g_currentDriveDutyPercent,
+                               g_driveDirection,
+                               g_estopActive,
+                               g_speedBufferAutoTestCurrentSize,
+                               g_dbgSpeedLeftDeltaCount,
+                               g_dbgSpeedRightDeltaCount);
+    CanSpeedTx_SendSpeedControlStatus(g_targetVehicleRpm,
+                                      g_currentVehicleRpm,
+                                      g_speedControlDutyCommand,
+                                      g_speedControlFeedforwardDuty);
+    CanSpeedTx_SendBufferTestStatus(g_speedBufferAutoTestCurrentSize,
+                                    g_speedBufferAutoTestStageIndex,
+                                    g_currentDriveDutyPercent,
+                                    g_speedBufferAutoTestStatus,
+                                    g_speedBufferAutoTestAvgVehicleRpm,
+                                    g_speedBufferAutoTestElapsedMs);
+    CanSpeedTx_SendEncoderCount(g_dbgSpeedLeftCount, g_dbgSpeedRightCount);
+    ControlLoop_SendEncoderDebug();
+}
+
+static void ControlLoop_StartMaxSpeedTest(void)
+{
+    g_unitTestCaseCommand = UNIT_TEST_CASE_NONE;
+    g_unitTestCaseActive = 1u;
+    g_unitTestCaseDone = 0u;
+    g_unitTestCaseId = UNIT_TEST_CASE_MAX_SPEED;
+    g_unitTestCaseStatus = UNIT_TEST_STATUS_RUN;
+    g_unitTestDoneHoldLoopCount = 0u;
+
+    g_maxSpeedTestPhase = MAX_SPEED_TEST_PHASE_ZERO_DUTY;
+    g_maxSpeedTestDutyPercent = MAX_SPEED_TEST_DUTY_PERCENT;
+    g_maxSpeedTestElapsedMs = 0u;
+    g_maxSpeedTestCurrentRpm = 0.0f;
+    g_maxSpeedTestCurrentKph = 0.0f;
+    g_maxSpeedTestAvgRpm = 0.0f;
+    g_maxSpeedTestAvgKph = 0.0f;
+    g_maxSpeedTestMaxRpm = 0.0f;
+    g_maxSpeedTestMaxKph = 0.0f;
+    g_maxSpeedTestSampleCount = 0u;
+    g_maxSpeedTestPhaseLoopCount = 0u;
+    g_maxSpeedTestRunLoopCount = 0u;
+    g_maxSpeedTestRpmSum = 0.0f;
+    g_maxSpeedTestKphSum = 0.0f;
+
+    g_targetVehicleKph = 0.0f;
+    g_targetVehicleMps = 0.0f;
+    g_speedCalibrationFixedDutyEnable = 0u;
+    ControlLoop_ResetSpeedPid();
+    ControlLoop_ApplyDriveDuty(0u);
+    SpeedCalc_SetAverageBufferSize(MAX_SPEED_TEST_BUFFER_SIZE, TRUE);
+}
+
+static void ControlLoop_FinishMaxSpeedTest(void)
+{
+    g_unitTestCaseActive = 0u;
+    g_unitTestCaseDone = 1u;
+    g_unitTestCaseStatus = UNIT_TEST_STATUS_DONE;
+    g_maxSpeedTestPhase = MAX_SPEED_TEST_PHASE_DONE;
+    g_unitTestDoneHoldLoopCount = UNIT_TEST_DONE_HOLD_MS / 5u;
+
+    g_targetVehicleKph = 0.0f;
+    g_targetVehicleMps = 0.0f;
+    g_speedControlDutyCommand = 0.0f;
+    g_driveDutyCommandFloat = 0.0f;
+    ControlLoop_ResetSpeedPid();
+    ControlLoop_ApplyDriveDuty(0u);
+    SpeedCalc_SetAverageBufferSize(SPEED_BUFFER_FIXED_COUNT, TRUE);
+}
+
+static uint16 ControlLoop_GetMaxSpeedZeroDutyMs(void)
+{
+    return (g_maxSpeedTestZeroDutyMs == 0u) ?
+           MAX_SPEED_TEST_ZERO_DUTY_MS :
+           g_maxSpeedTestZeroDutyMs;
+}
+
+static uint16 ControlLoop_GetMaxSpeedRunMs(void)
+{
+    return (g_maxSpeedTestRunMs == 0u) ?
+           MAX_SPEED_TEST_RUN_MS :
+           g_maxSpeedTestRunMs;
+}
+
+static void ControlLoop_UpdateMaxSpeedTest(void)
+{
+    uint32 phaseElapsedMs;
+    uint8 dutyPercent;
+
+    if ((g_unitTestCaseCommand == UNIT_TEST_CASE_MAX_SPEED) &&
+        (g_unitTestCaseActive == 0u))
+    {
+        ControlLoop_StartMaxSpeedTest();
+    }
+
+    if (g_unitTestCaseActive == 0u)
+    {
+        if (g_unitTestDoneHoldLoopCount > 0u)
+        {
+            g_unitTestDoneHoldLoopCount--;
+            ControlLoop_ApplyDriveDuty(0u);
+        }
+        return;
+    }
+
+    if (g_unitTestCaseId != UNIT_TEST_CASE_MAX_SPEED)
+    {
+        return;
+    }
+
+    g_maxSpeedTestCurrentRpm = (g_lastSpeed.valid == TRUE) ? g_lastSpeed.vehicleRpm : 0.0f;
+    g_maxSpeedTestCurrentKph = ControlLoop_RpmToKph(g_maxSpeedTestCurrentRpm);
+
+    if (g_maxSpeedTestPhase == MAX_SPEED_TEST_PHASE_ZERO_DUTY)
+    {
+        g_speedControlFeedforwardDuty = 0.0f;
+        g_speedControlDutyCommand = 0.0f;
+        g_driveDutyCommandFloat = 0.0f;
+        ControlLoop_ResetSpeedPid();
+        ControlLoop_ApplyDriveDuty(0u);
+
+        g_maxSpeedTestPhaseLoopCount++;
+        phaseElapsedMs = g_maxSpeedTestPhaseLoopCount * 5u;
+        g_maxSpeedTestElapsedMs = (phaseElapsedMs > 65535u) ? 65535u : (uint16)phaseElapsedMs;
+
+        if (phaseElapsedMs >= (uint32)ControlLoop_GetMaxSpeedZeroDutyMs())
+        {
+            g_maxSpeedTestPhase = MAX_SPEED_TEST_PHASE_FULL_DUTY;
+            g_maxSpeedTestPhaseLoopCount = 0u;
+            SpeedCalc_SetAverageBufferSize(MAX_SPEED_TEST_BUFFER_SIZE, TRUE);
+        }
+        return;
+    }
+
+    dutyPercent = ControlLoop_ClampDutyPercent(g_maxSpeedTestDutyPercent);
+    g_maxSpeedTestDutyPercent = dutyPercent;
+    g_speedControlFeedforwardDuty = 0.0f;
+    g_speedControlDutyCommand = (float32)dutyPercent;
+    g_driveDutyCommandFloat = (float32)dutyPercent;
+    ControlLoop_ResetSpeedPid();
+    ControlLoop_ApplyDriveDuty(dutyPercent);
+
+    if ((g_lastSpeed.valid == TRUE) && (g_maxSpeedTestCurrentRpm > 0.1f))
+    {
+        g_maxSpeedTestSampleCount++;
+        g_maxSpeedTestRpmSum += g_maxSpeedTestCurrentRpm;
+        g_maxSpeedTestKphSum += g_maxSpeedTestCurrentKph;
+        g_maxSpeedTestAvgRpm = g_maxSpeedTestRpmSum / (float32)g_maxSpeedTestSampleCount;
+        g_maxSpeedTestAvgKph = g_maxSpeedTestKphSum / (float32)g_maxSpeedTestSampleCount;
+
+        if (g_maxSpeedTestCurrentRpm > g_maxSpeedTestMaxRpm)
+        {
+            g_maxSpeedTestMaxRpm = g_maxSpeedTestCurrentRpm;
+            g_maxSpeedTestMaxKph = g_maxSpeedTestCurrentKph;
+        }
+    }
+
+    g_maxSpeedTestPhaseLoopCount++;
+    g_maxSpeedTestRunLoopCount++;
+    phaseElapsedMs = g_maxSpeedTestPhaseLoopCount * 5u;
+    g_maxSpeedTestElapsedMs =
+        (ControlLoop_GetMaxSpeedZeroDutyMs() + phaseElapsedMs > 65535u) ?
+        65535u :
+        (uint16)(ControlLoop_GetMaxSpeedZeroDutyMs() + phaseElapsedMs);
+
+    if (phaseElapsedMs >= (uint32)ControlLoop_GetMaxSpeedRunMs())
+    {
+        ControlLoop_FinishMaxSpeedTest();
+    }
+}
+
+static uint8 ControlLoop_GetMaxSpeedElapsedSec(void)
+{
+    uint32 elapsedSec = ((uint32)g_maxSpeedTestElapsedMs) / 1000u;
+
+    return (elapsedSec > 255u) ? 255u : (uint8)elapsedSec;
+}
+
+static void ControlLoop_SendMaxSpeedTestTelemetry(void)
+{
+    CanSpeedTx_SendWheelSpeed(&g_lastSpeed);
+    CanSpeedTx_SendRpmDebug(&g_lastSpeed);
+    CanSpeedTx_SendDriveStatus(g_currentDriveDutyPercent,
+                               g_driveDirection,
+                               g_estopActive,
+                               g_dbgSpeedBufferCount,
+                               g_dbgSpeedLeftDeltaCount,
+                               g_dbgSpeedRightDeltaCount);
+    CanSpeedTx_SendSpeedControlStatus(g_targetVehicleRpm,
+                                      g_currentVehicleRpm,
+                                      g_speedControlDutyCommand,
+                                      g_speedControlFeedforwardDuty);
+    CanSpeedTx_SendBufferTestStatus(0u, 0u, 0u, SPEED_BUFFER_AUTO_TEST_STATUS_IDLE, 0.0f, 0u);
+    CanSpeedTx_SendMaxSpeedTestStatus(g_unitTestCaseId,
+                                      g_unitTestCaseStatus,
+                                      g_maxSpeedTestPhase,
+                                      g_currentDriveDutyPercent,
+                                      g_maxSpeedTestCurrentRpm,
+                                      g_maxSpeedTestCurrentKph);
+    CanSpeedTx_SendMaxSpeedResult(g_unitTestCaseId,
+                                  g_unitTestCaseStatus,
+                                  g_maxSpeedTestDutyPercent,
+                                  ControlLoop_GetMaxSpeedElapsedSec(),
+                                  g_maxSpeedTestAvgRpm,
+                                  g_maxSpeedTestAvgKph);
+    CanSpeedTx_SendEncoderCount(g_dbgSpeedLeftCount, g_dbgSpeedRightCount);
+    ControlLoop_SendEncoderDebug();
+}
+
+static uint8 ControlLoop_GetDeadbandMaxDuty(void)
+{
+    uint8 maxDuty = ControlLoop_ClampDutyPercent(g_driveDeadbandTestMaxDutyPercent);
+
+    g_driveDeadbandTestMaxDutyPercent = maxDuty;
+    return maxDuty;
+}
+
+static void ControlLoop_StartDriveDeadbandTest(void)
+{
+    g_unitTestCaseCommand = UNIT_TEST_CASE_NONE;
+    g_unitTestCaseActive = 1u;
+    g_unitTestCaseDone = 0u;
+    g_unitTestCaseId = UNIT_TEST_CASE_DRIVE_DEADBAND;
+    g_unitTestCaseStatus = UNIT_TEST_STATUS_RUN;
+    g_unitTestDoneHoldLoopCount = 0u;
+
+    g_driveDeadbandTestCurrentDutyPercent = DRIVE_DEADBAND_TEST_START_DUTY_PERCENT;
+    g_driveDeadbandTestLastStoppedDutyPercent = 0u;
+    g_driveDeadbandTestFirstMovingDutyPercent = 0u;
+    g_driveDeadbandTestElapsedMs = 0u;
+    g_driveDeadbandTestMoveStableMs = 0u;
+    g_driveDeadbandTestCurrentRpm = 0.0f;
+    g_driveDeadbandTestCurrentKph = 0.0f;
+    g_driveDeadbandTestFinalRpm = 0.0f;
+    g_driveDeadbandTestFirstMovingRpm = 0.0f;
+    g_driveDeadbandTestFirstMovingKph = 0.0f;
+    g_driveDeadbandTestStageLoopCount = 0u;
+    g_driveDeadbandTestMoveLoopCount = 0u;
+    g_driveDeadbandTestTotalLoopCount = 0u;
+
+    g_targetVehicleKph = 0.0f;
+    g_targetVehicleMps = 0.0f;
+    g_speedCalibrationFixedDutyEnable = 0u;
+    ControlLoop_ResetSpeedPid();
+    SpeedCalc_SetAverageBufferSize(DRIVE_DEADBAND_TEST_BUFFER_SIZE, TRUE);
+}
+
+static void ControlLoop_FinishDriveDeadbandTest(uint8 statusCode)
+{
+    g_unitTestCaseActive = 0u;
+    g_unitTestCaseDone = 1u;
+    g_unitTestCaseStatus = statusCode;
+    g_driveDeadbandTestFinalRpm = g_driveDeadbandTestCurrentRpm;
+    g_driveDeadbandTestCurrentKph = ControlLoop_RpmToKph(g_driveDeadbandTestCurrentRpm);
+    g_unitTestDoneHoldLoopCount = UNIT_TEST_DONE_HOLD_MS / 5u;
+
+    g_targetVehicleKph = 0.0f;
+    g_targetVehicleMps = 0.0f;
+    g_speedControlDutyCommand = 0.0f;
+    g_driveDutyCommandFloat = 0.0f;
+    ControlLoop_ResetSpeedPid();
+    ControlLoop_ApplyDriveDuty(0u);
+    SpeedCalc_SetAverageBufferSize(SPEED_BUFFER_FIXED_COUNT, TRUE);
+}
+
+static void ControlLoop_CancelUnitTest(void)
+{
+    g_unitTestCaseCommand = UNIT_TEST_CASE_NONE;
+    g_unitTestCaseActive = 0u;
+    g_unitTestCaseDone = 1u;
+    g_unitTestCaseStatus = UNIT_TEST_STATUS_CANCELLED;
+    g_maxSpeedTestPhase = MAX_SPEED_TEST_PHASE_DONE;
+    g_unitTestDoneHoldLoopCount = UNIT_TEST_DONE_HOLD_MS / 5u;
+
+    g_targetVehicleKph = 0.0f;
+    g_targetVehicleMps = 0.0f;
+    g_speedControlDutyCommand = 0.0f;
+    g_driveDutyCommandFloat = 0.0f;
+    ControlLoop_ResetSpeedPid();
+    ControlLoop_ApplyDriveDuty(0u);
+    SpeedCalc_SetAverageBufferSize(SPEED_BUFFER_FIXED_COUNT, TRUE);
+}
+
+static void ControlLoop_AdvanceDriveDeadbandDuty(void)
+{
+    uint8 maxDuty = ControlLoop_GetDeadbandMaxDuty();
+
+    g_driveDeadbandTestLastStoppedDutyPercent = g_driveDeadbandTestCurrentDutyPercent;
+    if (g_driveDeadbandTestCurrentDutyPercent >= maxDuty)
+    {
+        ControlLoop_FinishDriveDeadbandTest(UNIT_TEST_STATUS_NO_MOTION);
+        return;
+    }
+
+    g_driveDeadbandTestCurrentDutyPercent =
+        (uint8)(g_driveDeadbandTestCurrentDutyPercent + DRIVE_DEADBAND_TEST_STEP_DUTY_PERCENT);
+    if (g_driveDeadbandTestCurrentDutyPercent > maxDuty)
+    {
+        g_driveDeadbandTestCurrentDutyPercent = maxDuty;
+    }
+
+    g_driveDeadbandTestStageLoopCount = 0u;
+    g_driveDeadbandTestMoveLoopCount = 0u;
+    g_driveDeadbandTestMoveStableMs = 0u;
+    SpeedCalc_SetAverageBufferSize(DRIVE_DEADBAND_TEST_BUFFER_SIZE, TRUE);
+}
+
+static void ControlLoop_UpdateDriveDeadbandTest(void)
+{
+    uint16 stageMs;
+    uint16 stableMs;
+    uint32 stageElapsedMs;
+
+    if ((g_unitTestCaseCommand == UNIT_TEST_CASE_DRIVE_DEADBAND) &&
+        (g_unitTestCaseActive == 0u))
+    {
+        ControlLoop_StartDriveDeadbandTest();
+    }
+
+    if (g_unitTestCaseActive == 0u)
+    {
+        if (g_unitTestDoneHoldLoopCount > 0u)
+        {
+            g_unitTestDoneHoldLoopCount--;
+            ControlLoop_ApplyDriveDuty(0u);
+        }
+        return;
+    }
+
+    if (g_unitTestCaseId != UNIT_TEST_CASE_DRIVE_DEADBAND)
+    {
+        return;
+    }
+
+    g_driveDeadbandTestCurrentRpm = (g_lastSpeed.valid == TRUE) ? g_lastSpeed.vehicleRpm : 0.0f;
+    g_driveDeadbandTestCurrentKph = ControlLoop_RpmToKph(g_driveDeadbandTestCurrentRpm);
+
+    g_speedControlFeedforwardDuty = 0.0f;
+    g_speedControlDutyCommand = (float32)g_driveDeadbandTestCurrentDutyPercent;
+    g_driveDutyCommandFloat = (float32)g_driveDeadbandTestCurrentDutyPercent;
+    ControlLoop_ResetSpeedPid();
+    ControlLoop_ApplyDriveDuty(g_driveDeadbandTestCurrentDutyPercent);
+
+    if ((g_driveDeadbandTestCurrentDutyPercent > 0u) &&
+        (g_driveDeadbandTestCurrentRpm >= g_driveDeadbandTestMoveThresholdRpm))
+    {
+        g_driveDeadbandTestMoveLoopCount++;
+    }
+    else
+    {
+        g_driveDeadbandTestMoveLoopCount = 0u;
+    }
+
+    stableMs = (g_driveDeadbandTestMoveLoopCount * 5u > 65535u) ?
+               65535u :
+               (uint16)(g_driveDeadbandTestMoveLoopCount * 5u);
+    g_driveDeadbandTestMoveStableMs = stableMs;
+
+    if (stableMs >= DRIVE_DEADBAND_TEST_MOVE_STABLE_MS)
+    {
+        g_driveDeadbandTestFirstMovingDutyPercent = g_driveDeadbandTestCurrentDutyPercent;
+        g_driveDeadbandTestFirstMovingRpm = g_driveDeadbandTestCurrentRpm;
+        g_driveDeadbandTestFirstMovingKph = g_driveDeadbandTestCurrentKph;
+        ControlLoop_FinishDriveDeadbandTest(UNIT_TEST_STATUS_DONE);
+        return;
+    }
+
+    stageMs = (g_driveDeadbandTestStageMs == 0u) ?
+              DRIVE_DEADBAND_TEST_STAGE_MS :
+              g_driveDeadbandTestStageMs;
+
+    g_driveDeadbandTestStageLoopCount++;
+    g_driveDeadbandTestTotalLoopCount++;
+    stageElapsedMs = g_driveDeadbandTestStageLoopCount * 5u;
+    g_driveDeadbandTestElapsedMs =
+        (g_driveDeadbandTestTotalLoopCount * 5u > 65535u) ?
+        65535u :
+        (uint16)(g_driveDeadbandTestTotalLoopCount * 5u);
+
+    if (stageElapsedMs >= (uint32)stageMs)
+    {
+        ControlLoop_AdvanceDriveDeadbandDuty();
+    }
+}
+
+static uint8 ControlLoop_GetUnitTestElapsedSec(void)
+{
+    uint32 elapsedSec = ((uint32)g_driveDeadbandTestElapsedMs) / 1000u;
+
+    return (elapsedSec > 255u) ? 255u : (uint8)elapsedSec;
+}
+
+static void ControlLoop_SendDriveDeadbandTestTelemetry(void)
+{
+    CanSpeedTx_SendWheelSpeed(&g_lastSpeed);
+    CanSpeedTx_SendRpmDebug(&g_lastSpeed);
+    CanSpeedTx_SendDriveStatus(g_currentDriveDutyPercent,
+                               g_driveDirection,
+                               g_estopActive,
+                               g_dbgSpeedBufferCount,
+                               g_dbgSpeedLeftDeltaCount,
+                               g_dbgSpeedRightDeltaCount);
+    CanSpeedTx_SendSpeedControlStatus(g_targetVehicleRpm,
+                                      g_currentVehicleRpm,
+                                      g_speedControlDutyCommand,
+                                      g_speedControlFeedforwardDuty);
+    CanSpeedTx_SendBufferTestStatus(0u, 0u, 0u, SPEED_BUFFER_AUTO_TEST_STATUS_IDLE, 0.0f, 0u);
+    CanSpeedTx_SendDriveDeadbandTestStatus(g_unitTestCaseId,
+                                           g_unitTestCaseStatus,
+                                           g_driveDeadbandTestCurrentDutyPercent,
+                                           g_driveDeadbandTestLastStoppedDutyPercent,
+                                           g_driveDeadbandTestFirstMovingDutyPercent,
+                                           g_driveDeadbandTestCurrentRpm,
+                                           ControlLoop_GetUnitTestElapsedSec());
+    CanSpeedTx_SendDriveDeadbandResult(g_unitTestCaseId,
+                                       g_unitTestCaseStatus,
+                                       g_driveDeadbandTestLastStoppedDutyPercent,
+                                       g_driveDeadbandTestFirstMovingDutyPercent,
+                                       g_driveDeadbandTestFirstMovingRpm,
+                                       g_driveDeadbandTestFirstMovingKph);
+    CanSpeedTx_SendEncoderCount(g_dbgSpeedLeftCount, g_dbgSpeedRightCount);
+    ControlLoop_SendEncoderDebug();
+}
+
+static boolean ControlLoop_IsUnitTestRequestedOrActive(void)
+{
+    return ((g_unitTestCaseCommand == UNIT_TEST_CASE_MAX_SPEED) ||
+            (g_unitTestCaseCommand == UNIT_TEST_CASE_DRIVE_DEADBAND) ||
+            (g_unitTestCaseCommand == UNIT_TEST_CASE_CANCEL) ||
+            (g_unitTestCaseActive != 0u) ||
+            (g_unitTestDoneHoldLoopCount > 0u)) ? TRUE : FALSE;
+}
+
+static void ControlLoop_UpdateUnitTestCase(void)
+{
+    if (g_unitTestCaseCommand == UNIT_TEST_CASE_CANCEL)
+    {
+        ControlLoop_CancelUnitTest();
+        return;
+    }
+
+    if ((g_unitTestCaseCommand == UNIT_TEST_CASE_MAX_SPEED) ||
+        ((g_unitTestCaseCommand == UNIT_TEST_CASE_NONE) &&
+         (g_unitTestCaseId == UNIT_TEST_CASE_MAX_SPEED)))
+    {
+        ControlLoop_UpdateMaxSpeedTest();
+        return;
+    }
+
+    if ((g_unitTestCaseCommand == UNIT_TEST_CASE_DRIVE_DEADBAND) ||
+        ((g_unitTestCaseCommand == UNIT_TEST_CASE_NONE) &&
+         (g_unitTestCaseId == UNIT_TEST_CASE_DRIVE_DEADBAND)))
+    {
+        ControlLoop_UpdateDriveDeadbandTest();
+        return;
+    }
+
+    if (g_unitTestDoneHoldLoopCount > 0u)
+    {
+        g_unitTestDoneHoldLoopCount--;
+        ControlLoop_ApplyDriveDuty(0u);
+    }
+}
+
+static void ControlLoop_SendUnitTestTelemetry(void)
+{
+    if (g_unitTestCaseId == UNIT_TEST_CASE_MAX_SPEED)
+    {
+        ControlLoop_SendMaxSpeedTestTelemetry();
+    }
+    else
+    {
+        ControlLoop_SendDriveDeadbandTestTelemetry();
+    }
+}
+
+static float32 ControlLoop_GetJoystickTargetRpm(void)
+{
+    float32 targetKph = (float32)g_ps2AckermannTargetKphX10 / 10.0f;
+
+    if (g_ps2AckermannPresent == 0u)
+    {
+        return 0.0f;
+    }
+
+    return ControlLoop_MpsToRpm(targetKph / 3.6f);
+}
+
+static void ControlLoop_SendJoystickCommandTelemetry(void)
+{
+    float32 targetRpm = ControlLoop_GetJoystickTargetRpm();
+
+    g_joystickTargetRpm = targetRpm;
+    CanSpeedTx_SendJoystickCommand(g_ps2AckermannPresent,
+                                   g_ps2AckermannReceiverAlive,
+                                   g_ps2AckermannButtons,
+                                   targetRpm,
+                                   g_ps2AckermannSteeringPulseUs);
+}
+
+static void ControlLoop_UpdateManualDutyTest(void)
+{
+    uint8 dutyPercent = ControlLoop_DutyFloatToPercent(g_manualDutyTestPercent);
+
+    g_manualDutyTestPercent = ControlLoop_ClampFloat(g_manualDutyTestPercent, 0.0f, 100.0f);
+    g_manualDutyTestCurrentRpm = (g_lastSpeed.valid == TRUE) ? g_lastSpeed.vehicleRpm : 0.0f;
+    g_manualDutyTestCurrentKph = ControlLoop_RpmToKph(g_manualDutyTestCurrentRpm);
+
+    g_unitTestCaseCommand = UNIT_TEST_CASE_NONE;
+    g_unitTestCaseActive = 0u;
+    g_unitTestDoneHoldLoopCount = 0u;
+    g_speedBufferAutoTestStart = 0u;
+    g_speedBufferAutoTestActive = 0u;
+    g_speedCalibrationFixedDutyEnable = 0u;
+
+    g_speedControlFeedforwardDuty = 0.0f;
+    g_speedControlDutyCommand = (float32)dutyPercent;
+    g_driveDutyCommandFloat = (float32)dutyPercent;
+    ControlLoop_ResetSpeedPid();
+    ControlLoop_ApplyDriveDuty(dutyPercent);
+}
+
+static void ControlLoop_SendManualDutyTestTelemetry(void)
+{
+    CanSpeedTx_SendWheelSpeed(&g_lastSpeed);
+    CanSpeedTx_SendRpmDebug(&g_lastSpeed);
+    CanSpeedTx_SendDriveStatus(g_currentDriveDutyPercent,
+                               g_driveDirection,
+                               g_estopActive,
+                               g_dbgSpeedBufferCount,
+                               g_dbgSpeedLeftDeltaCount,
+                               g_dbgSpeedRightDeltaCount);
+    CanSpeedTx_SendSpeedControlStatus(g_targetVehicleRpm,
+                                      g_currentVehicleRpm,
+                                      g_speedControlDutyCommand,
+                                      g_speedControlFeedforwardDuty);
+    CanSpeedTx_SendBufferTestStatus(0u, 0u, 0u, SPEED_BUFFER_AUTO_TEST_STATUS_IDLE, 0.0f, 0u);
+    CanSpeedTx_SendEncoderCount(g_dbgSpeedLeftCount, g_dbgSpeedRightCount);
+    ControlLoop_SendEncoderDebug();
+}
+
+static void ControlLoop_DisableTestModesForRemoteControl(void)
+{
+    g_manualDutyTestEnable = 0u;
+    g_manualDutyTestPercent = 0.0f;
+    g_unitTestCaseCommand = UNIT_TEST_CASE_NONE;
+    g_unitTestCaseActive = 0u;
+    g_unitTestCaseDone = 0u;
+    g_unitTestCaseId = UNIT_TEST_CASE_NONE;
+    g_unitTestCaseStatus = UNIT_TEST_STATUS_IDLE;
+    g_unitTestDoneHoldLoopCount = 0u;
+    g_speedBufferAutoTestStart = 0u;
+    g_speedBufferAutoTestActive = 0u;
+    g_speedBufferAutoTestDone = 0u;
+    g_speedBufferAutoTestStatus = SPEED_BUFFER_AUTO_TEST_STATUS_IDLE;
+    g_steeringCenterTuneEnabled = 0u;
+    g_steeringPwmOnlyTestEnabled = 0u;
+    g_speedCalibrationFixedDutyEnable = 0u;
+    g_speedControlEnabled = 1u;
+}
+
+static void ControlLoop_ApplyJoystickPriority(void)
+{
+    if (g_joystickDriveModeEnabled == 0u)
+    {
+        g_joystickPriorityActive = 0u;
+        g_joystickDriveModeActive = 0u;
+        g_joystickDriveModeBlockedReason = JOYSTICK_DRIVE_BLOCK_DISABLED;
+        g_joystickTargetRpm = 0.0f;
+        ControlLoop_SetTargetVehicleKph(0.0f);
+        return;
+    }
+
+    if (Ps2Controller_IsPadConnected(JOYSTICK_PRIORITY_TIMEOUT_MS) == FALSE)
+    {
+        g_joystickPriorityActive = 0u;
+        g_joystickDriveModeActive = 0u;
+        g_joystickDriveModeBlockedReason = JOYSTICK_DRIVE_BLOCK_NO_PAD;
+        return;
+    }
+
+    g_joystickPriorityActive = 1u;
+    g_joystickDriveModeActive = 1u;
+    g_joystickDriveModeBlockedReason = JOYSTICK_DRIVE_BLOCK_NONE;
+
+    g_manualDutyTestEnable = 0u;
+    g_manualDutyTestPercent = 0.0f;
+    g_manualDutyTestCurrentRpm = (g_lastSpeed.valid == TRUE) ? g_lastSpeed.vehicleRpm : 0.0f;
+    g_manualDutyTestCurrentKph = ControlLoop_RpmToKph(g_manualDutyTestCurrentRpm);
+
+    g_unitTestCaseCommand = UNIT_TEST_CASE_NONE;
+    g_unitTestCaseActive = 0u;
+    g_unitTestCaseDone = 0u;
+    g_unitTestCaseId = UNIT_TEST_CASE_NONE;
+    g_unitTestCaseStatus = UNIT_TEST_STATUS_IDLE;
+    g_unitTestDoneHoldLoopCount = 0u;
+
+    g_speedBufferAutoTestStart = 0u;
+    g_speedBufferAutoTestActive = 0u;
+    g_speedBufferAutoTestDone = 0u;
+    g_speedBufferAutoTestStatus = SPEED_BUFFER_AUTO_TEST_STATUS_IDLE;
+    g_speedBufferAutoTestElapsedMs = 0u;
+    g_speedBufferAutoTestAvgVehicleRpm = 0.0f;
+    g_speedBufferAutoTestStageLoopCount = 0u;
+
+    g_steeringCenterTuneEnabled = 0u;
+    g_steeringPwmOnlyTestEnabled = 0u;
+    g_steeringPwmTestDirection = 0;
+    g_speedControlEnabled = 1u;
+    g_speedCalibrationFixedDutyEnable = 0u;
+    SpeedCalc_SetAverageBufferSize(SPEED_BUFFER_FIXED_COUNT, FALSE);
+
+    /* Re-apply every 5 ms so a CAN frame between 20 ms PS2 polls cannot win.
+     * Keep the latest validated PC shadow intact: this priority guard alone
+     * prevents it from reaching actuators while the joystick owns control.
+     */
+    ControlLoop_SetTargetVehicleKph((float32)g_ps2AckermannTargetKphX10 / 10.0f);
+    ControlLoop_SetSteeringPotTargetRaw(g_ps2AckermannSteeringTargetRaw, TRUE);
+    ControlLoop_SetManualSteeringPulse(g_ps2AckermannSteeringPulseUs, TRUE);
+}
+
+static void ControlLoop_ApplyPcCommandPriority(void)
+{
+    uint16 targetRaw;
+
+    g_pcCommandControlActive = 0u;
+    g_pcCommandFailsafeActive = 0u;
+
+    if (g_joystickPriorityActive != 0u)
+    {
+        return;
+    }
+
+    if (g_pcCommandModeSeen == 0u)
+    {
+        /*
+         * No joystick and no PC command means nobody owns steering yet.
+         * Keep the calibrated neutral PWM, but do not close the external
+         * potentiometer loop around center.  Leaving targetValid set here
+         * makes ADC noise/linkage backlash drive a left/right limit cycle
+         * even though the camera host has transmitted no CAN frames.
+         */
+        ControlLoop_SetSteeringPotTargetRaw(g_steeringPotRawCenter, FALSE);
+        ControlLoop_SetManualSteeringPulse(STEERING_SERVO_CENTER_US, TRUE);
+        return;
+    }
+
+    ControlLoop_DisableTestModesForRemoteControl();
+
+    if ((g_pcCommandValid != 0u) && (g_pcCommandEnabled != 0u))
+    {
+        targetRaw = ControlLoop_MapPcSteeringDegX10ToRaw(g_pcCommandSteeringDegX10);
+        g_pcCommandAppliedSteeringRaw = targetRaw;
+        g_targetSteeringDeg = (float32)g_pcCommandSteeringDegX10 / 10.0f;
+        ControlLoop_SetTargetVehicleKph((float32)g_pcCommandSpeedKphX100 / 100.0f);
+        ControlLoop_SetSteeringPotTargetRaw(targetRaw, TRUE);
+        ControlLoop_SetManualSteeringPulse(g_pcCommandSteeringPulseUs, TRUE);
+        g_pcCommandControlActive = 1u;
+        return;
+    }
+
+    /* Explicit disabled command, invalid packet, manual takeover, or timeout. */
+    if (g_pcCommandValid == 0u)
+    {
+        g_pcCommandFailsafeActive = 1u;
+    }
+
+    g_targetSteeringDeg = 0.0f;
+    g_pcCommandAppliedSteeringRaw = g_steeringPotRawCenter;
+    ControlLoop_StopDriveNow();
+    /* Do not let the normal zero-speed position hold re-apply motor torque. */
+    g_speedControlEnabled = 0u;
+    /*
+     * A disabled PC frame is a drive STOP, not steering ownership.  Disable
+     * the external potentiometer loop so a camera process that has not been
+     * armed cannot make the wheels hunt around the calibrated center.
+     */
+    ControlLoop_SetSteeringPotTargetRaw(g_steeringPotRawCenter, FALSE);
+    ControlLoop_SetManualSteeringPulse(STEERING_SERVO_CENTER_US, TRUE);
+}
+
+void ControlLoop_Init(void)
+{
+    g_dbgControlLoopInitCount++;
+    g_targetSteeringDeg = 0.0f;
+    g_limitedSteeringTargetDeg = 0.0f;
+    g_currentSteeringDeg = 0.0f;
+    g_dbgSteeringErrorDeg = 0.0f;
+    g_dbgSteeringCorrectionUs = 0.0f;
+    g_currentVehicleMps = 0.0f;
+    g_targetVehicleKph = SPEED_TARGET_KMH;
+    g_targetVehicleMps = SPEED_TARGET_MPS;
+    g_currentVehicleRpm = 0.0f;
+    g_targetVehicleRpm = ControlLoop_MpsToRpm(SPEED_TARGET_MPS);
+    g_speedControlErrorMps = 0.0f;
+    g_speedControlErrorRpm = 0.0f;
+    g_speedControlFeedforwardDuty = ControlLoop_ComputeFeedforwardDuty(g_targetVehicleRpm);
+    g_speedControlProportionalDuty = 0.0f;
+    g_speedControlDutyCommand = 0.0f;
+    g_motorAppliedDutyPct = 0.0f;
+    g_speedControlIntegralDuty = 0.0f;
+    g_speedControlDerivativeDuty = 0.0f;
+    g_speedControlPidDuty = 0.0f;
+    g_speedControlEnabled = 1u;
+    g_speedHoldEnabled = SPEED_HOLD_ENABLE;
+    g_speedHoldHomePositionM = 0.0f;
+    g_speedHoldPositionErrorM = 0.0f;
+    g_speedHoldDutyCommand = 0.0f;
+    g_speedBrakeActive = 0u;
+    g_speedHoldIntegralDuty = 0.0f;
+    g_speedHoldPositionLatched = FALSE;
+    g_speedCalibrationFixedDutyEnable = SPEED_CALIBRATION_FIXED_DUTY_ENABLE;
+    g_speedCalibrationFixedDutyPercent = SPEED_CALIBRATION_FIXED_DUTY_PERCENT;
+    g_manualDutyTestEnable = 0u;
+    g_manualDutyTestPercent = 0.0f;
+    g_manualDutyTestCurrentRpm = 0.0f;
+    g_manualDutyTestCurrentKph = 0.0f;
+    g_joystickDriveModeEnabled = 1u;
+    g_joystickDriveModeActive = 0u;
+    g_joystickDriveModeBlockedReason = JOYSTICK_DRIVE_BLOCK_NO_PAD;
+    g_joystickPriorityActive = 0u;
+    g_pcCommandControlActive = 0u;
+    g_pcCommandFailsafeActive = 0u;
+    g_pcCommandAppliedSteeringRaw = STEERING_ADC_RAW_CENTER;
+    g_speedBufferAutoTestStart = 0u;
+    g_speedBufferAutoTestActive = 0u;
+    g_speedBufferAutoTestDone = 0u;
+    g_speedBufferAutoTestStatus = SPEED_BUFFER_AUTO_TEST_STATUS_IDLE;
+    g_speedBufferAutoTestCurrentSize = SPEED_BUFFER_AUTO_TEST_START_SIZE;
+    g_speedBufferAutoTestStageIndex = 0u;
+    g_speedBufferAutoTestDutyPercent = SPEED_BUFFER_AUTO_TEST_DUTY_PERCENT;
+    g_speedBufferAutoTestStageMs = SPEED_BUFFER_AUTO_TEST_STAGE_MS;
+    g_speedBufferAutoTestElapsedMs = 0u;
+    g_speedBufferAutoTestAvgVehicleRpm = 0.0f;
+    g_speedBufferAutoTestHoldZeroCount = 0u;
+    g_speedBufferAutoTestStageLoopCount = 0u;
+    g_unitTestCaseCommand = UNIT_TEST_CASE_NONE;
+    g_unitTestCaseActive = 0u;
+    g_unitTestCaseDone = 0u;
+    g_unitTestCaseId = UNIT_TEST_CASE_NONE;
+    g_unitTestCaseStatus = UNIT_TEST_STATUS_IDLE;
+    g_maxSpeedTestPhase = MAX_SPEED_TEST_PHASE_IDLE;
+    g_maxSpeedTestDutyPercent = MAX_SPEED_TEST_DUTY_PERCENT;
+    g_maxSpeedTestZeroDutyMs = MAX_SPEED_TEST_ZERO_DUTY_MS;
+    g_maxSpeedTestRunMs = MAX_SPEED_TEST_RUN_MS;
+    g_maxSpeedTestElapsedMs = 0u;
+    g_maxSpeedTestCurrentRpm = 0.0f;
+    g_maxSpeedTestCurrentKph = 0.0f;
+    g_maxSpeedTestAvgRpm = 0.0f;
+    g_maxSpeedTestAvgKph = 0.0f;
+    g_maxSpeedTestMaxRpm = 0.0f;
+    g_maxSpeedTestMaxKph = 0.0f;
+    g_maxSpeedTestSampleCount = 0u;
+    g_maxSpeedTestPhaseLoopCount = 0u;
+    g_maxSpeedTestRunLoopCount = 0u;
+    g_maxSpeedTestRpmSum = 0.0f;
+    g_maxSpeedTestKphSum = 0.0f;
+    g_driveDeadbandTestCurrentDutyPercent = 0u;
+    g_driveDeadbandTestLastStoppedDutyPercent = 0u;
+    g_driveDeadbandTestFirstMovingDutyPercent = 0u;
+    g_driveDeadbandTestMaxDutyPercent = DRIVE_DEADBAND_TEST_END_DUTY_PERCENT;
+    g_driveDeadbandTestStageMs = DRIVE_DEADBAND_TEST_STAGE_MS;
+    g_driveDeadbandTestElapsedMs = 0u;
+    g_driveDeadbandTestMoveStableMs = 0u;
+    g_driveDeadbandTestMoveThresholdRpm = DRIVE_DEADBAND_TEST_MOVE_THRESHOLD_RPM;
+    g_driveDeadbandTestCurrentRpm = 0.0f;
+    g_driveDeadbandTestCurrentKph = 0.0f;
+    g_driveDeadbandTestFinalRpm = 0.0f;
+    g_driveDeadbandTestFirstMovingRpm = 0.0f;
+    g_driveDeadbandTestFirstMovingKph = 0.0f;
+    g_driveDeadbandTestStageLoopCount = 0u;
+    g_driveDeadbandTestMoveLoopCount = 0u;
+    g_driveDeadbandTestTotalLoopCount = 0u;
+    g_unitTestDoneHoldLoopCount = 0u;
+    g_currentSteeringPulseUs = STEERING_SERVO_NO_JOYSTICK_US;
+    g_manualSteeringPulseUs = STEERING_SERVO_NO_JOYSTICK_US;
+    g_manualSteeringPulseValid = TRUE;
+    g_steeringPotPidEnabled = STEERING_POT_PID_ENABLE;
+    /* Steering feedback control is enabled only by an actual owner. */
+    g_steeringPotTargetValid = 0u;
+    g_steeringPotTargetRaw = STEERING_ADC_RAW_CENTER;
+    g_steeringPotErrorRaw = 0;
+    g_steeringPotPidKpUsPerRaw = STEERING_POT_PID_KP_US_PER_RAW;
+    g_steeringPotPidKiUsPerRawSec = STEERING_POT_PID_KI_US_PER_RAW_SEC;
+    g_steeringPotPidKdUsPerRawPerSec = STEERING_POT_PID_KD_US_PER_RAW_PER_SEC;
+    g_steeringPotPidIntegralUs = 0.0f;
+    g_steeringPotPidCorrectionUs = 0.0f;
+    g_steeringPotPidFeedforwardPulseUs = STEERING_SERVO_CENTER_US;
+    g_steeringPotPidCommandPulseUs = STEERING_SERVO_CENTER_US;
+    g_steeringPotPidDeadbandRaw = STEERING_POT_PID_DEADBAND_RAW;
+    g_steeringPotPidMaxStepUs = STEERING_POT_PID_MAX_STEP_US;
+    g_steeringPotPidAtTarget = 0u;
+    g_steeringPotPidPreviousErrorRaw = 0;
+    g_steeringPotPidHasPreviousError = FALSE;
+    g_currentDriveDutyPercent = 0u;
+    SpeedCalc_SetBufferScanDutyPercent(0u);
+    g_driveForwardEnabled = 0u;
+    g_driveReverseEnabled = 0u;
+    g_driveDirection = DRIVE_DIRECTION_STOP;
+    g_ackermannState = (uint8)AckermannState_Init;
+    g_steeringIntegralUs = 0.0f;
+    g_driveDutyCommandFloat = 0.0f;
+    g_speedControlPreviousErrorRpm = 0.0f;
+    g_speedControlHasPreviousError = FALSE;
+    g_encoderDebugPrevLeftCount = 0u;
+    g_encoderDebugPrevRightCount = 0u;
+    g_encoderDebugHasPrevious = FALSE;
+    g_steeringPwmTestLoopCount = 0u;
+    g_steeringPwmTestDirection = 0;
+    g_steeringPwmTestPulseUs = STEERING_SERVO_CENTER_US;
+    g_steeringPwmTestAtLimit = 0u;
+    g_steeringCenterTuneEnabled = 0u;
+    g_steeringCenterTunePulseUs = STEERING_SERVO_CENTER_US;
+    g_steeringCenterTuneDirection = 0;
+    g_steeringCenterTuneStepUs = 1u;
+    g_steeringCenterTuneAtLimit = 0u;
+#if (ESTOP_ENABLE != 0u)
+    IfxPort_setPinModeInput(ESTOP_PORT, ESTOP_PIN, IfxPort_InputMode_pullUp);
+#endif
+#if (DRIVE_ONLY_TEST == 0u)
+    SteeringPwm_SetPulseUs(STEERING_SERVO_NO_JOYSTICK_US);
+#endif
+    DrivePwm_Stop();
+}
+
+void ControlLoop_SetTargetVehicleKph(float32 targetKph)
+{
+    g_targetVehicleKph = targetKph;
+    g_targetVehicleMps = targetKph / 3.6f;
+}
+
+void ControlLoop_SetManualSteeringPulse(uint16 pulseUs, boolean valid)
+{
+    g_manualSteeringPulseUs = ControlLoop_ClampSteeringPulseUs(pulseUs);
+    g_manualSteeringPulseValid = valid;
+    g_steeringIntegralUs = 0.0f;
+}
+
+void ControlLoop_SetSteeringPotTargetRaw(uint16 targetRaw, boolean valid)
+{
+    uint16 clampedRaw = ControlLoop_ClampSteeringPotTargetRaw(targetRaw);
+
+    if ((g_steeringPotTargetValid == 0u) ||
+        (g_steeringPotTargetRaw != clampedRaw) ||
+        (valid == FALSE))
+    {
+        g_steeringPotPidIntegralUs = 0.0f;
+        g_steeringPotPidHasPreviousError = FALSE;
+    }
+
+    g_steeringPotTargetRaw = clampedRaw;
+    g_steeringPotTargetValid = (valid != FALSE) ? 1u : 0u;
+}
+
+void ControlLoop(void)
+{
+#if (DRIVE_ONLY_TEST == 0u)
+    SteeringAdcValue steering;
+    float32 targetSteeringDeg;
+    uint16 pulseUs;
+#endif
+
+    (void)SpeedCalc_Get(&g_lastSpeed);
+    ControlLoop_ApplyJoystickPriority();
+    ControlLoop_ApplyPcCommandPriority();
+
+#if (DRIVE_ONLY_TEST == 0u)
+    if ((g_steeringCenterTuneEnabled != 0u) ||
+        ((g_steeringPwmOnlyTestEnabled != 0u) && (g_joystickPriorityActive == 0u)))
+    {
+        (void)SteeringAdc_Update();
+        steering = SteeringAdc_Get();
+
+        ControlLoop_ResetSpeedPid();
+        g_speedControlEnabled = 0u;
+        g_speedControlDutyCommand = 0.0f;
+        g_driveDutyCommandFloat = 0.0f;
+        ControlLoop_ApplyDriveDuty(0u);
+
+        g_ackermannState = (uint8)AckermannState_Run;
+        g_currentSteeringDeg = steering.angleDeg;
+        g_limitedSteeringTargetDeg = 0.0f;
+        g_dbgSteeringErrorDeg = 0.0f;
+        if (g_steeringCenterTuneEnabled != 0u)
+        {
+            ControlLoop_UpdateSteeringCenterTune();
+        }
+        else
+        {
+            ControlLoop_UpdateSteeringPwmOnlyTest();
+        }
+
+        CanSpeedTx_SendSensorFeedback(&g_lastSpeed,
+                                      steering.angleDeg,
+                                      steering.raw,
+                                      (steering.valid != FALSE) ? 1u : 0u,
+                                      g_pcCommandControlActive,
+                                      g_estopActive);
+        CanSpeedTx_SendWheelSpeed(&g_lastSpeed);
+        CanSpeedTx_SendRpmDebug(&g_lastSpeed);
+        CanSpeedTx_SendDriveStatus(g_currentDriveDutyPercent,
+                                   g_driveDirection,
+                                   g_estopActive,
+                                   g_dbgSpeedBufferCount,
+                                   g_dbgSpeedLeftDeltaCount,
+                                   g_dbgSpeedRightDeltaCount);
+        CanSpeedTx_SendSpeedControlStatus(g_targetVehicleRpm,
+                                          g_currentVehicleRpm,
+                                          g_speedControlDutyCommand,
+                                          g_speedControlFeedforwardDuty);
+        ControlLoop_SendJoystickCommandTelemetry();
+        CanSpeedTx_SendEncoderCount(g_dbgSpeedLeftCount, g_dbgSpeedRightCount);
+        ControlLoop_SendEncoderDebug();
+        CanSpeedTx_SendSteeringStatus(0.0f,
+                                      steering.angleDeg,
+                                      steering.raw,
+                                      g_currentSteeringPulseUs,
+                                      g_ackermannState);
+        CanSpeedTx_SendSteeringFeedback(steering.angleDeg,
+                                        steering.raw,
+                                        steering.millivolt,
+                                        0.0f);
+        IfxPort_togglePin(LOOP_CHECK_PORT, LOOP_CHECK_PIN);
+        return;
+    }
+#endif
+
+    if (g_lastSpeed.valid == TRUE)
+    {
+        g_currentVehicleMps = g_lastSpeed.vehicleMps;
+        g_currentVehicleRpm = g_lastSpeed.vehicleRpm;
+    }
+
+    if (g_manualDutyTestEnable != 0u)
+    {
+        ControlLoop_UpdateManualDutyTest();
+        g_ackermannState = (uint8)AckermannState_Run;
+        ControlLoop_SendManualDutyTestTelemetry();
+        IfxPort_togglePin(LOOP_CHECK_PORT, LOOP_CHECK_PIN);
+        return;
+    }
+
+    if (ControlLoop_IsUnitTestRequestedOrActive() != FALSE)
+    {
+        ControlLoop_UpdateUnitTestCase();
+        g_ackermannState = (uint8)AckermannState_Run;
+        ControlLoop_SendUnitTestTelemetry();
+        IfxPort_togglePin(LOOP_CHECK_PORT, LOOP_CHECK_PIN);
+        return;
+    }
+
+    if ((g_speedBufferAutoTestStart != 0u) || (g_speedBufferAutoTestActive != 0u))
+    {
+        ControlLoop_UpdateSpeedBufferAutoTest();
+        g_ackermannState = (uint8)AckermannState_Run;
+        ControlLoop_SendSpeedBufferAutoTestTelemetry();
+        IfxPort_togglePin(LOOP_CHECK_PORT, LOOP_CHECK_PIN);
+        return;
+    }
+
+    ControlLoop_UpdateDriveSpeedControl(g_lastSpeed.valid, g_currentVehicleMps, g_currentVehicleRpm);
+
+#if (DRIVE_ONLY_TEST != 0u)
+    g_ackermannState = (uint8)AckermannState_Run;
+    CanSpeedTx_SendSensorFeedback(&g_lastSpeed,
+                                  0.0f,
+                                  0u,
+                                  0u,
+                                  g_pcCommandControlActive,
+                                  g_estopActive);
+    CanSpeedTx_SendWheelSpeed(&g_lastSpeed);
+    CanSpeedTx_SendRpmDebug(&g_lastSpeed);
+    CanSpeedTx_SendDriveStatus(g_currentDriveDutyPercent,
+                               g_driveDirection,
+                               g_estopActive,
+                               g_dbgSpeedBufferCount,
+                               g_dbgSpeedLeftDeltaCount,
+                               g_dbgSpeedRightDeltaCount);
+    CanSpeedTx_SendSpeedControlStatus(g_targetVehicleRpm,
+                                      g_currentVehicleRpm,
+                                      g_speedControlDutyCommand,
+                                      g_speedControlFeedforwardDuty);
+    ControlLoop_SendJoystickCommandTelemetry();
+    CanSpeedTx_SendEncoderCount(g_dbgSpeedLeftCount, g_dbgSpeedRightCount);
+    ControlLoop_SendEncoderDebug();
+    IfxPort_togglePin(LOOP_CHECK_PORT, LOOP_CHECK_PIN);
+#else
+    (void)SteeringAdc_Update();
+    steering = SteeringAdc_Get();
+    targetSteeringDeg = ControlLoop_GetClampedSteeringTarget();
+
+    if (steering.valid == FALSE)
+    {
+        g_steeringPotPidAtTarget = 0u;
+        g_steeringPotPidIntegralUs = 0.0f;
+        g_steeringPotPidHasPreviousError = FALSE;
+        pulseUs = (g_manualSteeringPulseValid != FALSE) ?
+                  ControlLoop_ClampSteeringPulseUs(g_manualSteeringPulseUs) :
+                  STEERING_SERVO_CENTER_US;
+        g_ackermannState = (uint8)AckermannState_AdcMissing;
+        SteeringPwm_SetPulseUs(pulseUs);
+        g_currentSteeringDeg = 0.0f;
+        g_currentSteeringPulseUs = pulseUs;
+
+        CanSpeedTx_SendSensorFeedback(&g_lastSpeed,
+                                      0.0f,
+                                      0u,
+                                      0u,
+                                      g_pcCommandControlActive,
+                                      g_estopActive);
+        CanSpeedTx_SendWheelSpeed(&g_lastSpeed);
+        CanSpeedTx_SendRpmDebug(&g_lastSpeed);
+        CanSpeedTx_SendDriveStatus(g_currentDriveDutyPercent,
+                                   g_driveDirection,
+                                   g_estopActive,
+                                   g_dbgSpeedBufferCount,
+                                   g_dbgSpeedLeftDeltaCount,
+                                   g_dbgSpeedRightDeltaCount);
+        CanSpeedTx_SendSpeedControlStatus(g_targetVehicleRpm,
+                                          g_currentVehicleRpm,
+                                          g_speedControlDutyCommand,
+                                          g_speedControlFeedforwardDuty);
+        ControlLoop_SendJoystickCommandTelemetry();
+        CanSpeedTx_SendEncoderCount(g_dbgSpeedLeftCount, g_dbgSpeedRightCount);
+        ControlLoop_SendEncoderDebug();
+        CanSpeedTx_SendSteeringStatus(targetSteeringDeg,
+                                      0.0f,
+                                      0u,
+                                      pulseUs,
+                                      g_ackermannState);
+        CanSpeedTx_SendSteeringFeedback(0.0f,
+                                        0u,
+                                        0.0f,
+                                        0.0f);
+        IfxPort_togglePin(LOOP_CHECK_PORT, LOOP_CHECK_PIN);
+        return;
+    }
+
+    g_ackermannState = (uint8)AckermannState_Run;
+    g_currentSteeringDeg = steering.angleDeg;
+    if ((g_steeringPotPidEnabled != 0u) && (g_steeringPotTargetValid != 0u))
+    {
+        pulseUs = ControlLoop_ComputeSteeringPotPidPulse(steering);
+        targetSteeringDeg = g_limitedSteeringTargetDeg;
+    }
+    else
+    {
+        pulseUs = (g_manualSteeringPulseValid != FALSE) ?
+                  ControlLoop_ClampSteeringPulseUs(g_manualSteeringPulseUs) :
+                  ControlLoop_ComputeSteeringPulse(targetSteeringDeg, steering.angleDeg);
+    }
+    SteeringPwm_SetPulseUs(pulseUs);
+    g_currentSteeringPulseUs = pulseUs;
+
+    CanSpeedTx_SendSensorFeedback(&g_lastSpeed,
+                                  steering.angleDeg,
+                                  steering.raw,
+                                  (steering.valid != FALSE) ? 1u : 0u,
+                                  g_pcCommandControlActive,
+                                  g_estopActive);
+    CanSpeedTx_SendWheelSpeed(&g_lastSpeed);
+    CanSpeedTx_SendRpmDebug(&g_lastSpeed);
+    CanSpeedTx_SendDriveStatus(g_currentDriveDutyPercent,
+                               g_driveDirection,
+                               g_estopActive,
+                               g_dbgSpeedBufferCount,
+                               g_dbgSpeedLeftDeltaCount,
+                               g_dbgSpeedRightDeltaCount);
+    CanSpeedTx_SendSpeedControlStatus(g_targetVehicleRpm,
+                                      g_currentVehicleRpm,
+                                      g_speedControlDutyCommand,
+                                      g_speedControlFeedforwardDuty);
+    ControlLoop_SendJoystickCommandTelemetry();
+    CanSpeedTx_SendEncoderCount(g_dbgSpeedLeftCount, g_dbgSpeedRightCount);
+    ControlLoop_SendEncoderDebug();
+    CanSpeedTx_SendSteeringStatus(targetSteeringDeg,
+                                  steering.angleDeg,
+                                  steering.raw,
+                                  pulseUs,
+                                  g_ackermannState);
+    CanSpeedTx_SendSteeringFeedback(steering.angleDeg,
+                                    steering.raw,
+                                    steering.millivolt,
+                                    g_dbgSteeringErrorDeg);
+    IfxPort_togglePin(LOOP_CHECK_PORT, LOOP_CHECK_PIN);
+#endif
+}

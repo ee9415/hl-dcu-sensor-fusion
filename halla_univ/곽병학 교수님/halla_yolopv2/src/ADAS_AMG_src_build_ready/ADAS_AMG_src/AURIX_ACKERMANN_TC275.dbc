@@ -1,0 +1,233 @@
+VERSION "AURIX_ACKERMANN_TC275"
+
+
+NS_ :
+	NS_DESC_
+	CM_
+	BA_DEF_
+	BA_
+	VAL_
+	CAT_DEF_
+	CAT_
+	FILTER
+	BA_DEF_DEF_
+	EV_DATA_
+	ENVVAR_DATA_
+	SGTYPE_
+	SGTYPE_VAL_
+	BA_DEF_SGTYPE_
+	BA_SGTYPE_
+	SIG_TYPE_REF_
+	VAL_TABLE_
+	SIG_GROUP_
+	SIG_VALTYPE_
+	SIGTYPE_VALTYPE_
+	BO_TX_BU_
+	BA_DEF_REL_
+	BA_REL_
+	BA_DEF_DEF_REL_
+	BU_SG_REL_
+	BU_EV_REL_
+	BU_BO_REL_
+	SG_MUL_VAL_
+
+BS_:
+
+BU_: AURIX PCAN
+
+
+BO_ 288 WheelSpeed: 8 AURIX
+ SG_ LeftAvgRpm : 0|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ RightAvgRpm : 16|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ VehicleSpeedMps : 32|16@1- (0.001,0) [-32.768|32.767] "m/s" PCAN
+ SG_ SpeedValid : 48|8@1+ (1,0) [0|1] "" PCAN
+ SG_ WheelSpeedReserved : 56|8@1+ (1,0) [0|255] "" PCAN
+
+BO_ 289 SteeringStatus: 8 AURIX
+ SG_ SteeringTargetDeg : 0|16@1- (0.1,0) [-3276.8|3276.7] "deg" PCAN
+ SG_ SteeringMeasuredDeg : 16|16@1- (0.1,0) [-3276.8|3276.7] "deg" PCAN
+ SG_ SteeringAdcRaw : 32|16@1+ (1,0) [0|65535] "count" PCAN
+ SG_ SteeringPulseUs : 48|8@1+ (5,900) [900|2175] "us" PCAN
+ SG_ AckermannState : 56|8@1+ (1,0) [0|255] "" PCAN
+
+BO_ 290 DriveStatus: 8 AURIX
+ SG_ DriveDutyPercent : 0|8@1+ (1,0) [0|100] "%" PCAN
+ SG_ DriveDirection : 8|8@1+ (1,0) [0|2] "" PCAN
+ SG_ EstopActive : 16|8@1+ (1,0) [0|1] "" PCAN
+ SG_ SpeedBufferCount : 24|8@1+ (1,0) [0|255] "samples" PCAN
+ SG_ LeftDeltaCount : 32|16@1- (1,0) [-32768|32767] "count" PCAN
+ SG_ RightDeltaCount : 48|16@1- (1,0) [-32768|32767] "count" PCAN
+
+BO_ 291 EncoderCount: 8 AURIX
+ SG_ LeftEncoderCount : 0|32@1- (1,0) [-2147483648|2147483647] "count" PCAN
+ SG_ RightEncoderCount : 32|32@1- (1,0) [-2147483648|2147483647] "count" PCAN
+
+BO_ 292 EncoderDebug: 8 AURIX
+ SG_ LeftHwCount : 0|16@1+ (1,0) [0|65535] "count" PCAN
+ SG_ RightHwCount : 16|16@1+ (1,0) [0|65535] "count" PCAN
+ SG_ LeftHwDelta : 32|16@1- (1,0) [-32768|32767] "count" PCAN
+ SG_ RightHwDelta : 48|16@1- (1,0) [-32768|32767] "count" PCAN
+
+BO_ 293 SpeedControlStatus: 8 AURIX
+ SG_ TargetVehicleRpm : 0|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ CurrentVehicleRpm : 16|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ DutyCommandPercent : 32|16@1+ (0.1,0) [0|100] "%" PCAN
+ SG_ FeedforwardDutyPercent : 48|16@1+ (0.1,0) [0|100] "%" PCAN
+
+BO_ 294 RpmDebug: 8 AURIX
+ SG_ LeftRawRpm : 0|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ LeftFilteredRpm : 16|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ RightRawRpm : 32|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ RightFilteredRpm : 48|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+
+BO_ 295 SteeringFeedback: 8 AURIX
+ SG_ SteeringCurrentDeg : 0|16@1- (0.1,0) [-3276.8|3276.7] "deg" PCAN
+ SG_ SteeringFeedbackAdcRaw : 16|16@1+ (1,0) [0|65535] "count" PCAN
+ SG_ SteeringFeedbackAdcMv : 32|16@1+ (1,0) [0|65535] "mV" PCAN
+ SG_ SteeringErrorDeg : 48|16@1- (0.1,0) [-3276.8|3276.7] "deg" PCAN
+
+BO_ 296 BufferTestStatus: 8 AURIX
+ SG_ BufferTestSize : 0|8@1+ (1,0) [0|255] "samples" PCAN
+ SG_ BufferTestStageIndex : 8|8@1+ (1,0) [0|255] "" PCAN
+ SG_ BufferTestDutyPercent : 16|8@1+ (1,0) [0|100] "%" PCAN
+ SG_ BufferTestStatusCode : 24|8@1+ (1,0) [0|255] "" PCAN
+ SG_ BufferTestAvgVehicleRpm : 32|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ BufferTestElapsedMs : 48|16@1+ (1,0) [0|65535] "ms" PCAN
+
+BO_ 297 DriveDeadbandTest: 8 AURIX
+ SG_ UnitTestCaseId : 0|8@1+ (1,0) [0|255] "" PCAN
+ SG_ DeadbandTestStatus : 8|8@1+ (1,0) [0|255] "" PCAN
+ SG_ DeadbandCurrentDuty : 16|8@1+ (1,0) [0|100] "%" PCAN
+ SG_ DeadbandLastStoppedDuty : 24|8@1+ (1,0) [0|100] "%" PCAN
+ SG_ DeadbandFirstMovingDuty : 32|8@1+ (1,0) [0|100] "%" PCAN
+ SG_ DeadbandCurrentRpm : 40|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ DeadbandElapsedSec : 56|8@1+ (1,0) [0|255] "s" PCAN
+
+BO_ 298 DriveDeadbandResult: 8 AURIX
+ SG_ ResultTestCaseId : 0|8@1+ (1,0) [0|255] "" PCAN
+ SG_ ResultDeadbandStatus : 8|8@1+ (1,0) [0|255] "" PCAN
+ SG_ ResultLastStoppedDuty : 16|8@1+ (1,0) [0|100] "%" PCAN
+ SG_ ResultFirstMovingDuty : 24|8@1+ (1,0) [0|100] "%" PCAN
+ SG_ ResultFirstMovingRpm : 32|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ ResultFirstMovingKph : 48|16@1+ (0.01,0) [0|655.35] "km/h" PCAN
+
+BO_ 299 MaxSpeedTest: 8 AURIX
+ SG_ MaxSpeedTestCaseId : 0|8@1+ (1,0) [0|255] "" PCAN
+ SG_ MaxSpeedTestStatus : 8|8@1+ (1,0) [0|255] "" PCAN
+ SG_ MaxSpeedTestPhase : 16|8@1+ (1,0) [0|255] "" PCAN
+ SG_ MaxSpeedDuty : 24|8@1+ (1,0) [0|100] "%" PCAN
+ SG_ MaxSpeedCurrentRpm : 32|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ MaxSpeedCurrentKph : 48|16@1+ (0.01,0) [0|655.35] "km/h" PCAN
+
+BO_ 300 MaxSpeedResult: 8 AURIX
+ SG_ MaxSpeedResultCaseId : 0|8@1+ (1,0) [0|255] "" PCAN
+ SG_ MaxSpeedResultStatus : 8|8@1+ (1,0) [0|255] "" PCAN
+ SG_ MaxSpeedResultDuty : 16|8@1+ (1,0) [0|100] "%" PCAN
+ SG_ MaxSpeedElapsedSec : 24|8@1+ (1,0) [0|255] "s" PCAN
+ SG_ MaxSpeedAvgRpm : 32|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ MaxSpeedAvgKph : 48|16@1+ (0.01,0) [0|655.35] "km/h" PCAN
+
+BO_ 301 JoystickCommand: 8 AURIX
+ SG_ JoystickPresent : 0|8@1+ (1,0) [0|1] "" PCAN
+ SG_ JoystickReceiverAlive : 8|8@1+ (1,0) [0|1] "" PCAN
+ SG_ JoystickButtons : 16|16@1+ (1,0) [0|65535] "" PCAN
+ SG_ JoystickTargetRpm : 32|16@1- (0.1,0) [-3276.8|3276.7] "rpm" PCAN
+ SG_ JoystickSteeringPulseUs : 48|16@1+ (1,0) [0|65535] "us" PCAN
+
+BO_ 304 SensorFeedback: 8 AURIX
+ SG_ MeasuredSpeedKph : 0|16@1- (0.01,0) [-327.68|327.67] "km/h" PCAN
+ SG_ MeasuredSteeringDeg : 16|16@1- (0.1,0) [-3276.8|3276.7] "deg" PCAN
+ SG_ SteeringPotAdcRaw : 32|16@1+ (1,0) [0|65535] "count" PCAN
+ SG_ SensorFeedbackSequence : 48|8@1+ (1,0) [0|255] "" PCAN
+ SG_ EncoderSpeedValid : 56|1@1+ (1,0) [0|1] "" PCAN
+ SG_ SteeringPotValid : 57|1@1+ (1,0) [0|1] "" PCAN
+ SG_ PcControlActive : 58|1@1+ (1,0) [0|1] "" PCAN
+ SG_ SensorFeedbackEstop : 59|1@1+ (1,0) [0|1] "" PCAN
+ SG_ SensorFeedbackSignature : 60|4@1+ (1,0) [0|15] "" PCAN
+
+BO_ 305 VehicleManagerStatus: 8 AURIX
+ SG_ VmState : 0|8@1+ (1,0) [0|9] "" PCAN
+ SG_ VmOwner : 8|8@1+ (1,0) [0|3] "" PCAN
+ SG_ VmFaultMask : 16|32@1+ (1,0) [0|4294967295] "" PCAN
+ SG_ VmDriveEnable : 48|1@1+ (1,0) [0|1] "" PCAN
+ SG_ VmSteeringTargetValid : 49|1@1+ (1,0) [0|1] "" PCAN
+ SG_ VmLateralLimitActive : 50|1@1+ (1,0) [0|1] "" PCAN
+ SG_ VmSteeringLimitActive : 51|1@1+ (1,0) [0|1] "" PCAN
+ SG_ VmCanRearmRequired : 52|1@1+ (1,0) [0|1] "" PCAN
+ SG_ VmStatusReserved : 53|3@1+ (1,0) [0|7] "" PCAN
+ SG_ VmTelemetrySequence : 56|8@1+ (1,0) [0|255] "" PCAN
+
+BO_ 306 VehicleManagerTargets: 8 AURIX
+ SG_ VmRequestedSpeedKph : 0|16@1- (0.01,0) [-13|13] "km/h" PCAN
+ SG_ VmTargetSpeedKph : 16|16@1- (0.01,0) [-13|13] "km/h" PCAN
+ SG_ VmRequestedSteeringDeg : 32|16@1- (0.1,0) [-27|27] "deg" PCAN
+ SG_ VmTargetSteeringDeg : 48|16@1- (0.1,0) [-27|27] "deg" PCAN
+
+BO_ 307 VehicleManagerEnvelope: 8 AURIX
+ SG_ VmEffectiveSteeringDeg : 0|16@1+ (0.1,0) [0|27] "deg" PCAN
+ SG_ VmSteeringLimitDeg : 16|16@1+ (0.1,0) [0|27] "deg" PCAN
+ SG_ VmTurnSpeedLimitKph : 32|16@1+ (0.01,0) [0|13] "km/h" PCAN
+ SG_ VmPredictedLateralAccelMps2 : 48|16@1+ (0.001,0) [0|10] "m/s2" PCAN
+
+BO_ 308 GraphTestStatus: 8 AURIX
+ SG_ GraphTestMode : 0|8@1+ (1,0) [0|2] "" PCAN
+ SG_ GraphTestState : 8|8@1+ (1,0) [0|4] "" PCAN
+ SG_ GraphTestPhase : 16|8@1+ (1,0) [0|255] "" PCAN
+ SG_ GraphTestAbortReason : 24|8@1+ (1,0) [0|12] "" PCAN
+ SG_ GraphTestPhaseElapsedMs : 32|16@1+ (1,0) [0|65535] "ms" PCAN
+ SG_ GraphTestActive : 48|1@1+ (1,0) [0|1] "" PCAN
+ SG_ GraphTestServiceOwner : 49|1@1+ (1,0) [0|1] "" PCAN
+ SG_ GraphTestSpeedHealthy : 50|1@1+ (1,0) [0|1] "" PCAN
+ SG_ GraphTestSteeringHealthy : 51|1@1+ (1,0) [0|1] "" PCAN
+ SG_ GraphTestLateralLimit : 52|1@1+ (1,0) [0|1] "" PCAN
+ SG_ GraphTestSteeringLimit : 53|1@1+ (1,0) [0|1] "" PCAN
+ SG_ GraphTestPhaseEvent : 54|1@1+ (1,0) [0|1] "" PCAN
+ SG_ GraphTestComplete : 55|1@1+ (1,0) [0|1] "" PCAN
+ SG_ GraphTestSequence : 56|8@1+ (1,0) [0|255] "" PCAN
+
+BO_ 768 AckermannCommand: 8 PCAN
+ SG_ TargetSpeedKph : 0|16@1- (0.01,0) [-0.7|13] "km/h" AURIX
+ SG_ TargetSteeringDeg : 16|16@1- (0.1,0) [-27|27] "deg" AURIX
+ SG_ SteeringPulseUs : 32|16@1+ (1,0) [1150|1950] "us" AURIX
+ SG_ CommandSequence : 48|8@1+ (1,0) [0|255] "" AURIX
+ SG_ CommandFlags : 56|8@1+ (1,0) [160|161] "" AURIX
+
+
+VAL_ 289 AckermannState 0 "Init" 1 "Run" 2 "AdcMissing" ;
+VAL_ 290 DriveDirection 0 "Stop" 1 "Forward" 2 "Reverse" ;
+VAL_ 296 BufferTestStatusCode 0 "Idle" 1 "Running" 2 "Done" ;
+VAL_ 297 UnitTestCaseId 0 "None" 1 "MaxSpeed" 2 "DriveDeadband" 255 "Cancel" ;
+VAL_ 297 DeadbandTestStatus 0 "Idle" 1 "Running" 2 "DoneFound" 3 "NoMotion" 4 "Cancelled" ;
+VAL_ 298 ResultTestCaseId 0 "None" 1 "MaxSpeed" 2 "DriveDeadband" 255 "Cancel" ;
+VAL_ 298 ResultDeadbandStatus 0 "Idle" 1 "Running" 2 "DoneFound" 3 "NoMotion" 4 "Cancelled" ;
+VAL_ 299 MaxSpeedTestCaseId 0 "None" 1 "MaxSpeed" 2 "DriveDeadband" 255 "Cancel" ;
+VAL_ 299 MaxSpeedTestStatus 0 "Idle" 1 "Running" 2 "Done" 3 "NoMotion" 4 "Cancelled" ;
+VAL_ 299 MaxSpeedTestPhase 0 "Idle" 1 "ZeroDuty" 2 "FullDuty" 3 "Done" ;
+VAL_ 300 MaxSpeedResultCaseId 0 "None" 1 "MaxSpeed" 2 "DriveDeadband" 255 "Cancel" ;
+VAL_ 300 MaxSpeedResultStatus 0 "Idle" 1 "Running" 2 "Done" 3 "NoMotion" 4 "Cancelled" ;
+VAL_ 301 JoystickPresent 0 "Disconnected" 1 "Connected" ;
+VAL_ 301 JoystickReceiverAlive 0 "NoSignal" 1 "Alive" ;
+VAL_ 304 EncoderSpeedValid 0 "Invalid" 1 "Valid" ;
+VAL_ 304 SteeringPotValid 0 "Invalid" 1 "Valid" ;
+VAL_ 304 PcControlActive 0 "Inactive" 1 "Active" ;
+VAL_ 304 SensorFeedbackEstop 0 "Released" 1 "Active" ;
+VAL_ 304 SensorFeedbackSignature 13 "Valid" ;
+VAL_ 305 VmState 0 "Init" 1 "Standby" 2 "Centering" 3 "ManualPs2" 4 "AutoCan" 5 "CanRearm" 6 "FaultTorqueOff" 7 "Estop" 8 "ServiceSpeedTest" 9 "ValidationActuation" ;
+VAL_ 305 VmOwner 0 "None" 1 "Ps2" 2 "Can" 3 "ServiceTest" ;
+VAL_ 305 VmDriveEnable 0 "Disabled" 1 "Enabled" ;
+VAL_ 305 VmSteeringTargetValid 0 "Invalid" 1 "Valid" ;
+VAL_ 305 VmLateralLimitActive 0 "Inactive" 1 "Active" ;
+VAL_ 305 VmSteeringLimitActive 0 "Inactive" 1 "Active" ;
+VAL_ 305 VmCanRearmRequired 0 "Ready" 1 "RearmRequired" ;
+VAL_ 308 GraphTestMode 0 "None" 1 "SpeedTracking" 2 "VmValidationActuation" ;
+VAL_ 308 GraphTestState 0 "Idle" 1 "Running" 2 "Complete" 3 "Aborted" 4 "Rejected" ;
+VAL_ 308 GraphTestAbortReason 0 "None" 1 "InvalidMode" 2 "StartGate" 3 "UserCancel" 4 "Estop" 5 "SpeedFeedback" 6 "SteeringFeedback" 7 "SourceConflict" 8 "LegacyTest" 9 "VmOwner" 10 "UnexpectedDrive" 11 "Overspeed" 12 "Internal" ;
+VAL_ 308 GraphTestActive 0 "Inactive" 1 "Active" ;
+VAL_ 308 GraphTestServiceOwner 0 "NotOwner" 1 "Owner" ;
+VAL_ 308 GraphTestSpeedHealthy 0 "Unhealthy" 1 "Healthy" ;
+VAL_ 308 GraphTestSteeringHealthy 0 "Unhealthy" 1 "Healthy" ;
+VAL_ 308 GraphTestLateralLimit 0 "Inactive" 1 "Active" ;
+VAL_ 308 GraphTestSteeringLimit 0 "Inactive" 1 "Active" ;
+VAL_ 308 GraphTestPhaseEvent 0 "Periodic" 1 "TransitionEvent" ;
+VAL_ 308 GraphTestComplete 0 "NotComplete" 1 "Complete" ;
+VAL_ 768 CommandFlags 160 "SignatureValid_Disabled" 161 "SignatureValid_Enabled" ;

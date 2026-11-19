@@ -1,0 +1,14 @@
+[Unit]
+Description=HL Global Mobility Team 1 AURIX CAN Alive
+After=network.target
+
+[Service]
+Type=simple
+Environment=ROS_DISTRO=humble
+ExecStartPre=/bin/bash -lc '<PACKAGE_DIR>/scripts/setup_can0.sh can0 500000 200'
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && source <WORKSPACE_DIR>/install/setup.bash && exec ros2 launch hl_global_mobility_team1_aurix aurix_can_alive.launch.py interface:=can0'
+Restart=always
+RestartSec=0.2
+
+[Install]
+WantedBy=multi-user.target

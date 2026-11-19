@@ -1,0 +1,6785 @@
+	; Module start
+	.compiler_version	"TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler v1.1r8 Build 22011964"
+	.compiler_invocation	"ctc -f C:\\Users\\Public\\Documents\\ESTsoft\\CreatorTemp\\cc42752a --dep-file=0_Src/AppSw/Tricore/VehicleManager.d -c99 --fp-model=3cflnrSTz -D__CPU__=tc27xd -D__CPU_TC27XD__ --core=tc1.6.x --fp-model=+float -D__CPU__=tc27xd -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\0_Src -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\0_Src\\\\AppSw -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\0_Src\\\\AppSw\\\\Tricore -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Configurations -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\Infra -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\Infra\\\\Platform -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\Infra\\\\Platform\\\\Tricore -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\Infra\\\\Platform\\\\Tricore\\\\Compilers -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\Infra\\\\Sfr -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\Infra\\\\Sfr\\\\TC27D -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\Infra\\\\Sfr\\\\TC27D\\\\_Reg -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\Service -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\Service\\\\CpuGeneric -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\Service\\\\CpuGeneric\\\\_Utilities -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Cpu -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Cpu\\\\CStart -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Cpu\\\\Irq -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Cpu\\\\Std -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Cpu\\\\Trap -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Gpt12 -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Gpt12\\\\Std -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Gtm -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Gtm\\\\Atom -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Gtm\\\\Atom\\\\Pwm -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Gtm\\\\Std -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Mtu -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Mtu\\\\Std -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Multican -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Multican\\\\Can -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Multican\\\\Std -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Port -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Port\\\\Std -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Scu -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Scu\\\\Std -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Src -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Src\\\\Std -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Stm -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Stm\\\\Std -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Vadc -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Vadc\\\\Adc -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Vadc\\\\Std -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\_Impl -IC:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\_PinMap -g2 -w544 -w557 -t4 --language=+volatile -N0 -O0 -Y0 -Z0 --compact-max-size=200 --misrac-version=2012 -o 0_Src/AppSw/Tricore/VehicleManager.src ../0_Src/AppSw/Tricore/VehicleManager.c"
+	.compiler_name		"ctc"
+	;source	'../0_Src/AppSw/Tricore/VehicleManager.c'
+
+	
+$TC16X
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_AbsFloat',code,cluster('VehicleManager_AbsFloat')
+	.sect	'.text.VehicleManager.VehicleManager_AbsFloat'
+	.align	2
+	
+; Function VehicleManager_AbsFloat
+.L131:
+VehicleManager_AbsFloat:	.type	func
+	mov	d15,#0
+.L874:
+	cmp.f	d15,d4,d15
+	jnz.t	d15:0,.L2
+.L875:
+	j	.L3
+.L2:
+	insn.t	d4,d4:31,d4:31
+.L3:
+	mov	d2,d4
+	j	.L4
+.L4:
+	ret
+.L343:
+	
+__VehicleManager_AbsFloat_function_end:
+	.size	VehicleManager_AbsFloat,__VehicleManager_AbsFloat_function_end-VehicleManager_AbsFloat
+.L188:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_ClampFloat',code,cluster('VehicleManager_ClampFloat')
+	.sect	'.text.VehicleManager.VehicleManager_ClampFloat'
+	.align	2
+	
+; Function VehicleManager_ClampFloat
+.L133:
+VehicleManager_ClampFloat:	.type	func
+	cmp.f	d15,d4,d5
+	extr.u	d15,d15,#0,#1
+.L880:
+	jeq	d15,#0,.L5
+.L881:
+	mov	d2,d5
+.L436:
+	j	.L6
+.L5:
+	cmp.f	d15,d4,d6
+	extr.u	d15,d15,#2,#1
+.L882:
+	jeq	d15,#0,.L7
+.L883:
+	mov	d2,d6
+.L437:
+	j	.L8
+.L7:
+	mov	d2,d4
+.L438:
+	j	.L9
+.L9:
+.L8:
+.L6:
+	ret
+.L345:
+	
+__VehicleManager_ClampFloat_function_end:
+	.size	VehicleManager_ClampFloat,__VehicleManager_ClampFloat_function_end-VehicleManager_ClampFloat
+.L193:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_IsNewCount',code,cluster('VehicleManager_IsNewCount')
+	.sect	'.text.VehicleManager.VehicleManager_IsNewCount'
+	.align	2
+	
+; Function VehicleManager_IsNewCount
+.L135:
+VehicleManager_IsNewCount:	.type	func
+	sub	d4,d5
+.L439:
+	jeq	d4,#0,.L10
+.L888:
+	movh	d15,#32768
+.L889:
+	jge.u	d4,d15,.L11
+.L890:
+	mov	d2,#1
+.L891:
+	j	.L12
+.L11:
+.L10:
+	mov	d2,#0
+.L12:
+	j	.L13
+.L13:
+	ret
+.L349:
+	
+__VehicleManager_IsNewCount_function_end:
+	.size	VehicleManager_IsNewCount,__VehicleManager_IsNewCount_function_end-VehicleManager_IsNewCount
+.L198:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_IsForwardSequence',code,cluster('VehicleManager_IsForwardSequence')
+	.sect	'.text.VehicleManager.VehicleManager_IsForwardSequence'
+	.align	2
+	
+; Function VehicleManager_IsForwardSequence
+.L137:
+VehicleManager_IsForwardSequence:	.type	func
+	sub	d5,d4
+.L440:
+	extr.u	d15,d5,#0,#8
+.L441:
+	jeq	d15,#0,.L14
+.L896:
+	mov	d0,#127
+.L897:
+	jlt.u	d0,d15,.L15
+.L898:
+	mov	d2,#1
+.L899:
+	j	.L16
+.L15:
+.L14:
+	mov	d2,#0
+.L16:
+	j	.L17
+.L17:
+	ret
+.L353:
+	
+__VehicleManager_IsForwardSequence_function_end:
+	.size	VehicleManager_IsForwardSequence,__VehicleManager_IsForwardSequence_function_end-VehicleManager_IsForwardSequence
+.L203:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_TanAbsDeg',code,cluster('VehicleManager_TanAbsDeg')
+	.sect	'.text.VehicleManager.VehicleManager_TanAbsDeg'
+	.align	2
+	
+; Function VehicleManager_TanAbsDeg
+.L139:
+VehicleManager_TanAbsDeg:	.type	func
+	call	VehicleManager_AbsFloat
+.L442:
+	mov.u	d15,#64053
+	addih	d15,d15,#15502
+.L904:
+	mul.f	d15,d2,d15
+.L443:
+	mul.f	d0,d15,d15
+.L445:
+	mul.f	d1,d15,d0
+.L447:
+	mul.f	d2,d1,d0
+.L449:
+	mul.f	d3,d2,d0
+.L451:
+	mul.f	d4,d3,d0
+.L452:
+	movh	d0,#16448
+.L446:
+	div.f	d0,d1,d0
+.L905:
+	add.f	d15,d15,d0
+.L444:
+	movh	d0,#16384
+.L906:
+	mul.f	d0,d2,d0
+.L907:
+	movh	d1,#16752
+.L448:
+	div.f	d0,d0,d1
+.L908:
+	add.f	d15,d15,d0
+.L909:
+	movh	d0,#16776
+.L910:
+	mul.f	d0,d3,d0
+.L911:
+	mov.u	d1,#32768
+	addih	d1,d1,#17309
+.L912:
+	div.f	d0,d0,d1
+.L913:
+	add.f	d15,d15,d0
+.L914:
+	movh	d0,#17016
+.L915:
+	mul.f	d0,d4,d0
+.L916:
+	mov	d1,#12288
+	addih	d1,d1,#17713
+.L917:
+	div.f	d0,d0,d1
+.L918:
+	add.f	d15,d15,d0
+.L453:
+	mov	d0,#8389
+	addih	d0,d0,#16256
+.L919:
+	mul.f	d2,d15,d0
+.L450:
+	j	.L18
+.L18:
+	ret
+.L357:
+	
+__VehicleManager_TanAbsDeg_function_end:
+	.size	VehicleManager_TanAbsDeg,__VehicleManager_TanAbsDeg_function_end-VehicleManager_TanAbsDeg
+.L208:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_CurvatureFromSteering',code,cluster('VehicleManager_CurvatureFromSteering')
+	.sect	'.text.VehicleManager.VehicleManager_CurvatureFromSteering'
+	.align	2
+	
+; Function VehicleManager_CurvatureFromSteering
+.L141:
+VehicleManager_CurvatureFromSteering:	.type	func
+	movh	d5,#49624
+.L924:
+	movh	d6,#16856
+	call	VehicleManager_ClampFloat
+.L454:
+	mov	d4,d2
+.L456:
+	call	VehicleManager_TanAbsDeg
+.L455:
+	mov	d15,#18350
+	addih	d15,d15,#16097
+.L925:
+	mov.u	d0,#36700
+	addih	d0,d0,#16002
+.L926:
+	msub.f	d0,d15,d2,d0
+.L458:
+	mov.u	d15,#52429
+	addih	d15,d15,#15692
+.L927:
+	cmp.f	d15,d0,d15
+	extr.u	d15,d15,#0,#1
+.L928:
+	jeq	d15,#0,.L19
+.L929:
+	mov.u	d0,#52429
+	addih	d0,d0,#15692
+.L19:
+	div.f	d2,d2,d0
+.L457:
+	j	.L20
+.L20:
+	ret
+.L366:
+	
+__VehicleManager_CurvatureFromSteering_function_end:
+	.size	VehicleManager_CurvatureFromSteering,__VehicleManager_CurvatureFromSteering_function_end-VehicleManager_CurvatureFromSteering
+.L213:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_LateralAccel',code,cluster('VehicleManager_LateralAccel')
+	.sect	'.text.VehicleManager.VehicleManager_LateralAccel'
+	.align	2
+	
+; Function VehicleManager_LateralAccel
+.L143:
+VehicleManager_LateralAccel:	.type	func
+	mov	d15,d5
+.L460:
+	call	VehicleManager_AbsFloat
+.L459:
+	mov	d0,#14564
+	addih	d0,d0,#16014
+.L934:
+	mul.f	d0,d2,d0
+.L461:
+	mul.f	d0,d0,d0
+.L462:
+	mul.f	d2,d0,d15
+.L935:
+	j	.L21
+.L21:
+	ret
+.L371:
+	
+__VehicleManager_LateralAccel_function_end:
+	.size	VehicleManager_LateralAccel,__VehicleManager_LateralAccel_function_end-VehicleManager_LateralAccel
+.L218:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_FindTurnSpeedLimitKph',code,cluster('VehicleManager_FindTurnSpeedLimitKph')
+	.sect	'.text.VehicleManager.VehicleManager_FindTurnSpeedLimitKph'
+	.align	2
+	
+; Function VehicleManager_FindTurnSpeedLimitKph
+.L145:
+VehicleManager_FindTurnSpeedLimitKph:	.type	func
+	mov	e8,d5,d4
+.L940:
+	mov	d10,#0
+.L465:
+	mov	d15,#14269
+	addih	d15,d15,#13702
+.L466:
+	cmp.f	d15,d8,d15
+.L467:
+	and	d15,#3
+	ne	d15,d15,#0
+.L941:
+	jeq	d15,#0,.L22
+.L468:
+	mov	d2,d9
+.L464:
+	j	.L23
+.L22:
+	mov	e4,d8,d9
+.L463:
+	call	VehicleManager_LateralAccel
+.L942:
+	movh	d15,#16320
+.L943:
+	cmp.f	d15,d2,d15
+	and	d15,#3
+	ne	d15,d15,#0
+.L944:
+	jeq	d15,#0,.L24
+.L469:
+	mov	d2,d9
+.L470:
+	j	.L25
+.L24:
+	mov	d11,#0
+.L471:
+	j	.L26
+.L27:
+	add.f	d15,d10,d9
+.L472:
+	movh	d0,#16128
+.L945:
+	mul.f	d12,d15,d0
+.L473:
+	mov	e4,d8,d12
+.L474:
+	call	VehicleManager_LateralAccel
+.L946:
+	movh	d15,#16320
+.L947:
+	cmp.f	d15,d2,d15
+	and	d15,#3
+	ne	d15,d15,#0
+.L948:
+	jne	d15,#0,.L28
+.L949:
+	mov	d9,d12
+.L475:
+	j	.L29
+.L28:
+	mov	d10,d12
+.L29:
+	add	d11,#1
+.L26:
+	jlt.u	d11,#12,.L27
+.L950:
+	mov	d2,d10
+.L476:
+	j	.L30
+.L30:
+.L25:
+.L23:
+	ret
+.L375:
+	
+__VehicleManager_FindTurnSpeedLimitKph_function_end:
+	.size	VehicleManager_FindTurnSpeedLimitKph,__VehicleManager_FindTurnSpeedLimitKph_function_end-VehicleManager_FindTurnSpeedLimitKph
+.L223:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_FindSteeringLimitDeg',code,cluster('VehicleManager_FindSteeringLimitDeg')
+	.sect	'.text.VehicleManager.VehicleManager_FindSteeringLimitDeg'
+	.align	2
+	
+; Function VehicleManager_FindSteeringLimitDeg
+.L147:
+VehicleManager_FindSteeringLimitDeg:	.type	func
+	mov	d8,#0
+.L478:
+	movh	d9,#16856
+.L479:
+	call	VehicleManager_AbsFloat
+.L477:
+	mov	d10,d2
+.L481:
+	mov	d4,d9
+.L482:
+	call	VehicleManager_CurvatureFromSteering
+.L480:
+	mov	e4,d2,d10
+	call	VehicleManager_LateralAccel
+.L955:
+	movh	d15,#16320
+.L956:
+	cmp.f	d15,d2,d15
+	and	d15,#3
+	ne	d15,d15,#0
+.L957:
+	jeq	d15,#0,.L31
+.L958:
+	movh	d2,#16856
+.L959:
+	j	.L32
+.L31:
+	mov	d11,#0
+.L483:
+	j	.L33
+.L34:
+	add.f	d15,d8,d9
+.L960:
+	movh	d0,#16128
+.L961:
+	mul.f	d12,d15,d0
+.L484:
+	mov	d4,d12
+.L485:
+	call	VehicleManager_CurvatureFromSteering
+.L486:
+	mov	e4,d2,d10
+	call	VehicleManager_LateralAccel
+.L962:
+	movh	d15,#16320
+.L963:
+	cmp.f	d15,d2,d15
+	and	d15,#3
+	ne	d15,d15,#0
+.L964:
+	jne	d15,#0,.L35
+.L965:
+	mov	d9,d12
+.L966:
+	j	.L36
+.L35:
+	mov	d8,d12
+.L36:
+	add	d11,#1
+.L33:
+	jlt.u	d11,#12,.L34
+.L967:
+	mov	d2,d8
+.L487:
+	j	.L37
+.L37:
+.L32:
+	ret
+.L382:
+	
+__VehicleManager_FindSteeringLimitDeg_function_end:
+	.size	VehicleManager_FindSteeringLimitDeg,__VehicleManager_FindSteeringLimitDeg_function_end-VehicleManager_FindSteeringLimitDeg
+.L228:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_ClearOutputFields',code,cluster('VehicleManager_ClearOutputFields')
+	.sect	'.text.VehicleManager.VehicleManager_ClearOutputFields'
+	.align	2
+	
+; Function VehicleManager_ClearOutputFields
+.L149:
+VehicleManager_ClearOutputFields:	.type	func
+	mov	d15,#0
+.L972:
+	st.b	[a4],d15
+.L973:
+	mov	d15,#1
+.L974:
+	st.b	[a4]1,d15
+.L975:
+	mov	d15,#0
+.L976:
+	st.w	[a4]2,d15
+.L977:
+	mov	d15,#0
+.L978:
+	st.w	[a4]6,d15
+.L979:
+	mov	d15,#0
+.L980:
+	st.w	[a4]10,d15
+.L981:
+	mov	d15,#0
+.L982:
+	st.w	[a4]14,d15
+.L983:
+	mov	d15,#0
+.L984:
+	st.w	[a4]18,d15
+.L985:
+	mov	d15,#0
+.L986:
+	st.w	[a4]22,d15
+.L987:
+	mov	d15,#0
+.L988:
+	st.w	[a4]26,d15
+.L989:
+	mov	d15,#0
+.L990:
+	st.w	[a4]30,d15
+.L991:
+	mov	d15,#0
+.L992:
+	st.w	[a4]34,d15
+.L993:
+	mov	d15,#0
+.L994:
+	st.w	[a4]38,d15
+.L995:
+	mov	d15,#0
+.L996:
+	st.b	[a4]42,d15
+.L997:
+	mov	d15,#0
+.L998:
+	st.b	[a4]43,d15
+.L999:
+	mov	d15,#0
+.L1000:
+	st.b	[a4]44,d15
+.L1001:
+	mov	d15,#0
+.L1002:
+	st.b	[a4]45,d15
+.L1003:
+	mov	d15,#0
+.L1004:
+	st.b	[a4]46,d15
+.L1005:
+	mov	d15,#0
+.L1006:
+	st.b	[a4]47,d15
+.L1007:
+	mov	d15,#0
+.L1008:
+	st.b	[a4]48,d15
+.L1009:
+	ret
+.L389:
+	
+__VehicleManager_ClearOutputFields_function_end:
+	.size	VehicleManager_ClearOutputFields,__VehicleManager_ClearOutputFields_function_end-VehicleManager_ClearOutputFields
+.L233:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_ClearOutput',code,cluster('VehicleManager_ClearOutput')
+	.sect	'.text.VehicleManager.VehicleManager_ClearOutput'
+	.align	2
+	
+; Function VehicleManager_ClearOutput
+.L151:
+VehicleManager_ClearOutput:	.type	func
+	mov.aa	a15,a4
+.L489:
+	mov.aa	a4,a15
+	call	VehicleManager_ClearOutputFields
+.L488:
+	movh.a	a2,#@his(g_vmCanRearmRequired)
+	lea	a2,[a2]@los(g_vmCanRearmRequired)
+	ld.bu	d15,[a2]
+.L1014:
+	st.b	[a15]46,d15
+.L1015:
+	ret
+.L391:
+	
+__VehicleManager_ClearOutput_function_end:
+	.size	VehicleManager_ClearOutput,__VehicleManager_ClearOutput_function_end-VehicleManager_ClearOutput
+.L238:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_StartCanRearm',code,cluster('VehicleManager_StartCanRearm')
+	.sect	'.text.VehicleManager.VehicleManager_StartCanRearm'
+	.align	2
+	
+; Function VehicleManager_StartCanRearm
+.L153:
+VehicleManager_StartCanRearm:	.type	func
+	movh.a	a15,#@his(g_vmCanRearmRequired)
+	lea	a15,[a15]@los(g_vmCanRearmRequired)
+.L1020:
+	mov	d15,#1
+.L1021:
+	st.b	[a15],d15
+.L1022:
+	movh.a	a15,#@his(g_vmCanDisableSeen)
+	lea	a15,[a15]@los(g_vmCanDisableSeen)
+.L1023:
+	mov	d15,#0
+.L1024:
+	st.b	[a15],d15
+.L1025:
+	movh.a	a15,#@his(g_vmCanRearmBaselineCount)
+	lea	a15,[a15]@los(g_vmCanRearmBaselineCount)
+.L1026:
+	ld.w	d15,[a4]26
+.L1027:
+	st.w	[a15],d15
+.L1028:
+	movh.a	a15,#@his(g_vmCanAcceptedSequenceValid)
+	lea	a15,[a15]@los(g_vmCanAcceptedSequenceValid)
+.L1029:
+	mov	d15,#0
+.L1030:
+	st.b	[a15],d15
+.L1031:
+	mov	d15,#1
+.L1032:
+	st.b	[a5]46,d15
+.L1033:
+	jeq	d4,#0,.L38
+.L1034:
+	mov	d15,#1
+.L1035:
+	st.b	[a5]47,d15
+.L38:
+	ret
+.L393:
+	
+__VehicleManager_StartCanRearm_function_end:
+	.size	VehicleManager_StartCanRearm,__VehicleManager_StartCanRearm_function_end-VehicleManager_StartCanRearm
+.L243:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_LatchSafetyRearm',code,cluster('VehicleManager_LatchSafetyRearm')
+	.sect	'.text.VehicleManager.VehicleManager_LatchSafetyRearm'
+	.align	2
+	
+; Function VehicleManager_LatchSafetyRearm
+.L155:
+VehicleManager_LatchSafetyRearm:	.type	func
+	ld.bu	d15,[a4]22
+.L1040:
+	jne	d15,#0,.L39
+.L1041:
+	movh.a	a15,#@his(g_vmCanAcceptedSequenceValid)
+	lea	a15,[a15]@los(g_vmCanAcceptedSequenceValid)
+	ld.bu	d15,[a15]
+.L1042:
+	jne	d15,#0,.L40
+.L1043:
+	movh.a	a15,#@his(g_vmCanRearmRequired)
+	lea	a15,[a15]@los(g_vmCanRearmRequired)
+	ld.bu	d15,[a15]
+.L1044:
+	jeq	d15,#0,.L41
+.L40:
+.L39:
+	mov	d4,#1
+	call	VehicleManager_StartCanRearm
+.L41:
+	movh.a	a15,#@his(g_vmPs2NeutralRequired)
+	lea	a15,[a15]@los(g_vmPs2NeutralRequired)
+.L1045:
+	mov	d15,#1
+.L1046:
+	st.b	[a15],d15
+.L1047:
+	ret
+.L397:
+	
+__VehicleManager_LatchSafetyRearm_function_end:
+	.size	VehicleManager_LatchSafetyRearm,__VehicleManager_LatchSafetyRearm_function_end-VehicleManager_LatchSafetyRearm
+.L248:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_RequestCenter',code,cluster('VehicleManager_RequestCenter')
+	.sect	'.text.VehicleManager.VehicleManager_RequestCenter'
+	.align	2
+	
+; Function VehicleManager_RequestCenter
+.L157:
+VehicleManager_RequestCenter:	.type	func
+	mov.aa	a15,a5
+.L491:
+	mov	d15,#0
+.L1052:
+	st.w	[a15]14,d15
+.L1053:
+	mov	d15,#0
+.L1054:
+	st.w	[a15]18,d15
+.L1055:
+	mov	d15,#0
+.L1056:
+	st.b	[a15]42,d15
+.L1057:
+	ld.bu	d15,[a4]2
+.L1058:
+	jeq	d15,#0,.L42
+.L1059:
+	ld.w	d4,[a4]8
+	call	VehicleManager_AbsFloat
+.L490:
+	movh	d15,#16128
+.L1060:
+	cmp.f	d15,d2,d15
+	extr.u	d15,d15,#2,#1
+.L1061:
+	jeq	d15,#0,.L43
+.L1062:
+	mov	d15,#1
+.L1063:
+	st.b	[a15]43,d15
+.L1064:
+	ld.bu	d15,[a15]1
+.L1065:
+	jne	d15,#1,.L44
+.L1066:
+	mov	d15,#2
+.L1067:
+	st.b	[a15]1,d15
+.L44:
+.L43:
+.L42:
+	ret
+.L400:
+	
+__VehicleManager_RequestCenter_function_end:
+	.size	VehicleManager_RequestCenter,__VehicleManager_RequestCenter_function_end-VehicleManager_RequestCenter
+.L253:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_TryCompleteCanRearm',code,cluster('VehicleManager_TryCompleteCanRearm')
+	.sect	'.text.VehicleManager.VehicleManager_TryCompleteCanRearm'
+	.align	2
+	
+; Function VehicleManager_TryCompleteCanRearm
+.L159:
+VehicleManager_TryCompleteCanRearm:	.type	func
+	mov.aa	a12,a4
+.L493:
+	mov.aa	a15,a5
+.L494:
+	ld.bu	d15,[a12]23
+.L1072:
+	jeq	d15,#0,.L45
+.L1073:
+	ld.w	d4,[a12]26
+.L1074:
+	movh.a	a2,#@his(g_vmCanRearmBaselineCount)
+	lea	a2,[a2]@los(g_vmCanRearmBaselineCount)
+	ld.w	d5,[a2]
+	call	VehicleManager_IsNewCount
+.L492:
+	jeq	d2,#0,.L46
+.L1075:
+	ld.bu	d15,[a12]24
+.L1076:
+	jne	d15,#0,.L47
+.L1077:
+	movh.a	a2,#@his(g_vmCanDisableSeen)
+	lea	a2,[a2]@los(g_vmCanDisableSeen)
+.L1078:
+	mov	d15,#1
+.L1079:
+	st.b	[a2],d15
+.L1080:
+	movh.a	a2,#@his(g_vmCanDisableCount)
+	lea	a2,[a2]@los(g_vmCanDisableCount)
+.L1081:
+	ld.w	d15,[a12]26
+.L1082:
+	st.w	[a2],d15
+.L1083:
+	movh.a	a2,#@his(g_vmCanDisableSequence)
+	lea	a2,[a2]@los(g_vmCanDisableSequence)
+.L1084:
+	ld.bu	d15,[a12]25
+.L1085:
+	st.b	[a2],d15
+.L1086:
+	j	.L48
+.L47:
+	movh.a	a2,#@his(g_vmCanDisableSeen)
+	lea	a2,[a2]@los(g_vmCanDisableSeen)
+	ld.bu	d15,[a2]
+.L1087:
+	jeq	d15,#0,.L49
+.L1088:
+	ld.w	d4,[a12]26
+.L1089:
+	movh.a	a2,#@his(g_vmCanDisableCount)
+	lea	a2,[a2]@los(g_vmCanDisableCount)
+	ld.w	d5,[a2]
+	call	VehicleManager_IsNewCount
+.L1090:
+	jeq	d2,#0,.L50
+.L1091:
+	movh.a	a2,#@his(g_vmCanDisableSequence)
+	lea	a2,[a2]@los(g_vmCanDisableSequence)
+	ld.bu	d4,[a2]
+.L1092:
+	ld.bu	d5,[a12]25
+	call	VehicleManager_IsForwardSequence
+.L1093:
+	jeq	d2,#0,.L51
+.L1094:
+	movh.a	a2,#@his(g_vmCanRearmRequired)
+	lea	a2,[a2]@los(g_vmCanRearmRequired)
+.L1095:
+	mov	d15,#0
+.L1096:
+	st.b	[a2],d15
+.L1097:
+	movh.a	a2,#@his(g_vmCanDisableSeen)
+	lea	a2,[a2]@los(g_vmCanDisableSeen)
+.L1098:
+	mov	d15,#0
+.L1099:
+	st.b	[a2],d15
+.L1100:
+	movh.a	a2,#@his(g_vmCanAcceptedSequenceValid)
+	lea	a2,[a2]@los(g_vmCanAcceptedSequenceValid)
+.L1101:
+	mov	d15,#1
+.L1102:
+	st.b	[a2],d15
+.L1103:
+	movh.a	a2,#@his(g_vmCanAcceptedCount)
+	lea	a2,[a2]@los(g_vmCanAcceptedCount)
+.L1104:
+	ld.w	d15,[a12]26
+.L1105:
+	st.w	[a2],d15
+.L1106:
+	movh.a	a2,#@his(g_vmCanAcceptedSequence)
+	lea	a2,[a2]@los(g_vmCanAcceptedSequence)
+.L1107:
+	ld.bu	d15,[a12]25
+.L1108:
+	st.b	[a2],d15
+.L1109:
+	mov	d15,#0
+.L1110:
+	st.b	[a15]46,d15
+.L1111:
+	mov	d2,#1
+.L1112:
+	j	.L52
+.L51:
+.L50:
+.L49:
+.L48:
+.L46:
+.L45:
+	mov	d15,#5
+.L1113:
+	st.b	[a15]1,d15
+.L1114:
+	ld.w	d15,[a15]2
+.L1115:
+	or	d15,#16
+	st.w	[a15]2,d15
+.L1116:
+	mov	d15,#1
+.L1117:
+	st.b	[a15]46,d15
+.L1118:
+	mov	d2,#0
+.L1119:
+	j	.L53
+.L53:
+.L52:
+	ret
+.L403:
+	
+__VehicleManager_TryCompleteCanRearm_function_end:
+	.size	VehicleManager_TryCompleteCanRearm,__VehicleManager_TryCompleteCanRearm_function_end-VehicleManager_TryCompleteCanRearm
+.L258:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_CheckActiveCanSequence',code,cluster('VehicleManager_CheckActiveCanSequence')
+	.sect	'.text.VehicleManager.VehicleManager_CheckActiveCanSequence'
+	.align	2
+	
+; Function VehicleManager_CheckActiveCanSequence
+.L161:
+VehicleManager_CheckActiveCanSequence:	.type	func
+	mov.aa	a12,a4
+.L496:
+	mov.aa	a15,a5
+.L497:
+	movh.a	a2,#@his(g_vmCanAcceptedSequenceValid)
+	lea	a2,[a2]@los(g_vmCanAcceptedSequenceValid)
+	ld.bu	d15,[a2]
+.L1124:
+	jne	d15,#0,.L54
+.L1125:
+	movh.a	a15,#@his(g_vmCanAcceptedSequenceValid)
+.L498:
+	lea	a15,[a15]@los(g_vmCanAcceptedSequenceValid)
+.L1126:
+	mov	d15,#1
+.L1127:
+	st.b	[a15],d15
+.L1128:
+	movh.a	a15,#@his(g_vmCanAcceptedCount)
+	lea	a15,[a15]@los(g_vmCanAcceptedCount)
+.L1129:
+	ld.w	d15,[a12]26
+.L1130:
+	st.w	[a15],d15
+.L1131:
+	movh.a	a15,#@his(g_vmCanAcceptedSequence)
+	lea	a15,[a15]@los(g_vmCanAcceptedSequence)
+.L1132:
+	ld.bu	d15,[a12]25
+.L1133:
+	st.b	[a15],d15
+.L1134:
+	mov	d2,#1
+.L1135:
+	j	.L55
+.L54:
+	ld.w	d4,[a12]26
+.L1136:
+	movh.a	a2,#@his(g_vmCanAcceptedCount)
+	lea	a2,[a2]@los(g_vmCanAcceptedCount)
+	ld.w	d5,[a2]
+	call	VehicleManager_IsNewCount
+.L495:
+	jeq	d2,#0,.L56
+.L1137:
+	movh.a	a2,#@his(g_vmCanAcceptedSequence)
+	lea	a2,[a2]@los(g_vmCanAcceptedSequence)
+	ld.bu	d4,[a2]
+.L1138:
+	ld.bu	d5,[a12]25
+	call	VehicleManager_IsForwardSequence
+.L1139:
+	jne	d2,#0,.L57
+.L1140:
+	mov	d4,#0
+	mov.aa	a4,a12
+.L500:
+	mov.aa	a5,a15
+.L502:
+	call	VehicleManager_StartCanRearm
+.L501:
+	mov	d15,#6
+.L1141:
+	st.b	[a15]1,d15
+.L1142:
+	ld.w	d15,[a15]2
+.L1143:
+	or	d15,#32
+	st.w	[a15]2,d15
+.L1144:
+	mov	d2,#0
+.L1145:
+	j	.L58
+.L57:
+	movh.a	a15,#@his(g_vmCanAcceptedCount)
+.L499:
+	lea	a15,[a15]@los(g_vmCanAcceptedCount)
+.L1146:
+	ld.w	d15,[a12]26
+.L1147:
+	st.w	[a15],d15
+.L1148:
+	movh.a	a15,#@his(g_vmCanAcceptedSequence)
+	lea	a15,[a15]@los(g_vmCanAcceptedSequence)
+.L1149:
+	ld.bu	d15,[a12]25
+.L1150:
+	st.b	[a15],d15
+.L56:
+	mov	d2,#1
+.L1151:
+	j	.L59
+.L59:
+.L58:
+.L55:
+	ret
+.L406:
+	
+__VehicleManager_CheckActiveCanSequence_function_end:
+	.size	VehicleManager_CheckActiveCanSequence,__VehicleManager_CheckActiveCanSequence_function_end-VehicleManager_CheckActiveCanSequence
+.L263:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_ApplyMotionEnvelope',code,cluster('VehicleManager_ApplyMotionEnvelope')
+	.sect	'.text.VehicleManager.VehicleManager_ApplyMotionEnvelope'
+	.align	2
+	
+; Function VehicleManager_ApplyMotionEnvelope
+.L163:
+VehicleManager_ApplyMotionEnvelope:	.type	func
+	mov.aa	a15,a4
+.L507:
+	mov	d8,d4
+.L508:
+	mov	d15,d5
+.L509:
+	mov	d9,d6
+.L511:
+	ld.w	d4,[a15]10
+.L506:
+	movh	d5,#49624
+.L503:
+	movh	d6,#16856
+.L504:
+	call	VehicleManager_ClampFloat
+.L505:
+	st.w	[a15]10,d2
+.L1156:
+	ld.w	d0,[a15]10
+.L1157:
+	st.w	[a15]18,d0
+.L1158:
+	mov	d4,d15
+.L512:
+	call	VehicleManager_FindSteeringLimitDeg
+.L513:
+	st.w	[a15]26,d2
+.L1159:
+	ld.w	d4,[a15]10
+	call	VehicleManager_AbsFloat
+.L1160:
+	ld.w	d15,[a15]26
+.L510:
+	cmp.f	d15,d2,d15
+	extr.u	d15,d15,#2,#1
+.L1161:
+	jeq	d15,#0,.L60
+.L1162:
+	ld.w	d15,[a15]10
+.L1163:
+	mov	d0,#0
+.L1164:
+	cmp.f	d15,d15,d0
+	jnz.t	d15:0,.L61
+.L1165:
+	ld.w	d15,[a15]26
+.L1166:
+	j	.L62
+.L61:
+	ld.w	d15,[a15]26
+.L1167:
+	insn.t	d15,d15:31,d15:31
+.L62:
+	st.w	[a15]18,d15
+.L1168:
+	mov	d15,#1
+.L1169:
+	st.b	[a15]45,d15
+.L60:
+	ld.w	d4,[a15]10
+	call	VehicleManager_AbsFloat
+.L1170:
+	st.w	[a15]22,d2
+.L1171:
+	mov	d4,d9
+.L514:
+	call	VehicleManager_AbsFloat
+.L515:
+	ld.w	d15,[a15]22
+.L1172:
+	cmp.f	d15,d2,d15
+	extr.u	d15,d15,#2,#1
+.L1173:
+	jeq	d15,#0,.L63
+.L1174:
+	mov	d4,d9
+.L516:
+	call	VehicleManager_AbsFloat
+.L517:
+	st.w	[a15]22,d2
+.L63:
+	ld.w	d4,[a15]22
+	call	VehicleManager_CurvatureFromSteering
+.L1175:
+	st.w	[a15]30,d2
+.L1176:
+	ld.w	d4,[a15]30
+.L1177:
+	mov	d5,d8
+.L518:
+	call	VehicleManager_FindTurnSpeedLimitKph
+.L519:
+	st.w	[a15]34,d2
+.L1178:
+	ld.w	d4,[a15]6
+	call	VehicleManager_AbsFloat
+.L520:
+	ld.w	d15,[a15]6
+.L1179:
+	mov	d0,#0
+.L1180:
+	cmp.f	d15,d15,d0
+	jnz.t	d15:0,.L64
+.L1181:
+	movh	d0,#16256
+.L522:
+	j	.L65
+.L64:
+	movh	d0,#49024
+.L65:
+	cmp.f	d15,d2,d8
+	extr.u	d15,d15,#2,#1
+.L1182:
+	jeq	d15,#0,.L66
+.L1183:
+	mov	d2,d8
+.L66:
+	ld.w	d15,[a15]34
+.L1184:
+	cmp.f	d15,d2,d15
+	extr.u	d15,d15,#2,#1
+.L1185:
+	jeq	d15,#0,.L67
+.L1186:
+	ld.w	d2,[a15]34
+.L1187:
+	mov	d15,#1
+.L1188:
+	st.b	[a15]44,d15
+.L67:
+	mul.f	d15,d0,d2
+.L1189:
+	st.w	[a15]14,d15
+.L1190:
+	mul.f	d4,d0,d2
+.L1191:
+	ld.w	d5,[a15]30
+	call	VehicleManager_LateralAccel
+.L521:
+	st.w	[a15]38,d2
+.L1192:
+	ret
+.L409:
+	
+__VehicleManager_ApplyMotionEnvelope_function_end:
+	.size	VehicleManager_ApplyMotionEnvelope,__VehicleManager_ApplyMotionEnvelope_function_end-VehicleManager_ApplyMotionEnvelope
+.L268:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_PublishTrace',code,cluster('VehicleManager_PublishTrace')
+	.sect	'.text.VehicleManager.VehicleManager_PublishTrace'
+	.align	2
+	
+; Function VehicleManager_PublishTrace
+.L165:
+VehicleManager_PublishTrace:	.type	func
+	movh.a	a15,#@his(g_vehicleManagerState)
+	lea	a15,[a15]@los(g_vehicleManagerState)
+.L1197:
+	ld.bu	d15,[a4]1
+.L1198:
+	st.b	[a15],d15
+.L1199:
+	movh.a	a15,#@his(g_vehicleManagerOwner)
+	lea	a15,[a15]@los(g_vehicleManagerOwner)
+.L1200:
+	ld.bu	d15,[a4]
+.L1201:
+	st.b	[a15],d15
+.L1202:
+	movh.a	a15,#@his(g_vehicleManagerFaultMask)
+	lea	a15,[a15]@los(g_vehicleManagerFaultMask)
+.L1203:
+	ld.w	d15,[a4]2
+.L1204:
+	st.w	[a15],d15
+.L1205:
+	movh.a	a15,#@his(g_vehicleManagerRequestedSpeedKph)
+	lea	a15,[a15]@los(g_vehicleManagerRequestedSpeedKph)
+.L1206:
+	ld.w	d15,[a4]6
+.L1207:
+	st.w	[a15],d15
+.L1208:
+	movh.a	a15,#@his(g_vehicleManagerTargetSpeedKph)
+	lea	a15,[a15]@los(g_vehicleManagerTargetSpeedKph)
+.L1209:
+	ld.w	d15,[a4]14
+.L1210:
+	st.w	[a15],d15
+.L1211:
+	movh.a	a15,#@his(g_vehicleManagerRequestedSteeringDeg)
+	lea	a15,[a15]@los(g_vehicleManagerRequestedSteeringDeg)
+.L1212:
+	ld.w	d15,[a4]10
+.L1213:
+	st.w	[a15],d15
+.L1214:
+	movh.a	a15,#@his(g_vehicleManagerTargetSteeringDeg)
+	lea	a15,[a15]@los(g_vehicleManagerTargetSteeringDeg)
+.L1215:
+	ld.w	d15,[a4]18
+.L1216:
+	st.w	[a15],d15
+.L1217:
+	movh.a	a15,#@his(g_vehicleManagerEffectiveSteeringDeg)
+	lea	a15,[a15]@los(g_vehicleManagerEffectiveSteeringDeg)
+.L1218:
+	ld.w	d15,[a4]22
+.L1219:
+	st.w	[a15],d15
+.L1220:
+	movh.a	a15,#@his(g_vehicleManagerSteeringLimitDeg)
+	lea	a15,[a15]@los(g_vehicleManagerSteeringLimitDeg)
+.L1221:
+	ld.w	d15,[a4]26
+.L1222:
+	st.w	[a15],d15
+.L1223:
+	movh.a	a15,#@his(g_vehicleManagerCurvatureInvM)
+	lea	a15,[a15]@los(g_vehicleManagerCurvatureInvM)
+.L1224:
+	ld.w	d15,[a4]30
+.L1225:
+	st.w	[a15],d15
+.L1226:
+	movh.a	a15,#@his(g_vehicleManagerTurnSpeedLimitKph)
+	lea	a15,[a15]@los(g_vehicleManagerTurnSpeedLimitKph)
+.L1227:
+	ld.w	d15,[a4]34
+.L1228:
+	st.w	[a15],d15
+.L1229:
+	movh.a	a15,#@his(g_vehicleManagerPredictedLateralAccelMps2)
+	lea	a15,[a15]@los(g_vehicleManagerPredictedLateralAccelMps2)
+.L1230:
+	ld.w	d15,[a4]38
+.L1231:
+	st.w	[a15],d15
+.L1232:
+	ld.bu	d15,[a4]44
+.L1233:
+	jeq	d15,#0,.L68
+.L1234:
+	mov	d15,#1
+.L1235:
+	j	.L69
+.L68:
+	mov	d15,#0
+.L69:
+	movh.a	a15,#@his(g_vehicleManagerLateralLimitActive)
+	lea	a15,[a15]@los(g_vehicleManagerLateralLimitActive)
+.L1236:
+	st.b	[a15],d15
+.L1237:
+	ld.bu	d15,[a4]45
+.L1238:
+	jeq	d15,#0,.L70
+.L1239:
+	mov	d15,#1
+.L1240:
+	j	.L71
+.L70:
+	mov	d15,#0
+.L71:
+	movh.a	a15,#@his(g_vehicleManagerSteeringLimitActive)
+	lea	a15,[a15]@los(g_vehicleManagerSteeringLimitActive)
+.L1241:
+	st.b	[a15],d15
+.L1242:
+	ld.bu	d15,[a4]46
+.L1243:
+	jeq	d15,#0,.L72
+.L1244:
+	mov	d15,#1
+.L1245:
+	j	.L73
+.L72:
+	mov	d15,#0
+.L73:
+	movh.a	a15,#@his(g_vehicleManagerCanRearmRequired)
+	lea	a15,[a15]@los(g_vehicleManagerCanRearmRequired)
+.L1246:
+	st.b	[a15],d15
+.L1247:
+	movh.a	a15,#@his(g_vehicleManagerStepCount)
+	lea	a15,[a15]@los(g_vehicleManagerStepCount)
+	movh.a	a2,#@his(g_vehicleManagerStepCount)
+	lea	a2,[a2]@los(g_vehicleManagerStepCount)
+	ld.w	d15,[a2]
+.L1248:
+	add	d15,#1
+	st.w	[a15],d15
+.L1249:
+	ret
+.L417:
+	
+__VehicleManager_PublishTrace_function_end:
+	.size	VehicleManager_PublishTrace,__VehicleManager_PublishTrace_function_end-VehicleManager_PublishTrace
+.L273:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_Init',code,cluster('VehicleManager_Init')
+	.sect	'.text.VehicleManager.VehicleManager_Init'
+	.align	2
+	
+	.global	VehicleManager_Init
+; Function VehicleManager_Init
+.L167:
+VehicleManager_Init:	.type	func
+	movh.a	a15,#@his(g_vmPreviousPs2Available)
+	lea	a15,[a15]@los(g_vmPreviousPs2Available)
+.L610:
+	mov	d15,#0
+.L611:
+	st.b	[a15],d15
+.L612:
+	movh.a	a15,#@his(g_vmCanRearmRequired)
+	lea	a15,[a15]@los(g_vmCanRearmRequired)
+.L613:
+	mov	d15,#0
+.L614:
+	st.b	[a15],d15
+.L615:
+	movh.a	a15,#@his(g_vmCanDisableSeen)
+	lea	a15,[a15]@los(g_vmCanDisableSeen)
+.L616:
+	mov	d15,#0
+.L617:
+	st.b	[a15],d15
+.L618:
+	movh.a	a15,#@his(g_vmCanRearmBaselineCount)
+	lea	a15,[a15]@los(g_vmCanRearmBaselineCount)
+.L619:
+	mov	d15,#0
+.L620:
+	st.w	[a15],d15
+.L621:
+	movh.a	a15,#@his(g_vmCanDisableCount)
+	lea	a15,[a15]@los(g_vmCanDisableCount)
+.L622:
+	mov	d15,#0
+.L623:
+	st.w	[a15],d15
+.L624:
+	movh.a	a15,#@his(g_vmCanDisableSequence)
+	lea	a15,[a15]@los(g_vmCanDisableSequence)
+.L625:
+	mov	d15,#0
+.L626:
+	st.b	[a15],d15
+.L627:
+	movh.a	a15,#@his(g_vmCanAcceptedSequenceValid)
+	lea	a15,[a15]@los(g_vmCanAcceptedSequenceValid)
+.L628:
+	mov	d15,#0
+.L629:
+	st.b	[a15],d15
+.L630:
+	movh.a	a15,#@his(g_vmCanAcceptedCount)
+	lea	a15,[a15]@los(g_vmCanAcceptedCount)
+.L631:
+	mov	d15,#0
+.L632:
+	st.w	[a15],d15
+.L633:
+	movh.a	a15,#@his(g_vmCanAcceptedSequence)
+	lea	a15,[a15]@los(g_vmCanAcceptedSequence)
+.L634:
+	mov	d15,#0
+.L635:
+	st.b	[a15],d15
+.L636:
+	movh.a	a15,#@his(g_vmPreviousEstopActive)
+	lea	a15,[a15]@los(g_vmPreviousEstopActive)
+.L637:
+	mov	d15,#0
+.L638:
+	st.b	[a15],d15
+.L639:
+	movh.a	a15,#@his(g_vmFeedbackFaultActive)
+	lea	a15,[a15]@los(g_vmFeedbackFaultActive)
+.L640:
+	mov	d15,#0
+.L641:
+	st.b	[a15],d15
+.L642:
+	movh.a	a15,#@his(g_vmPs2NeutralRequired)
+	lea	a15,[a15]@los(g_vmPs2NeutralRequired)
+.L643:
+	mov	d15,#0
+.L644:
+	st.b	[a15],d15
+.L645:
+	movh.a	a15,#@his(g_vehicleManagerState)
+	lea	a15,[a15]@los(g_vehicleManagerState)
+.L646:
+	mov	d15,#0
+.L647:
+	st.b	[a15],d15
+.L648:
+	movh.a	a15,#@his(g_vehicleManagerOwner)
+	lea	a15,[a15]@los(g_vehicleManagerOwner)
+.L649:
+	mov	d15,#0
+.L650:
+	st.b	[a15],d15
+.L651:
+	movh.a	a15,#@his(g_vehicleManagerFaultMask)
+	lea	a15,[a15]@los(g_vehicleManagerFaultMask)
+.L652:
+	mov	d15,#0
+.L653:
+	st.w	[a15],d15
+.L654:
+	movh.a	a15,#@his(g_vehicleManagerRequestedSpeedKph)
+	lea	a15,[a15]@los(g_vehicleManagerRequestedSpeedKph)
+.L655:
+	mov	d15,#0
+.L656:
+	st.w	[a15],d15
+.L657:
+	movh.a	a15,#@his(g_vehicleManagerTargetSpeedKph)
+	lea	a15,[a15]@los(g_vehicleManagerTargetSpeedKph)
+.L658:
+	mov	d15,#0
+.L659:
+	st.w	[a15],d15
+.L660:
+	movh.a	a15,#@his(g_vehicleManagerRequestedSteeringDeg)
+	lea	a15,[a15]@los(g_vehicleManagerRequestedSteeringDeg)
+.L661:
+	mov	d15,#0
+.L662:
+	st.w	[a15],d15
+.L663:
+	movh.a	a15,#@his(g_vehicleManagerTargetSteeringDeg)
+	lea	a15,[a15]@los(g_vehicleManagerTargetSteeringDeg)
+.L664:
+	mov	d15,#0
+.L665:
+	st.w	[a15],d15
+.L666:
+	movh.a	a15,#@his(g_vehicleManagerEffectiveSteeringDeg)
+	lea	a15,[a15]@los(g_vehicleManagerEffectiveSteeringDeg)
+.L667:
+	mov	d15,#0
+.L668:
+	st.w	[a15],d15
+.L669:
+	movh.a	a15,#@his(g_vehicleManagerSteeringLimitDeg)
+	lea	a15,[a15]@los(g_vehicleManagerSteeringLimitDeg)
+.L670:
+	mov	d15,#0
+.L671:
+	st.w	[a15],d15
+.L672:
+	movh.a	a15,#@his(g_vehicleManagerCurvatureInvM)
+	lea	a15,[a15]@los(g_vehicleManagerCurvatureInvM)
+.L673:
+	mov	d15,#0
+.L674:
+	st.w	[a15],d15
+.L675:
+	movh.a	a15,#@his(g_vehicleManagerTurnSpeedLimitKph)
+	lea	a15,[a15]@los(g_vehicleManagerTurnSpeedLimitKph)
+.L676:
+	mov	d15,#0
+.L677:
+	st.w	[a15],d15
+.L678:
+	movh.a	a15,#@his(g_vehicleManagerPredictedLateralAccelMps2)
+	lea	a15,[a15]@los(g_vehicleManagerPredictedLateralAccelMps2)
+.L679:
+	mov	d15,#0
+.L680:
+	st.w	[a15],d15
+.L681:
+	movh.a	a15,#@his(g_vehicleManagerLateralLimitActive)
+	lea	a15,[a15]@los(g_vehicleManagerLateralLimitActive)
+.L682:
+	mov	d15,#0
+.L683:
+	st.b	[a15],d15
+.L684:
+	movh.a	a15,#@his(g_vehicleManagerSteeringLimitActive)
+	lea	a15,[a15]@los(g_vehicleManagerSteeringLimitActive)
+.L685:
+	mov	d15,#0
+.L686:
+	st.b	[a15],d15
+.L687:
+	movh.a	a15,#@his(g_vehicleManagerCanRearmRequired)
+	lea	a15,[a15]@los(g_vehicleManagerCanRearmRequired)
+.L688:
+	mov	d15,#0
+.L689:
+	st.b	[a15],d15
+.L690:
+	movh.a	a15,#@his(g_vehicleManagerStepCount)
+	lea	a15,[a15]@los(g_vehicleManagerStepCount)
+.L691:
+	mov	d15,#0
+.L692:
+	st.w	[a15],d15
+.L693:
+	ret
+.L330:
+	
+__VehicleManager_Init_function_end:
+	.size	VehicleManager_Init,__VehicleManager_Init_function_end-VehicleManager_Init
+.L178:
+	; End of function
+	
+	.sdecl	'.text.VehicleManager.VehicleManager_Step5ms',code,cluster('VehicleManager_Step5ms')
+	.sect	'.text.VehicleManager.VehicleManager_Step5ms'
+	.align	2
+	
+	.global	VehicleManager_Step5ms
+; Function VehicleManager_Step5ms
+.L169:
+VehicleManager_Step5ms:	.type	func
+	mov.aa	a15,a4
+.L524:
+	mov.aa	a12,a5
+.L526:
+	jz.a	a15,.L74
+.L698:
+	jnz.a	a12,.L75
+.L74:
+	j	.L76
+.L75:
+	mov.aa	a4,a12
+.L523:
+	call	VehicleManager_ClearOutput
+.L527:
+	ld.bu	d15,[a15]12
+.L699:
+	jeq	d15,#0,.L77
+.L700:
+	movh.a	a2,#@his(g_vmPreviousPs2Available)
+	lea	a2,[a2]@los(g_vmPreviousPs2Available)
+	ld.bu	d15,[a2]
+.L701:
+	jne	d15,#0,.L78
+.L702:
+	mov	d0,#1
+.L528:
+	j	.L79
+.L78:
+.L77:
+	mov	d0,#0
+.L79:
+	ld.bu	d15,[a15]12
+.L703:
+	jne	d15,#0,.L80
+.L704:
+	movh.a	a2,#@his(g_vmPreviousPs2Available)
+	lea	a2,[a2]@los(g_vmPreviousPs2Available)
+	ld.bu	d15,[a2]
+.L705:
+	jeq	d15,#0,.L81
+.L706:
+	mov	d15,#1
+.L530:
+	j	.L82
+.L81:
+.L80:
+	mov	d15,#0
+.L82:
+	jeq	d0,#0,.L83
+.L707:
+	mov	d4,#1
+	mov.aa	a4,a15
+.L532:
+	mov.aa	a5,a12
+.L533:
+	call	VehicleManager_StartCanRearm
+.L529:
+	movh.a	a2,#@his(g_vmPs2NeutralRequired)
+	lea	a2,[a2]@los(g_vmPs2NeutralRequired)
+.L708:
+	mov	d0,#1
+.L709:
+	st.b	[a2],d0
+.L83:
+	jeq	d15,#0,.L84
+.L710:
+	mov	d4,#1
+	mov.aa	a4,a15
+.L534:
+	mov.aa	a5,a12
+.L535:
+	call	VehicleManager_StartCanRearm
+.L84:
+	movh.a	a2,#@his(g_vmPreviousPs2Available)
+	lea	a2,[a2]@los(g_vmPreviousPs2Available)
+.L711:
+	ld.bu	d15,[a15]12
+.L531:
+	st.b	[a2],d15
+.L712:
+	movh.a	a2,#@his(g_vmCanRearmRequired)
+	lea	a2,[a2]@los(g_vmCanRearmRequired)
+	ld.bu	d15,[a2]
+.L713:
+	st.b	[a12]46,d15
+.L714:
+	ld.bu	d15,[a15]
+.L715:
+	jeq	d15,#0,.L85
+.L716:
+	movh.a	a2,#@his(g_vmPreviousEstopActive)
+	lea	a2,[a2]@los(g_vmPreviousEstopActive)
+	ld.bu	d15,[a2]
+.L717:
+	jeq	d15,#0,.L86
+.L718:
+	ld.bu	d15,[a15]22
+.L719:
+	jeq	d15,#0,.L87
+.L720:
+	movh.a	a2,#@his(g_vmCanRearmRequired)
+	lea	a2,[a2]@los(g_vmCanRearmRequired)
+	ld.bu	d15,[a2]
+.L721:
+	jne	d15,#0,.L88
+.L86:
+	mov.aa	a4,a15
+.L536:
+	mov.aa	a5,a12
+.L537:
+	call	VehicleManager_LatchSafetyRearm
+.L88:
+.L87:
+	movh.a	a2,#@his(g_vmPreviousEstopActive)
+	lea	a2,[a2]@los(g_vmPreviousEstopActive)
+.L722:
+	mov	d15,#1
+.L723:
+	st.b	[a2],d15
+.L724:
+	mov	d15,#7
+.L725:
+	st.b	[a12]1,d15
+.L726:
+	ld.w	d15,[a12]2
+.L727:
+	or	d15,#1
+	st.w	[a12]2,d15
+.L728:
+	mov.aa	a4,a15
+.L538:
+	mov.aa	a5,a12
+.L540:
+	call	VehicleManager_RequestCenter
+.L539:
+	mov.aa	a4,a12
+.L541:
+	call	VehicleManager_PublishTrace
+.L542:
+	j	.L89
+.L85:
+	movh.a	a2,#@his(g_vmPreviousEstopActive)
+	lea	a2,[a2]@los(g_vmPreviousEstopActive)
+.L729:
+	mov	d15,#0
+.L730:
+	st.b	[a2],d15
+.L731:
+	ld.bu	d15,[a15]12
+.L732:
+	jne	d15,#0,.L90
+.L733:
+	ld.bu	d15,[a15]38
+.L734:
+	jne	d15,#0,.L91
+.L735:
+	ld.bu	d15,[a15]22
+.L736:
+	jeq	d15,#0,.L92
+.L737:
+	ld.bu	d15,[a15]23
+.L738:
+	jeq	d15,#0,.L93
+.L739:
+	ld.bu	d15,[a15]24
+.L740:
+	jeq	d15,#0,.L94
+.L91:
+.L90:
+	mov	d0,#1
+.L543:
+	j	.L95
+.L94:
+.L93:
+.L92:
+	mov	d0,#0
+.L95:
+	mov	d8,#0
+.L544:
+	ld.bu	d15,[a15]2
+.L741:
+	jne	d15,#0,.L96
+.L742:
+	or	d8,d8,#2
+.L96:
+	jeq	d0,#0,.L97
+.L743:
+	ld.bu	d15,[a15]1
+.L744:
+	jne	d15,#0,.L98
+.L745:
+	or	d8,d8,#4
+.L98:
+.L97:
+	jeq	d8,#0,.L99
+.L746:
+	movh.a	a2,#@his(g_vmFeedbackFaultActive)
+	lea	a2,[a2]@los(g_vmFeedbackFaultActive)
+	ld.bu	d15,[a2]
+.L747:
+	jeq	d15,#0,.L100
+.L748:
+	ld.bu	d15,[a15]22
+.L749:
+	jeq	d15,#0,.L101
+.L750:
+	movh.a	a2,#@his(g_vmCanRearmRequired)
+	lea	a2,[a2]@los(g_vmCanRearmRequired)
+	ld.bu	d15,[a2]
+.L751:
+	jne	d15,#0,.L102
+.L100:
+	mov.aa	a4,a15
+.L546:
+	mov.aa	a5,a12
+.L547:
+	call	VehicleManager_LatchSafetyRearm
+.L102:
+.L101:
+	movh.a	a2,#@his(g_vmFeedbackFaultActive)
+	lea	a2,[a2]@los(g_vmFeedbackFaultActive)
+.L752:
+	mov	d0,#1
+.L753:
+	st.b	[a2],d0
+.L754:
+	mov	d15,#6
+.L755:
+	st.b	[a12]1,d15
+.L756:
+	ld.w	d15,[a12]2
+.L757:
+	or	d8,d15
+.L545:
+	st.w	[a12]2,d8
+.L758:
+	mov.aa	a4,a15
+.L548:
+	mov.aa	a5,a12
+.L550:
+	call	VehicleManager_RequestCenter
+.L549:
+	mov.aa	a4,a12
+.L551:
+	call	VehicleManager_PublishTrace
+.L552:
+	j	.L103
+.L99:
+	movh.a	a2,#@his(g_vmFeedbackFaultActive)
+	lea	a2,[a2]@los(g_vmFeedbackFaultActive)
+.L759:
+	mov	d15,#0
+.L760:
+	st.b	[a2],d15
+.L761:
+	ld.bu	d15,[a15]12
+.L762:
+	jeq	d15,#0,.L104
+.L763:
+	movh.a	a2,#@his(g_vmPs2NeutralRequired)
+	lea	a2,[a2]@los(g_vmPs2NeutralRequired)
+	ld.bu	d15,[a2]
+.L764:
+	jeq	d15,#0,.L105
+.L765:
+	ld.w	d4,[a15]14
+	call	VehicleManager_AbsFloat
+.L553:
+	mov	d15,#0
+.L766:
+	cmp.f	d15,d2,d15
+	extr.u	d15,d15,#2,#1
+.L767:
+	jeq	d15,#0,.L106
+.L768:
+	mov	d15,#6
+.L769:
+	st.b	[a12]1,d15
+.L770:
+	ld.w	d15,[a12]2
+.L771:
+	or	d15,#64
+	st.w	[a12]2,d15
+.L772:
+	mov.aa	a4,a15
+.L554:
+	mov.aa	a5,a12
+.L556:
+	call	VehicleManager_RequestCenter
+.L555:
+	mov.aa	a4,a12
+.L557:
+	call	VehicleManager_PublishTrace
+.L558:
+	j	.L107
+.L106:
+	movh.a	a2,#@his(g_vmPs2NeutralRequired)
+	lea	a2,[a2]@los(g_vmPs2NeutralRequired)
+.L773:
+	mov	d15,#0
+.L774:
+	st.b	[a2],d15
+.L105:
+	mov	d15,#1
+.L775:
+	st.b	[a12],d15
+.L776:
+	mov	d15,#3
+.L777:
+	st.b	[a12]1,d15
+.L778:
+	ld.w	d4,[a15]14
+.L779:
+	movh	d5,#49024
+.L780:
+	movh	d6,#16720
+	call	VehicleManager_ClampFloat
+.L781:
+	st.w	[a12]6,d2
+.L782:
+	ld.w	d15,[a15]18
+.L783:
+	st.w	[a12]10,d15
+.L784:
+	movh	d4,#16720
+.L785:
+	ld.w	d5,[a15]4
+.L786:
+	ld.w	d6,[a15]8
+	mov.aa	a4,a12
+.L559:
+	call	VehicleManager_ApplyMotionEnvelope
+.L560:
+	j	.L108
+.L104:
+	ld.bu	d15,[a15]22
+.L787:
+	jeq	d15,#0,.L109
+.L788:
+	movh.a	a2,#@his(g_vmCanRearmRequired)
+	lea	a2,[a2]@los(g_vmCanRearmRequired)
+	ld.bu	d15,[a2]
+.L789:
+	jeq	d15,#0,.L110
+.L790:
+	mov.aa	a4,a15
+.L562:
+	mov.aa	a5,a12
+.L563:
+	call	VehicleManager_TryCompleteCanRearm
+.L561:
+	jne	d2,#0,.L111
+.L791:
+	mov.aa	a4,a15
+.L564:
+	mov.aa	a5,a12
+.L566:
+	call	VehicleManager_RequestCenter
+.L565:
+	mov.aa	a4,a12
+.L567:
+	call	VehicleManager_PublishTrace
+.L568:
+	j	.L112
+.L111:
+.L110:
+	ld.bu	d15,[a15]23
+.L792:
+	jne	d15,#0,.L113
+.L793:
+	mov	d4,#0
+	mov.aa	a4,a15
+.L569:
+	mov.aa	a5,a12
+.L571:
+	call	VehicleManager_StartCanRearm
+.L570:
+	mov	d15,#6
+.L794:
+	st.b	[a12]1,d15
+.L795:
+	ld.w	d15,[a12]2
+.L796:
+	or	d15,#8
+	st.w	[a12]2,d15
+.L797:
+	mov.aa	a4,a15
+.L572:
+	mov.aa	a5,a12
+.L574:
+	call	VehicleManager_RequestCenter
+.L573:
+	mov.aa	a4,a12
+.L575:
+	call	VehicleManager_PublishTrace
+.L576:
+	j	.L114
+.L113:
+	ld.bu	d15,[a15]24
+.L798:
+	jne	d15,#0,.L115
+.L799:
+	movh.a	a2,#@his(g_vmCanRearmRequired)
+	lea	a2,[a2]@los(g_vmCanRearmRequired)
+.L800:
+	mov	d15,#1
+.L801:
+	st.b	[a2],d15
+.L802:
+	movh.a	a2,#@his(g_vmCanDisableSeen)
+	lea	a2,[a2]@los(g_vmCanDisableSeen)
+.L803:
+	mov	d15,#1
+.L804:
+	st.b	[a2],d15
+.L805:
+	movh.a	a2,#@his(g_vmCanRearmBaselineCount)
+	lea	a2,[a2]@los(g_vmCanRearmBaselineCount)
+.L806:
+	ld.w	d15,[a15]26
+.L807:
+	st.w	[a2],d15
+.L808:
+	movh.a	a2,#@his(g_vmCanAcceptedSequenceValid)
+	lea	a2,[a2]@los(g_vmCanAcceptedSequenceValid)
+.L809:
+	mov	d15,#0
+.L810:
+	st.b	[a2],d15
+.L811:
+	movh.a	a2,#@his(g_vmCanDisableCount)
+	lea	a2,[a2]@los(g_vmCanDisableCount)
+.L812:
+	ld.w	d15,[a15]26
+.L813:
+	st.w	[a2],d15
+.L814:
+	movh.a	a2,#@his(g_vmCanDisableSequence)
+	lea	a2,[a2]@los(g_vmCanDisableSequence)
+.L815:
+	ld.bu	d15,[a15]25
+.L816:
+	st.b	[a2],d15
+.L817:
+	mov	d15,#1
+.L818:
+	st.b	[a12]1,d15
+.L819:
+	mov	d15,#1
+.L820:
+	st.b	[a12]46,d15
+.L821:
+	mov.aa	a4,a15
+.L577:
+	mov.aa	a5,a12
+.L579:
+	call	VehicleManager_RequestCenter
+.L578:
+	mov.aa	a4,a12
+.L580:
+	call	VehicleManager_PublishTrace
+.L581:
+	j	.L116
+.L115:
+	mov.aa	a4,a15
+.L582:
+	mov.aa	a5,a12
+.L584:
+	call	VehicleManager_CheckActiveCanSequence
+.L583:
+	jne	d2,#0,.L117
+.L822:
+	mov.aa	a4,a15
+.L585:
+	mov.aa	a5,a12
+.L587:
+	call	VehicleManager_RequestCenter
+.L586:
+	mov.aa	a4,a12
+.L588:
+	call	VehicleManager_PublishTrace
+.L589:
+	j	.L118
+.L117:
+	mov	d15,#2
+.L823:
+	st.b	[a12],d15
+.L824:
+	mov	d15,#4
+.L825:
+	st.b	[a12]1,d15
+.L826:
+	ld.w	d4,[a15]30
+.L827:
+	mov	d5,#13107
+	addih	d5,d5,#48947
+.L828:
+	movh	d6,#16720
+	call	VehicleManager_ClampFloat
+.L829:
+	st.w	[a12]6,d2
+.L830:
+	ld.w	d15,[a15]34
+.L831:
+	st.w	[a12]10,d15
+.L832:
+	movh	d4,#16720
+.L833:
+	ld.w	d5,[a15]4
+.L834:
+	ld.w	d6,[a15]8
+	mov.aa	a4,a12
+.L590:
+	call	VehicleManager_ApplyMotionEnvelope
+.L591:
+	j	.L119
+.L109:
+	ld.bu	d15,[a15]38
+.L835:
+	jeq	d15,#0,.L120
+.L836:
+	mov	d15,#3
+.L837:
+	st.b	[a12],d15
+.L838:
+	ld.bu	d15,[a15]39
+.L839:
+	jeq	d15,#0,.L121
+.L840:
+	mov	d15,#9
+.L841:
+	j	.L122
+.L121:
+	mov	d15,#8
+.L122:
+	st.b	[a12]1,d15
+.L842:
+	ld.w	d4,[a15]40
+.L843:
+	mov	d5,#0
+.L844:
+	movh	d6,#16720
+	call	VehicleManager_ClampFloat
+.L592:
+	st.w	[a12]6,d2
+.L845:
+	ld.w	d15,[a15]44
+.L846:
+	st.w	[a12]10,d15
+.L847:
+	movh	d4,#16720
+.L848:
+	ld.w	d5,[a15]4
+.L849:
+	ld.w	d6,[a15]8
+	mov.aa	a4,a12
+.L593:
+	call	VehicleManager_ApplyMotionEnvelope
+.L594:
+	j	.L123
+.L120:
+	mov	d15,#1
+.L850:
+	st.b	[a12]1,d15
+.L851:
+	mov.aa	a4,a15
+.L596:
+	mov.aa	a5,a12
+.L597:
+	call	VehicleManager_RequestCenter
+.L595:
+	ld.bu	d15,[a15]1
+.L852:
+	jeq	d15,#0,.L124
+.L853:
+	ld.bu	d15,[a15]2
+.L854:
+	jeq	d15,#0,.L125
+.L855:
+	ld.bu	d15,[a12]1
+.L856:
+	jne	d15,#1,.L126
+.L857:
+	movh.a	a15,#@his(g_vmCanRearmRequired)
+.L525:
+	lea	a15,[a15]@los(g_vmCanRearmRequired)
+	ld.bu	d15,[a15]
+.L858:
+	jne	d15,#0,.L127
+.L859:
+	mov	d15,#1
+.L860:
+	j	.L128
+.L127:
+.L126:
+.L125:
+.L124:
+	mov	d15,#0
+.L128:
+	st.b	[a12]48,d15
+.L861:
+	mov.aa	a4,a12
+.L598:
+	call	VehicleManager_PublishTrace
+.L599:
+	j	.L129
+.L123:
+.L119:
+.L108:
+	mov	d15,#1
+.L862:
+	st.b	[a12]42,d15
+.L863:
+	mov	d15,#1
+.L864:
+	st.b	[a12]43,d15
+.L865:
+	mov	d15,#0
+.L866:
+	st.b	[a12]48,d15
+.L867:
+	movh.a	a15,#@his(g_vmCanRearmRequired)
+.L600:
+	lea	a15,[a15]@los(g_vmCanRearmRequired)
+	ld.bu	d15,[a15]
+.L868:
+	st.b	[a12]46,d15
+.L869:
+	mov.aa	a4,a12
+.L601:
+	call	VehicleManager_PublishTrace
+.L129:
+.L118:
+.L116:
+.L114:
+.L112:
+.L107:
+.L103:
+.L89:
+.L76:
+	ret
+.L331:
+	
+__VehicleManager_Step5ms_function_end:
+	.size	VehicleManager_Step5ms,__VehicleManager_Step5ms_function_end-VehicleManager_Step5ms
+.L183:
+	; End of function
+	
+	.sdecl	'.data.VehicleManager.g_vehicleManagerState',data,cluster('g_vehicleManagerState')
+	.sect	'.data.VehicleManager.g_vehicleManagerState'
+	.global	g_vehicleManagerState
+g_vehicleManagerState:	.type	object
+	.size	g_vehicleManagerState,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vehicleManagerOwner',data,cluster('g_vehicleManagerOwner')
+	.sect	'.data.VehicleManager.g_vehicleManagerOwner'
+	.global	g_vehicleManagerOwner
+g_vehicleManagerOwner:	.type	object
+	.size	g_vehicleManagerOwner,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vehicleManagerFaultMask',data,cluster('g_vehicleManagerFaultMask')
+	.sect	'.data.VehicleManager.g_vehicleManagerFaultMask'
+	.global	g_vehicleManagerFaultMask
+	.align	2
+g_vehicleManagerFaultMask:	.type	object
+	.size	g_vehicleManagerFaultMask,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vehicleManagerRequestedSpeedKph',data,cluster('g_vehicleManagerRequestedSpeedKph')
+	.sect	'.data.VehicleManager.g_vehicleManagerRequestedSpeedKph'
+	.global	g_vehicleManagerRequestedSpeedKph
+	.align	2
+g_vehicleManagerRequestedSpeedKph:	.type	object
+	.size	g_vehicleManagerRequestedSpeedKph,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vehicleManagerTargetSpeedKph',data,cluster('g_vehicleManagerTargetSpeedKph')
+	.sect	'.data.VehicleManager.g_vehicleManagerTargetSpeedKph'
+	.global	g_vehicleManagerTargetSpeedKph
+	.align	2
+g_vehicleManagerTargetSpeedKph:	.type	object
+	.size	g_vehicleManagerTargetSpeedKph,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vehicleManagerRequestedSteeringDeg',data,cluster('g_vehicleManagerRequestedSteeringDeg')
+	.sect	'.data.VehicleManager.g_vehicleManagerRequestedSteeringDeg'
+	.global	g_vehicleManagerRequestedSteeringDeg
+	.align	2
+g_vehicleManagerRequestedSteeringDeg:	.type	object
+	.size	g_vehicleManagerRequestedSteeringDeg,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vehicleManagerTargetSteeringDeg',data,cluster('g_vehicleManagerTargetSteeringDeg')
+	.sect	'.data.VehicleManager.g_vehicleManagerTargetSteeringDeg'
+	.global	g_vehicleManagerTargetSteeringDeg
+	.align	2
+g_vehicleManagerTargetSteeringDeg:	.type	object
+	.size	g_vehicleManagerTargetSteeringDeg,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vehicleManagerEffectiveSteeringDeg',data,cluster('g_vehicleManagerEffectiveSteeringDeg')
+	.sect	'.data.VehicleManager.g_vehicleManagerEffectiveSteeringDeg'
+	.global	g_vehicleManagerEffectiveSteeringDeg
+	.align	2
+g_vehicleManagerEffectiveSteeringDeg:	.type	object
+	.size	g_vehicleManagerEffectiveSteeringDeg,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vehicleManagerSteeringLimitDeg',data,cluster('g_vehicleManagerSteeringLimitDeg')
+	.sect	'.data.VehicleManager.g_vehicleManagerSteeringLimitDeg'
+	.global	g_vehicleManagerSteeringLimitDeg
+	.align	2
+g_vehicleManagerSteeringLimitDeg:	.type	object
+	.size	g_vehicleManagerSteeringLimitDeg,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vehicleManagerCurvatureInvM',data,cluster('g_vehicleManagerCurvatureInvM')
+	.sect	'.data.VehicleManager.g_vehicleManagerCurvatureInvM'
+	.global	g_vehicleManagerCurvatureInvM
+	.align	2
+g_vehicleManagerCurvatureInvM:	.type	object
+	.size	g_vehicleManagerCurvatureInvM,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vehicleManagerTurnSpeedLimitKph',data,cluster('g_vehicleManagerTurnSpeedLimitKph')
+	.sect	'.data.VehicleManager.g_vehicleManagerTurnSpeedLimitKph'
+	.global	g_vehicleManagerTurnSpeedLimitKph
+	.align	2
+g_vehicleManagerTurnSpeedLimitKph:	.type	object
+	.size	g_vehicleManagerTurnSpeedLimitKph,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vehicleManagerPredictedLateralAccelMps2',data,cluster('g_vehicleManagerPredictedLateralAccelMps2')
+	.sect	'.data.VehicleManager.g_vehicleManagerPredictedLateralAccelMps2'
+	.global	g_vehicleManagerPredictedLateralAccelMps2
+	.align	2
+g_vehicleManagerPredictedLateralAccelMps2:	.type	object
+	.size	g_vehicleManagerPredictedLateralAccelMps2,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vehicleManagerLateralLimitActive',data,cluster('g_vehicleManagerLateralLimitActive')
+	.sect	'.data.VehicleManager.g_vehicleManagerLateralLimitActive'
+	.global	g_vehicleManagerLateralLimitActive
+g_vehicleManagerLateralLimitActive:	.type	object
+	.size	g_vehicleManagerLateralLimitActive,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vehicleManagerSteeringLimitActive',data,cluster('g_vehicleManagerSteeringLimitActive')
+	.sect	'.data.VehicleManager.g_vehicleManagerSteeringLimitActive'
+	.global	g_vehicleManagerSteeringLimitActive
+g_vehicleManagerSteeringLimitActive:	.type	object
+	.size	g_vehicleManagerSteeringLimitActive,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vehicleManagerCanRearmRequired',data,cluster('g_vehicleManagerCanRearmRequired')
+	.sect	'.data.VehicleManager.g_vehicleManagerCanRearmRequired'
+	.global	g_vehicleManagerCanRearmRequired
+g_vehicleManagerCanRearmRequired:	.type	object
+	.size	g_vehicleManagerCanRearmRequired,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vehicleManagerStepCount',data,cluster('g_vehicleManagerStepCount')
+	.sect	'.data.VehicleManager.g_vehicleManagerStepCount'
+	.global	g_vehicleManagerStepCount
+	.align	2
+g_vehicleManagerStepCount:	.type	object
+	.size	g_vehicleManagerStepCount,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vmPreviousPs2Available',data,cluster('g_vmPreviousPs2Available')
+	.sect	'.data.VehicleManager.g_vmPreviousPs2Available'
+g_vmPreviousPs2Available:	.type	object
+	.size	g_vmPreviousPs2Available,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vmCanRearmRequired',data,cluster('g_vmCanRearmRequired')
+	.sect	'.data.VehicleManager.g_vmCanRearmRequired'
+g_vmCanRearmRequired:	.type	object
+	.size	g_vmCanRearmRequired,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vmCanDisableSeen',data,cluster('g_vmCanDisableSeen')
+	.sect	'.data.VehicleManager.g_vmCanDisableSeen'
+g_vmCanDisableSeen:	.type	object
+	.size	g_vmCanDisableSeen,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vmCanRearmBaselineCount',data,cluster('g_vmCanRearmBaselineCount')
+	.sect	'.data.VehicleManager.g_vmCanRearmBaselineCount'
+	.align	2
+g_vmCanRearmBaselineCount:	.type	object
+	.size	g_vmCanRearmBaselineCount,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vmCanDisableCount',data,cluster('g_vmCanDisableCount')
+	.sect	'.data.VehicleManager.g_vmCanDisableCount'
+	.align	2
+g_vmCanDisableCount:	.type	object
+	.size	g_vmCanDisableCount,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vmCanDisableSequence',data,cluster('g_vmCanDisableSequence')
+	.sect	'.data.VehicleManager.g_vmCanDisableSequence'
+g_vmCanDisableSequence:	.type	object
+	.size	g_vmCanDisableSequence,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vmCanAcceptedSequenceValid',data,cluster('g_vmCanAcceptedSequenceValid')
+	.sect	'.data.VehicleManager.g_vmCanAcceptedSequenceValid'
+g_vmCanAcceptedSequenceValid:	.type	object
+	.size	g_vmCanAcceptedSequenceValid,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vmCanAcceptedCount',data,cluster('g_vmCanAcceptedCount')
+	.sect	'.data.VehicleManager.g_vmCanAcceptedCount'
+	.align	2
+g_vmCanAcceptedCount:	.type	object
+	.size	g_vmCanAcceptedCount,4
+	.space	4
+	.sdecl	'.data.VehicleManager.g_vmCanAcceptedSequence',data,cluster('g_vmCanAcceptedSequence')
+	.sect	'.data.VehicleManager.g_vmCanAcceptedSequence'
+g_vmCanAcceptedSequence:	.type	object
+	.size	g_vmCanAcceptedSequence,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vmPreviousEstopActive',data,cluster('g_vmPreviousEstopActive')
+	.sect	'.data.VehicleManager.g_vmPreviousEstopActive'
+g_vmPreviousEstopActive:	.type	object
+	.size	g_vmPreviousEstopActive,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vmFeedbackFaultActive',data,cluster('g_vmFeedbackFaultActive')
+	.sect	'.data.VehicleManager.g_vmFeedbackFaultActive'
+g_vmFeedbackFaultActive:	.type	object
+	.size	g_vmFeedbackFaultActive,1
+	.space	1
+	.sdecl	'.data.VehicleManager.g_vmPs2NeutralRequired',data,cluster('g_vmPs2NeutralRequired')
+	.sect	'.data.VehicleManager.g_vmPs2NeutralRequired'
+g_vmPs2NeutralRequired:	.type	object
+	.size	g_vmPs2NeutralRequired,1
+	.space	1
+	.calls	'VehicleManager_TanAbsDeg','VehicleManager_AbsFloat'
+	.calls	'VehicleManager_CurvatureFromSteering','VehicleManager_ClampFloat'
+	.calls	'VehicleManager_CurvatureFromSteering','VehicleManager_TanAbsDeg'
+	.calls	'VehicleManager_LateralAccel','VehicleManager_AbsFloat'
+	.calls	'VehicleManager_FindTurnSpeedLimitKph','VehicleManager_LateralAccel'
+	.calls	'VehicleManager_FindSteeringLimitDeg','VehicleManager_AbsFloat'
+	.calls	'VehicleManager_FindSteeringLimitDeg','VehicleManager_CurvatureFromSteering'
+	.calls	'VehicleManager_FindSteeringLimitDeg','VehicleManager_LateralAccel'
+	.calls	'VehicleManager_ClearOutput','VehicleManager_ClearOutputFields'
+	.calls	'VehicleManager_LatchSafetyRearm','VehicleManager_StartCanRearm'
+	.calls	'VehicleManager_RequestCenter','VehicleManager_AbsFloat'
+	.calls	'VehicleManager_TryCompleteCanRearm','VehicleManager_IsNewCount'
+	.calls	'VehicleManager_TryCompleteCanRearm','VehicleManager_IsForwardSequence'
+	.calls	'VehicleManager_CheckActiveCanSequence','VehicleManager_IsNewCount'
+	.calls	'VehicleManager_CheckActiveCanSequence','VehicleManager_IsForwardSequence'
+	.calls	'VehicleManager_CheckActiveCanSequence','VehicleManager_StartCanRearm'
+	.calls	'VehicleManager_ApplyMotionEnvelope','VehicleManager_ClampFloat'
+	.calls	'VehicleManager_ApplyMotionEnvelope','VehicleManager_FindSteeringLimitDeg'
+	.calls	'VehicleManager_ApplyMotionEnvelope','VehicleManager_AbsFloat'
+	.calls	'VehicleManager_ApplyMotionEnvelope','VehicleManager_CurvatureFromSteering'
+	.calls	'VehicleManager_ApplyMotionEnvelope','VehicleManager_FindTurnSpeedLimitKph'
+	.calls	'VehicleManager_ApplyMotionEnvelope','VehicleManager_LateralAccel'
+	.calls	'VehicleManager_Step5ms','VehicleManager_ClearOutput'
+	.calls	'VehicleManager_Step5ms','VehicleManager_StartCanRearm'
+	.calls	'VehicleManager_Step5ms','VehicleManager_LatchSafetyRearm'
+	.calls	'VehicleManager_Step5ms','VehicleManager_RequestCenter'
+	.calls	'VehicleManager_Step5ms','VehicleManager_PublishTrace'
+	.calls	'VehicleManager_Step5ms','VehicleManager_AbsFloat'
+	.calls	'VehicleManager_Step5ms','VehicleManager_ClampFloat'
+	.calls	'VehicleManager_Step5ms','VehicleManager_ApplyMotionEnvelope'
+	.calls	'VehicleManager_Step5ms','VehicleManager_TryCompleteCanRearm'
+	.calls	'VehicleManager_Step5ms','VehicleManager_CheckActiveCanSequence'
+	.calls	'VehicleManager_AbsFloat','',0
+	.calls	'VehicleManager_ClampFloat','',0
+	.calls	'VehicleManager_IsNewCount','',0
+	.calls	'VehicleManager_IsForwardSequence','',0
+	.calls	'VehicleManager_TanAbsDeg','',0
+	.calls	'VehicleManager_CurvatureFromSteering','',0
+	.calls	'VehicleManager_LateralAccel','',0
+	.calls	'VehicleManager_FindTurnSpeedLimitKph','',0
+	.calls	'VehicleManager_FindSteeringLimitDeg','',0
+	.calls	'VehicleManager_ClearOutputFields','',0
+	.calls	'VehicleManager_ClearOutput','',0
+	.calls	'VehicleManager_StartCanRearm','',0
+	.calls	'VehicleManager_LatchSafetyRearm','',0
+	.calls	'VehicleManager_RequestCenter','',0
+	.calls	'VehicleManager_TryCompleteCanRearm','',0
+	.calls	'VehicleManager_CheckActiveCanSequence','',0
+	.calls	'VehicleManager_ApplyMotionEnvelope','',0
+	.calls	'VehicleManager_PublishTrace','',0
+	.calls	'VehicleManager_Init','',0
+	.calls	'VehicleManager_Step5ms','',0
+	.sdecl	'.debug_info',debug
+	.sect	'.debug_info'
+.L171:
+	.word	2292
+	.half	3
+	.word	.L172
+	.byte	4
+.L170:
+	.byte	1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L173
+.L336:
+	.byte	2
+	.byte	'unsigned char',0,1,8
+.L342:
+	.byte	2
+	.byte	'float',0,4,4
+.L340:
+	.byte	2
+	.byte	'unsigned long int',0,4,7,3,1,54,9,48,4
+	.byte	'estopActive',0
+	.word	233
+	.byte	1,2,35,0,4
+	.byte	'speedFeedbackValid',0
+	.word	233
+	.byte	1,2,35,1,4
+	.byte	'steeringFeedbackValid',0
+	.word	233
+	.byte	1,2,35,2,4
+	.byte	'measuredSpeedKph',0
+	.word	250
+	.byte	4,2,35,4,4
+	.byte	'measuredSteeringDeg',0
+	.word	250
+	.byte	4,2,35,8,4
+	.byte	'ps2Available',0
+	.word	233
+	.byte	1,2,35,12,4
+	.byte	'ps2RequestedSpeedKph',0
+	.word	250
+	.byte	4,2,35,14,4
+	.byte	'ps2RequestedSteeringDeg',0
+	.word	250
+	.byte	4,2,35,18,4
+	.byte	'canModeSeen',0
+	.word	233
+	.byte	1,2,35,22,4
+	.byte	'canCommandValid',0
+	.word	233
+	.byte	1,2,35,23,4
+	.byte	'canCommandEnabled',0
+	.word	233
+	.byte	1,2,35,24,4
+	.byte	'canSequence',0
+	.word	233
+	.byte	1,2,35,25,4
+	.byte	'canValidCount',0
+	.word	259
+	.byte	4,2,35,26,4
+	.byte	'canRequestedSpeedKph',0
+	.word	250
+	.byte	4,2,35,30,4
+	.byte	'canRequestedSteeringDeg',0
+	.word	250
+	.byte	4,2,35,34,4
+	.byte	'serviceTestRequested',0
+	.word	233
+	.byte	1,2,35,38,4
+	.byte	'serviceValidationRequested',0
+	.word	233
+	.byte	1,2,35,39,4
+	.byte	'serviceRequestedSpeedKph',0
+	.word	250
+	.byte	4,2,35,40,4
+	.byte	'serviceRequestedSteeringDeg',0
+	.word	250
+	.byte	4,2,35,44,0,5
+	.word	280
+.L332:
+	.byte	6
+	.word	823
+	.byte	7,1,23,9,1,8
+	.byte	'VehicleManagerOwner_None',0,0,8
+	.byte	'VehicleManagerOwner_Ps2',0,1,8
+	.byte	'VehicleManagerOwner_Can',0,2,8
+	.byte	'VehicleManagerOwner_ServiceTest',0,3,0,7,1,31,9,1,8
+	.byte	'VehicleManagerState_Init',0,0,8
+	.byte	'VehicleManagerState_Standby',0,1,8
+	.byte	'VehicleManagerState_Centering',0,2,8
+	.byte	'VehicleManagerState_ManualPs2',0,3,8
+	.byte	'VehicleManagerState_AutoCan',0,4,8
+	.byte	'VehicleManagerState_CanRearm',0,5,8
+	.byte	'VehicleManagerState_FaultTorqueOff',0,6,8
+	.byte	'VehicleManagerState_Estop',0,7,8
+	.byte	'VehicleManagerState_ServiceSpeedTest',0,8,8
+	.byte	'VehicleManagerState_Validation',0,9,0,3,1,80,9,52,4
+	.byte	'owner',0
+	.word	833
+	.byte	1,2,35,0,4
+	.byte	'state',0
+	.word	952
+	.byte	1,2,35,1,4
+	.byte	'faultMask',0
+	.word	259
+	.byte	4,2,35,2,4
+	.byte	'requestedSpeedKph',0
+	.word	250
+	.byte	4,2,35,6,4
+	.byte	'requestedSteeringDeg',0
+	.word	250
+	.byte	4,2,35,10,4
+	.byte	'targetSpeedKph',0
+	.word	250
+	.byte	4,2,35,14,4
+	.byte	'targetSteeringDeg',0
+	.word	250
+	.byte	4,2,35,18,4
+	.byte	'effectiveSteeringDeg',0
+	.word	250
+	.byte	4,2,35,22,4
+	.byte	'steeringLimitDeg',0
+	.word	250
+	.byte	4,2,35,26,4
+	.byte	'curvatureInvM',0
+	.word	250
+	.byte	4,2,35,30,4
+	.byte	'turnSpeedLimitKph',0
+	.word	250
+	.byte	4,2,35,34,4
+	.byte	'predictedLateralAccelMps2',0
+	.word	250
+	.byte	4,2,35,38,4
+	.byte	'driveEnable',0
+	.word	233
+	.byte	1,2,35,42,4
+	.byte	'steeringTargetValid',0
+	.word	233
+	.byte	1,2,35,43,4
+	.byte	'lateralLimitActive',0
+	.word	233
+	.byte	1,2,35,44,4
+	.byte	'steeringLimitActive',0
+	.word	233
+	.byte	1,2,35,45,4
+	.byte	'canRearmRequired',0
+	.word	233
+	.byte	1,2,35,46,4
+	.byte	'invalidateCanShadow',0
+	.word	233
+	.byte	1,2,35,47,4
+	.byte	'allowServiceTests',0
+	.word	233
+	.byte	1,2,35,48,0
+.L334:
+	.byte	6
+	.word	1277
+	.byte	5
+	.word	1277
+.L418:
+	.byte	6
+	.word	1775
+	.byte	2
+	.byte	'short int',0,2,5,9
+	.byte	'__wchar_t',0,2,1,1
+	.word	1785
+	.byte	2
+	.byte	'unsigned int',0,4,7,9
+	.byte	'__size_t',0,2,1,1
+	.word	1816
+	.byte	2
+	.byte	'int',0,4,5,9
+	.byte	'__ptrdiff_t',0,2,1,1
+	.word	1849
+	.byte	10,1,6
+	.word	1876
+	.byte	9
+	.byte	'__codeptr',0,2,1,1
+	.word	1878
+	.byte	9
+	.byte	'boolean',0,3,104,29
+	.word	233
+	.byte	9
+	.byte	'uint8',0,3,108,29
+	.word	233
+	.byte	2
+	.byte	'unsigned short int',0,2,7,9
+	.byte	'uint16',0,3,112,29
+	.word	1931
+	.byte	9
+	.byte	'uint32',0,3,116,29
+	.word	259
+	.byte	9
+	.byte	'sint16',0,3,129,1,29
+	.word	1785
+	.byte	2
+	.byte	'long int',0,4,5,9
+	.byte	'sint32',0,3,134,1,29
+	.word	1999
+	.byte	2
+	.byte	'long long int',0,8,5,9
+	.byte	'sint64',0,3,141,1,29
+	.word	2027
+	.byte	9
+	.byte	'float32',0,3,170,1,29
+	.word	250
+	.byte	11
+	.byte	'void',0,6
+	.word	2077
+	.byte	9
+	.byte	'pvoid',0,4,54,28
+	.word	2083
+	.byte	9
+	.byte	'VehicleManagerOwner',0,1,29,3
+	.word	833
+	.byte	9
+	.byte	'VehicleManagerState',0,1,43,3
+	.word	952
+	.byte	9
+	.byte	'VehicleManagerInput',0,1,78,3
+	.word	280
+	.byte	9
+	.byte	'VehicleManagerOutput',0,1,103,3
+	.word	1277
+.L420:
+	.byte	12
+	.word	233
+.L421:
+	.byte	12
+	.word	233
+.L422:
+	.byte	12
+	.word	259
+.L423:
+	.byte	12
+	.word	250
+.L424:
+	.byte	12
+	.word	250
+.L425:
+	.byte	12
+	.word	250
+.L426:
+	.byte	12
+	.word	250
+.L427:
+	.byte	12
+	.word	250
+.L428:
+	.byte	12
+	.word	250
+.L429:
+	.byte	12
+	.word	250
+.L430:
+	.byte	12
+	.word	250
+.L431:
+	.byte	12
+	.word	250
+.L432:
+	.byte	12
+	.word	233
+.L433:
+	.byte	12
+	.word	233
+.L434:
+	.byte	12
+	.word	233
+.L435:
+	.byte	12
+	.word	259
+	.byte	0
+	.sdecl	'.debug_abbrev',debug
+	.sect	'.debug_abbrev'
+.L172:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,16,6,0,0,2,36,0,3,8,11,15,62,15,0,0,3,19,1,58,15,59,15,57,15,11,15
+	.byte	0,0,4,13,0,3,8,73,19,11,15,56,9,0,0,5,38,0,73,19,0,0,6,15,0,73,19,0,0,7,4,1,58,15,59,15,57,15,11,15,0
+	.byte	0,8,40,0,3,8,28,13,0,0,9,22,0,3,8,58,15,59,15,57,15,73,19,0,0,10,21,0,54,15,0,0,11,59,0,3,8,0,0,12,53
+	.byte	0,73,19,0,0,0
+	.sdecl	'.debug_line',debug
+	.sect	'.debug_line'
+.L173:
+	.word	.L603-.L602
+.L602:
+	.half	3
+	.word	.L605-.L604
+.L604:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1
+	.byte	'C:\\\\Users\\\\junyoung\\\\Desktop\\\\2026_FMA\\\\ADAS_AMG_src_build_ready\\\\ADAS_AMG_src\\\\Libraries\\\\iLLD\\\\TC27D\\\\Tricore\\\\Cpu\\\\Std',0
+	.byte	0
+	.byte	'..\\0_Src\\AppSw\\Tricore\\VehicleManager.h',0,0,0,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0
+	.byte	'Platform_Types.h',0,1,0,0
+	.byte	'Ifx_Types.h',0,1,0,0,0
+.L605:
+.L603:
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_Init')
+	.sect	'.debug_info'
+.L174:
+	.word	289
+	.half	3
+	.word	.L175
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L177,.L176
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_Init',0,1,150,3,6,1,1,1
+	.word	.L167,.L330,.L166
+	.byte	4
+	.word	.L167,.L330
+	.byte	0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_Init')
+	.sect	'.debug_abbrev'
+.L175:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,54,15
+	.byte	39,12,63,12,17,1,18,1,64,6,0,0,4,11,0,17,1,18,1,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_Init')
+	.sect	'.debug_line'
+.L176:
+	.word	.L607-.L606
+.L606:
+	.half	3
+	.word	.L609-.L608
+.L608:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L609:
+	.byte	5,5,7,0,5,2
+	.word	.L167
+	.byte	3,151,3,1,5,32,9
+	.half	.L610-.L167
+	.byte	1,5,30,9
+	.half	.L611-.L610
+	.byte	1,5,5,9
+	.half	.L612-.L611
+	.byte	3,1,1,5,28,9
+	.half	.L613-.L612
+	.byte	1,5,26,9
+	.half	.L614-.L613
+	.byte	1,5,5,9
+	.half	.L615-.L614
+	.byte	3,1,1,5,26,9
+	.half	.L616-.L615
+	.byte	1,5,24,9
+	.half	.L617-.L616
+	.byte	1,5,5,9
+	.half	.L618-.L617
+	.byte	3,1,1,5,33,9
+	.half	.L619-.L618
+	.byte	1,5,31,9
+	.half	.L620-.L619
+	.byte	1,5,5,9
+	.half	.L621-.L620
+	.byte	3,1,1,5,27,9
+	.half	.L622-.L621
+	.byte	1,5,25,9
+	.half	.L623-.L622
+	.byte	1,5,5,9
+	.half	.L624-.L623
+	.byte	3,1,1,5,30,9
+	.half	.L625-.L624
+	.byte	1,5,28,9
+	.half	.L626-.L625
+	.byte	1,5,5,9
+	.half	.L627-.L626
+	.byte	3,1,1,5,36,9
+	.half	.L628-.L627
+	.byte	1,5,34,9
+	.half	.L629-.L628
+	.byte	1,5,5,9
+	.half	.L630-.L629
+	.byte	3,1,1,5,28,9
+	.half	.L631-.L630
+	.byte	1,5,26,9
+	.half	.L632-.L631
+	.byte	1,5,5,9
+	.half	.L633-.L632
+	.byte	3,1,1,5,31,9
+	.half	.L634-.L633
+	.byte	1,5,29,9
+	.half	.L635-.L634
+	.byte	1,5,5,9
+	.half	.L636-.L635
+	.byte	3,1,1,5,31,9
+	.half	.L637-.L636
+	.byte	1,5,29,9
+	.half	.L638-.L637
+	.byte	1,5,5,9
+	.half	.L639-.L638
+	.byte	3,1,1,5,31,9
+	.half	.L640-.L639
+	.byte	1,5,29,9
+	.half	.L641-.L640
+	.byte	1,5,5,9
+	.half	.L642-.L641
+	.byte	3,1,1,5,30,9
+	.half	.L643-.L642
+	.byte	1,5,28,9
+	.half	.L644-.L643
+	.byte	1,5,5,9
+	.half	.L645-.L644
+	.byte	3,2,1,5,29,9
+	.half	.L646-.L645
+	.byte	1,5,27,9
+	.half	.L647-.L646
+	.byte	1,5,5,9
+	.half	.L648-.L647
+	.byte	3,1,1,5,29,9
+	.half	.L649-.L648
+	.byte	1,5,27,9
+	.half	.L650-.L649
+	.byte	1,5,5,9
+	.half	.L651-.L650
+	.byte	3,1,1,5,33,9
+	.half	.L652-.L651
+	.byte	1,5,31,9
+	.half	.L653-.L652
+	.byte	1,5,5,9
+	.half	.L654-.L653
+	.byte	3,1,1,5,41,9
+	.half	.L655-.L654
+	.byte	1,5,39,9
+	.half	.L656-.L655
+	.byte	1,5,5,9
+	.half	.L657-.L656
+	.byte	3,1,1,5,38,9
+	.half	.L658-.L657
+	.byte	1,5,36,9
+	.half	.L659-.L658
+	.byte	1,5,5,9
+	.half	.L660-.L659
+	.byte	3,1,1,5,44,9
+	.half	.L661-.L660
+	.byte	1,5,42,9
+	.half	.L662-.L661
+	.byte	1,5,5,9
+	.half	.L663-.L662
+	.byte	3,1,1,5,41,9
+	.half	.L664-.L663
+	.byte	1,5,39,9
+	.half	.L665-.L664
+	.byte	1,5,5,9
+	.half	.L666-.L665
+	.byte	3,1,1,5,44,9
+	.half	.L667-.L666
+	.byte	1,5,42,9
+	.half	.L668-.L667
+	.byte	1,5,5,9
+	.half	.L669-.L668
+	.byte	3,1,1,5,40,9
+	.half	.L670-.L669
+	.byte	1,5,38,9
+	.half	.L671-.L670
+	.byte	1,5,5,9
+	.half	.L672-.L671
+	.byte	3,1,1,5,37,9
+	.half	.L673-.L672
+	.byte	1,5,35,9
+	.half	.L674-.L673
+	.byte	1,5,5,9
+	.half	.L675-.L674
+	.byte	3,1,1,5,41,9
+	.half	.L676-.L675
+	.byte	1,5,39,9
+	.half	.L677-.L676
+	.byte	1,5,5,9
+	.half	.L678-.L677
+	.byte	3,1,1,5,49,9
+	.half	.L679-.L678
+	.byte	1,5,47,9
+	.half	.L680-.L679
+	.byte	1,5,5,9
+	.half	.L681-.L680
+	.byte	3,1,1,5,42,9
+	.half	.L682-.L681
+	.byte	1,5,40,9
+	.half	.L683-.L682
+	.byte	1,5,5,9
+	.half	.L684-.L683
+	.byte	3,1,1,5,43,9
+	.half	.L685-.L684
+	.byte	1,5,41,9
+	.half	.L686-.L685
+	.byte	1,5,5,9
+	.half	.L687-.L686
+	.byte	3,1,1,5,40,9
+	.half	.L688-.L687
+	.byte	1,5,38,9
+	.half	.L689-.L688
+	.byte	1,5,5,9
+	.half	.L690-.L689
+	.byte	3,1,1,5,33,9
+	.half	.L691-.L690
+	.byte	1,5,31,9
+	.half	.L692-.L691
+	.byte	1,5,1,9
+	.half	.L693-.L692
+	.byte	3,1,1,7,9
+	.half	.L178-.L693
+	.byte	0,1,1
+.L607:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_Init')
+	.sect	'.debug_ranges'
+.L177:
+	.word	-1,.L167,0,.L178-.L167,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_Step5ms')
+	.sect	'.debug_info'
+.L179:
+	.word	445
+	.half	3
+	.word	.L180
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L182,.L181
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_Step5ms',0,1,183,3,6,1,1,1
+	.word	.L169,.L331,.L168
+	.byte	4
+	.byte	'input',0,1,183,3,56
+	.word	.L332,.L333
+	.byte	4
+	.byte	'output',0,1,184,3,51
+	.word	.L334,.L335
+	.byte	5
+	.word	.L169,.L331
+	.byte	6
+	.byte	'ps2Rising',0,1,186,3,13
+	.word	.L336,.L337
+	.byte	6
+	.byte	'ps2Falling',0,1,187,3,13
+	.word	.L336,.L338
+	.byte	6
+	.byte	'speedFeedbackRequired',0,1,188,3,13
+	.word	.L336,.L339
+	.byte	6
+	.byte	'feedbackFaultMask',0,1,189,3,12
+	.word	.L340,.L341
+	.byte	0,0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_Step5ms')
+	.sect	'.debug_abbrev'
+.L180:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,54,15
+	.byte	39,12,63,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,1,17,1,18,1,0,0,6,52,0,3
+	.byte	8,58,15,59,15,57,15,73,16,2,6,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_Step5ms')
+	.sect	'.debug_line'
+.L181:
+	.word	.L695-.L694
+.L694:
+	.half	3
+	.word	.L697-.L696
+.L696:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L697:
+	.byte	5,6,7,0,5,2
+	.word	.L169
+	.byte	3,182,3,1,5,9,9
+	.half	.L526-.L169
+	.byte	3,8,1,5,33,7,9
+	.half	.L698-.L526
+	.byte	1,5,9,7,9
+	.half	.L74-.L698
+	.byte	3,2,1,5,32,9
+	.half	.L75-.L74
+	.byte	3,3,1,5,24,9
+	.half	.L527-.L75
+	.byte	3,2,1,5,18,9
+	.half	.L699-.L527
+	.byte	1,5,19,7,9
+	.half	.L700-.L699
+	.byte	3,1,1,5,44,9
+	.half	.L701-.L700
+	.byte	1,5,55,7,9
+	.half	.L702-.L701
+	.byte	1,5,62,9
+	.half	.L528-.L702
+	.byte	1,5,55,9
+	.half	.L77-.L528
+	.byte	1,5,25,9
+	.half	.L79-.L77
+	.byte	3,1,1,5,19,9
+	.half	.L703-.L79
+	.byte	1,5,20,7,9
+	.half	.L704-.L703
+	.byte	3,1,1,5,45,9
+	.half	.L705-.L704
+	.byte	1,5,56,7,9
+	.half	.L706-.L705
+	.byte	1,5,63,9
+	.half	.L530-.L706
+	.byte	1,5,56,9
+	.half	.L80-.L530
+	.byte	1,5,5,9
+	.half	.L82-.L80
+	.byte	3,2,1,5,53,7,9
+	.half	.L707-.L82
+	.byte	3,2,1,5,9,9
+	.half	.L529-.L707
+	.byte	3,1,1,5,34,9
+	.half	.L708-.L529
+	.byte	1,5,32,9
+	.half	.L709-.L708
+	.byte	1,5,5,9
+	.half	.L83-.L709
+	.byte	3,3,1,5,53,7,9
+	.half	.L710-.L83
+	.byte	3,3,1,5,5,9
+	.half	.L84-.L710
+	.byte	3,3,1,5,37,9
+	.half	.L711-.L84
+	.byte	1,5,30,9
+	.half	.L531-.L711
+	.byte	1,5,32,9
+	.half	.L712-.L531
+	.byte	3,1,1,5,30,9
+	.half	.L713-.L712
+	.byte	1,5,14,9
+	.half	.L714-.L713
+	.byte	3,2,1,5,5,9
+	.half	.L715-.L714
+	.byte	1,5,14,7,9
+	.half	.L716-.L715
+	.byte	3,2,1,5,13,9
+	.half	.L717-.L716
+	.byte	1,5,20,7,9
+	.half	.L718-.L717
+	.byte	3,1,1,5,14,9
+	.half	.L719-.L718
+	.byte	1,5,15,7,9
+	.half	.L720-.L719
+	.byte	3,1,1,5,36,9
+	.half	.L721-.L720
+	.byte	1,5,52,7,9
+	.half	.L86-.L721
+	.byte	3,2,1,5,9,9
+	.half	.L87-.L86
+	.byte	3,2,1,5,35,9
+	.half	.L722-.L87
+	.byte	1,5,33,9
+	.half	.L723-.L722
+	.byte	1,5,25,9
+	.half	.L724-.L723
+	.byte	3,1,1,5,23,9
+	.half	.L725-.L724
+	.byte	1,5,15,9
+	.half	.L726-.L725
+	.byte	3,1,1,5,27,9
+	.half	.L727-.L726
+	.byte	1,5,45,9
+	.half	.L728-.L727
+	.byte	3,1,1,5,37,9
+	.half	.L539-.L728
+	.byte	3,1,1,5,9,9
+	.half	.L542-.L539
+	.byte	3,1,1,5,5,9
+	.half	.L85-.L542
+	.byte	3,2,1,5,31,9
+	.half	.L729-.L85
+	.byte	1,5,29,9
+	.half	.L730-.L729
+	.byte	1,5,16,9
+	.half	.L731-.L730
+	.byte	3,3,1,5,10,9
+	.half	.L732-.L731
+	.byte	1,5,16,7,9
+	.half	.L733-.L732
+	.byte	3,1,1,5,39,9
+	.half	.L734-.L733
+	.byte	1,5,17,7,9
+	.half	.L735-.L734
+	.byte	3,1,1,5,11,9
+	.half	.L736-.L735
+	.byte	1,5,17,7,9
+	.half	.L737-.L736
+	.byte	3,1,1,5,35,9
+	.half	.L738-.L737
+	.byte	1,5,17,7,9
+	.half	.L739-.L738
+	.byte	3,1,1,5,37,9
+	.half	.L740-.L739
+	.byte	1,5,49,7,9
+	.half	.L90-.L740
+	.byte	1,5,56,9
+	.half	.L543-.L90
+	.byte	1,5,49,9
+	.half	.L92-.L543
+	.byte	1,5,23,9
+	.half	.L95-.L92
+	.byte	3,2,1,5,14,9
+	.half	.L544-.L95
+	.byte	3,1,1,5,5,9
+	.half	.L741-.L544
+	.byte	1,5,27,7,9
+	.half	.L742-.L741
+	.byte	3,2,1,5,9,9
+	.half	.L96-.L742
+	.byte	3,2,1,5,15,7,9
+	.half	.L743-.L96
+	.byte	3,1,1,5,36,9
+	.half	.L744-.L743
+	.byte	1,5,27,7,9
+	.half	.L745-.L744
+	.byte	3,2,1,5,5,9
+	.half	.L97-.L745
+	.byte	3,3,1,5,14,7,9
+	.half	.L746-.L97
+	.byte	3,2,1,5,13,9
+	.half	.L747-.L746
+	.byte	1,5,20,7,9
+	.half	.L748-.L747
+	.byte	3,1,1,5,14,9
+	.half	.L749-.L748
+	.byte	1,5,15,7,9
+	.half	.L750-.L749
+	.byte	3,1,1,5,36,9
+	.half	.L751-.L750
+	.byte	1,5,52,7,9
+	.half	.L100-.L751
+	.byte	3,2,1,5,9,9
+	.half	.L101-.L100
+	.byte	3,2,1,5,35,9
+	.half	.L752-.L101
+	.byte	1,5,33,9
+	.half	.L753-.L752
+	.byte	1,5,25,9
+	.half	.L754-.L753
+	.byte	3,1,1,5,23,9
+	.half	.L755-.L754
+	.byte	1,5,15,9
+	.half	.L756-.L755
+	.byte	3,1,1,5,27,9
+	.half	.L757-.L756
+	.byte	1,5,45,9
+	.half	.L758-.L757
+	.byte	3,1,1,5,37,9
+	.half	.L549-.L758
+	.byte	3,1,1,5,9,9
+	.half	.L552-.L549
+	.byte	3,1,1,5,5,9
+	.half	.L99-.L552
+	.byte	3,2,1,5,31,9
+	.half	.L759-.L99
+	.byte	1,5,29,9
+	.half	.L760-.L759
+	.byte	1,5,14,9
+	.half	.L761-.L760
+	.byte	3,2,1,5,5,9
+	.half	.L762-.L761
+	.byte	1,5,13,7,9
+	.half	.L763-.L762
+	.byte	3,2,1,5,9,9
+	.half	.L764-.L763
+	.byte	1,5,46,7,9
+	.half	.L765-.L764
+	.byte	3,2,1,5,72,9
+	.half	.L553-.L765
+	.byte	1,5,70,9
+	.half	.L766-.L553
+	.byte	1,5,13,9
+	.half	.L767-.L766
+	.byte	1,5,33,7,9
+	.half	.L768-.L767
+	.byte	3,2,1,5,31,9
+	.half	.L769-.L768
+	.byte	1,5,23,9
+	.half	.L770-.L769
+	.byte	3,1,1,5,35,9
+	.half	.L771-.L770
+	.byte	1,5,53,9
+	.half	.L772-.L771
+	.byte	3,1,1,5,45,9
+	.half	.L555-.L772
+	.byte	3,1,1,5,17,9
+	.half	.L558-.L555
+	.byte	3,1,1,5,13,9
+	.half	.L106-.L558
+	.byte	3,2,1,5,38,9
+	.half	.L773-.L106
+	.byte	1,5,36,9
+	.half	.L774-.L773
+	.byte	1,5,25,9
+	.half	.L105-.L774
+	.byte	3,3,1,5,23,9
+	.half	.L775-.L105
+	.byte	1,5,25,9
+	.half	.L776-.L775
+	.byte	3,1,1,5,23,9
+	.half	.L777-.L776
+	.byte	1,5,68,9
+	.half	.L778-.L777
+	.byte	3,1,1,5,63,9
+	.half	.L779-.L778
+	.byte	3,1,1,9
+	.half	.L780-.L779
+	.byte	3,1,1,5,35,9
+	.half	.L781-.L780
+	.byte	3,126,1,5,45,9
+	.half	.L782-.L781
+	.byte	3,3,1,5,38,9
+	.half	.L783-.L782
+	.byte	1,5,44,9
+	.half	.L784-.L783
+	.byte	3,2,1,5,49,9
+	.half	.L785-.L784
+	.byte	3,1,1,9
+	.half	.L786-.L785
+	.byte	3,1,1,5,48,9
+	.half	.L560-.L786
+	.byte	3,119,1,5,19,9
+	.half	.L104-.L560
+	.byte	3,11,1,5,10,9
+	.half	.L787-.L104
+	.byte	1,5,13,7,9
+	.half	.L788-.L787
+	.byte	3,2,1,5,9,9
+	.half	.L789-.L788
+	.byte	1,5,59,7,9
+	.half	.L790-.L789
+	.byte	3,2,1,5,13,9
+	.half	.L561-.L790
+	.byte	1,5,53,7,9
+	.half	.L791-.L561
+	.byte	3,2,1,5,45,9
+	.half	.L565-.L791
+	.byte	3,1,1,5,17,9
+	.half	.L568-.L565
+	.byte	3,1,1,5,18,9
+	.half	.L110-.L568
+	.byte	3,4,1,5,9,9
+	.half	.L792-.L110
+	.byte	1,5,57,7,9
+	.half	.L793-.L792
+	.byte	3,2,1,5,29,9
+	.half	.L570-.L793
+	.byte	3,1,1,5,27,9
+	.half	.L794-.L570
+	.byte	1,5,19,9
+	.half	.L795-.L794
+	.byte	3,1,1,5,31,9
+	.half	.L796-.L795
+	.byte	1,5,49,9
+	.half	.L797-.L796
+	.byte	3,1,1,5,41,9
+	.half	.L573-.L797
+	.byte	3,1,1,5,13,9
+	.half	.L576-.L573
+	.byte	3,1,1,5,18,9
+	.half	.L113-.L576
+	.byte	3,3,1,5,9,9
+	.half	.L798-.L113
+	.byte	1,5,13,7,9
+	.half	.L799-.L798
+	.byte	3,2,1,5,36,9
+	.half	.L800-.L799
+	.byte	1,5,34,9
+	.half	.L801-.L800
+	.byte	1,5,13,9
+	.half	.L802-.L801
+	.byte	3,1,1,5,34,9
+	.half	.L803-.L802
+	.byte	1,5,32,9
+	.half	.L804-.L803
+	.byte	1,5,13,9
+	.half	.L805-.L804
+	.byte	3,1,1,5,46,9
+	.half	.L806-.L805
+	.byte	1,5,39,9
+	.half	.L807-.L806
+	.byte	1,5,13,9
+	.half	.L808-.L807
+	.byte	3,1,1,5,44,9
+	.half	.L809-.L808
+	.byte	1,5,42,9
+	.half	.L810-.L809
+	.byte	1,5,13,9
+	.half	.L811-.L810
+	.byte	3,1,1,5,40,9
+	.half	.L812-.L811
+	.byte	1,5,33,9
+	.half	.L813-.L812
+	.byte	1,5,13,9
+	.half	.L814-.L813
+	.byte	3,1,1,5,43,9
+	.half	.L815-.L814
+	.byte	1,5,36,9
+	.half	.L816-.L815
+	.byte	1,5,29,9
+	.half	.L817-.L816
+	.byte	3,1,1,5,27,9
+	.half	.L818-.L817
+	.byte	1,5,40,9
+	.half	.L819-.L818
+	.byte	3,1,1,5,38,9
+	.half	.L820-.L819
+	.byte	1,5,49,9
+	.half	.L821-.L820
+	.byte	3,1,1,5,41,9
+	.half	.L578-.L821
+	.byte	3,1,1,5,13,9
+	.half	.L581-.L578
+	.byte	3,1,1,5,58,9
+	.half	.L115-.L581
+	.byte	3,3,1,5,9,9
+	.half	.L583-.L115
+	.byte	1,5,49,7,9
+	.half	.L822-.L583
+	.byte	3,2,1,5,41,9
+	.half	.L586-.L822
+	.byte	3,1,1,5,13,9
+	.half	.L589-.L586
+	.byte	3,1,1,5,25,9
+	.half	.L117-.L589
+	.byte	3,3,1,5,23,9
+	.half	.L823-.L117
+	.byte	1,5,25,9
+	.half	.L824-.L823
+	.byte	3,1,1,5,23,9
+	.half	.L825-.L824
+	.byte	1,5,68,9
+	.half	.L826-.L825
+	.byte	3,1,1,5,63,9
+	.half	.L827-.L826
+	.byte	3,1,1,9
+	.half	.L828-.L827
+	.byte	3,1,1,5,35,9
+	.half	.L829-.L828
+	.byte	3,126,1,5,45,9
+	.half	.L830-.L829
+	.byte	3,3,1,5,38,9
+	.half	.L831-.L830
+	.byte	1,5,44,9
+	.half	.L832-.L831
+	.byte	3,2,1,5,49,9
+	.half	.L833-.L832
+	.byte	3,1,1,9
+	.half	.L834-.L833
+	.byte	3,1,1,5,48,9
+	.half	.L591-.L834
+	.byte	3,119,1,5,19,9
+	.half	.L109-.L591
+	.byte	3,11,1,5,10,9
+	.half	.L835-.L109
+	.byte	1,5,25,7,9
+	.half	.L836-.L835
+	.byte	3,2,1,5,23,9
+	.half	.L837-.L836
+	.byte	1,5,31,9
+	.half	.L838-.L837
+	.byte	3,1,1,5,25,9
+	.half	.L839-.L838
+	.byte	1,5,70,7,9
+	.half	.L840-.L839
+	.byte	1,5,56,9
+	.half	.L841-.L840
+	.byte	3,1,1,5,70,9
+	.half	.L121-.L841
+	.byte	3,127,1,5,23,9
+	.half	.L122-.L121
+	.byte	1,5,18,9
+	.half	.L842-.L122
+	.byte	3,4,1,5,13,9
+	.half	.L843-.L842
+	.byte	3,1,1,9
+	.half	.L844-.L843
+	.byte	3,1,1,5,35,9
+	.half	.L592-.L844
+	.byte	3,125,1,5,45,9
+	.half	.L845-.L592
+	.byte	3,5,1,5,38,9
+	.half	.L846-.L845
+	.byte	1,5,44,9
+	.half	.L847-.L846
+	.byte	3,2,1,5,49,9
+	.half	.L848-.L847
+	.byte	3,1,1,9
+	.half	.L849-.L848
+	.byte	3,1,1,5,61,9
+	.half	.L594-.L849
+	.byte	3,118,1,5,25,9
+	.half	.L120-.L594
+	.byte	3,14,1,5,23,9
+	.half	.L850-.L120
+	.byte	1,5,45,9
+	.half	.L851-.L850
+	.byte	3,1,1,5,20,9
+	.half	.L595-.L851
+	.byte	3,2,1,5,14,9
+	.half	.L852-.L595
+	.byte	1,5,20,7,9
+	.half	.L853-.L852
+	.byte	3,1,1,5,44,9
+	.half	.L854-.L853
+	.byte	1,5,21,7,9
+	.half	.L855-.L854
+	.byte	3,1,1,5,29,9
+	.half	.L856-.L855
+	.byte	1,5,15,7,9
+	.half	.L857-.L856
+	.byte	3,1,1,5,36,9
+	.half	.L858-.L857
+	.byte	1,5,47,7,9
+	.half	.L859-.L858
+	.byte	1,5,54,9
+	.half	.L860-.L859
+	.byte	1,5,47,9
+	.half	.L124-.L860
+	.byte	1,5,35,9
+	.half	.L128-.L124
+	.byte	3,124,1,5,37,9
+	.half	.L861-.L128
+	.byte	3,5,1,5,9,9
+	.half	.L599-.L861
+	.byte	3,1,1,5,27,9
+	.half	.L108-.L599
+	.byte	3,3,1,5,25,9
+	.half	.L862-.L108
+	.byte	1,5,35,9
+	.half	.L863-.L862
+	.byte	3,1,1,5,33,9
+	.half	.L864-.L863
+	.byte	1,9
+	.half	.L865-.L864
+	.byte	3,1,1,5,31,9
+	.half	.L866-.L865
+	.byte	1,5,32,9
+	.half	.L867-.L866
+	.byte	3,1,1,5,30,9
+	.half	.L868-.L867
+	.byte	1,5,33,9
+	.half	.L869-.L868
+	.byte	3,1,1,5,1,9
+	.half	.L76-.L869
+	.byte	3,1,1,7,9
+	.half	.L183-.L76
+	.byte	0,1,1
+.L695:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_Step5ms')
+	.sect	'.debug_ranges'
+.L182:
+	.word	-1,.L169,0,.L183-.L169,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_AbsFloat')
+	.sect	'.debug_info'
+.L184:
+	.word	313
+	.half	3
+	.word	.L185
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L187,.L186
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_AbsFloat',0,1,39,16
+	.word	.L342
+	.byte	1,1
+	.word	.L131,.L343,.L130
+	.byte	4
+	.byte	'value',0,1,39,48
+	.word	.L342,.L344
+	.byte	5
+	.word	.L131,.L343
+	.byte	0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_AbsFloat')
+	.sect	'.debug_abbrev'
+.L185:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,73,16
+	.byte	54,15,39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,0,17,1,18,1,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_AbsFloat')
+	.sect	'.debug_line'
+.L186:
+	.word	.L871-.L870
+.L870:
+	.half	3
+	.word	.L873-.L872
+.L872:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L873:
+	.byte	5,21,7,0,5,2
+	.word	.L131
+	.byte	3,40,1,5,12,9
+	.half	.L874-.L131
+	.byte	1,5,36,9
+	.half	.L875-.L874
+	.byte	1,5,29,9
+	.half	.L2-.L875
+	.byte	1,5,5,9
+	.half	.L3-.L2
+	.byte	1,5,1,9
+	.half	.L4-.L3
+	.byte	3,1,1,7,9
+	.half	.L188-.L4
+	.byte	0,1,1
+.L871:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_AbsFloat')
+	.sect	'.debug_ranges'
+.L187:
+	.word	-1,.L131,0,.L188-.L131,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_ClampFloat')
+	.sect	'.debug_info'
+.L189:
+	.word	357
+	.half	3
+	.word	.L190
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L192,.L191
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_ClampFloat',0,1,44,16
+	.word	.L342
+	.byte	1,1
+	.word	.L133,.L345,.L132
+	.byte	4
+	.byte	'value',0,1,44,50
+	.word	.L342,.L346
+	.byte	4
+	.byte	'minValue',0,1,45,50
+	.word	.L342,.L347
+	.byte	4
+	.byte	'maxValue',0,1,46,50
+	.word	.L342,.L348
+	.byte	5
+	.word	.L133,.L345
+	.byte	0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_ClampFloat')
+	.sect	'.debug_abbrev'
+.L190:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,73,16
+	.byte	54,15,39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,0,17,1,18,1,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_ClampFloat')
+	.sect	'.debug_line'
+.L191:
+	.word	.L877-.L876
+.L876:
+	.half	3
+	.word	.L879-.L878
+.L878:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L879:
+	.byte	5,15,7,0,5,2
+	.word	.L133
+	.byte	3,47,1,5,5,9
+	.half	.L880-.L133
+	.byte	1,5,9,7,9
+	.half	.L881-.L880
+	.byte	3,2,1,5,15,9
+	.half	.L5-.L881
+	.byte	3,3,1,5,5,9
+	.half	.L882-.L5
+	.byte	1,5,9,7,9
+	.half	.L883-.L882
+	.byte	3,2,1,5,5,9
+	.half	.L7-.L883
+	.byte	3,3,1,5,1,9
+	.half	.L6-.L7
+	.byte	3,1,1,7,9
+	.half	.L193-.L6
+	.byte	0,1,1
+.L877:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_ClampFloat')
+	.sect	'.debug_ranges'
+.L192:
+	.word	-1,.L133,0,.L193-.L133,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_IsNewCount')
+	.sect	'.debug_info'
+.L194:
+	.word	356
+	.half	3
+	.word	.L195
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L197,.L196
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_IsNewCount',0,1,61,16
+	.word	.L336
+	.byte	1,1
+	.word	.L135,.L349,.L134
+	.byte	4
+	.byte	'count',0,1,61,49
+	.word	.L340,.L350
+	.byte	4
+	.byte	'reference',0,1,61,63
+	.word	.L340,.L351
+	.byte	5
+	.word	.L135,.L349
+	.byte	6
+	.byte	'delta',0,1,63,12
+	.word	.L340,.L352
+	.byte	0,0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_IsNewCount')
+	.sect	'.debug_abbrev'
+.L195:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,73,16
+	.byte	54,15,39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,1,17,1,18,1,0,0,6,52,0,3
+	.byte	8,58,15,59,15,57,15,73,16,2,6,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_IsNewCount')
+	.sect	'.debug_line'
+.L196:
+	.word	.L885-.L884
+.L884:
+	.half	3
+	.word	.L887-.L886
+.L886:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L887:
+	.byte	5,26,7,0,5,2
+	.word	.L135
+	.byte	3,62,1,5,13,9
+	.half	.L439-.L135
+	.byte	3,1,1,5,39,7,9
+	.half	.L888-.L439
+	.byte	1,5,37,9
+	.half	.L889-.L888
+	.byte	1,5,53,7,9
+	.half	.L890-.L889
+	.byte	1,5,60,9
+	.half	.L891-.L890
+	.byte	1,5,53,9
+	.half	.L10-.L891
+	.byte	1,5,5,9
+	.half	.L12-.L10
+	.byte	1,5,1,9
+	.half	.L13-.L12
+	.byte	3,1,1,7,9
+	.half	.L198-.L13
+	.byte	0,1,1
+.L885:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_IsNewCount')
+	.sect	'.debug_ranges'
+.L197:
+	.word	-1,.L135,0,.L198-.L135,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_IsForwardSequence')
+	.sect	'.debug_info'
+.L199:
+	.word	364
+	.half	3
+	.word	.L200
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L202,.L201
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_IsForwardSequence',0,1,67,16
+	.word	.L336
+	.byte	1,1
+	.word	.L137,.L353,.L136
+	.byte	4
+	.byte	'previous',0,1,67,55
+	.word	.L336,.L354
+	.byte	4
+	.byte	'current',0,1,67,71
+	.word	.L336,.L355
+	.byte	5
+	.word	.L137,.L353
+	.byte	6
+	.byte	'delta',0,1,69,11
+	.word	.L336,.L356
+	.byte	0,0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_IsForwardSequence')
+	.sect	'.debug_abbrev'
+.L200:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,73,16
+	.byte	54,15,39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,1,17,1,18,1,0,0,6,52,0,3
+	.byte	8,58,15,59,15,57,15,73,16,2,6,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_IsForwardSequence')
+	.sect	'.debug_line'
+.L201:
+	.word	.L893-.L892
+.L892:
+	.half	3
+	.word	.L895-.L894
+.L894:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L895:
+	.byte	5,35,7,0,5,2
+	.word	.L137
+	.byte	3,196,0,1,5,19,9
+	.half	.L440-.L137
+	.byte	1,5,13,9
+	.half	.L441-.L440
+	.byte	3,1,1,5,40,7,9
+	.half	.L896-.L441
+	.byte	1,5,37,9
+	.half	.L897-.L896
+	.byte	1,5,47,7,9
+	.half	.L898-.L897
+	.byte	1,5,54,9
+	.half	.L899-.L898
+	.byte	1,5,47,9
+	.half	.L14-.L899
+	.byte	1,5,5,9
+	.half	.L16-.L14
+	.byte	1,5,1,9
+	.half	.L17-.L16
+	.byte	3,1,1,7,9
+	.half	.L203-.L17
+	.byte	0,1,1
+.L893:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_IsForwardSequence')
+	.sect	'.debug_ranges'
+.L202:
+	.word	-1,.L137,0,.L203-.L137,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_TanAbsDeg')
+	.sect	'.debug_info'
+.L204:
+	.word	428
+	.half	3
+	.word	.L205
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L207,.L206
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_TanAbsDeg',0,1,78,16
+	.word	.L342
+	.byte	1,1
+	.word	.L139,.L357,.L138
+	.byte	4
+	.byte	'angleDeg',0,1,78,49
+	.word	.L342,.L358
+	.byte	5
+	.word	.L139,.L357
+	.byte	6
+	.byte	'x',0,1,80,13
+	.word	.L342,.L359
+	.byte	6
+	.byte	'x2',0,1,81,13
+	.word	.L342,.L360
+	.byte	6
+	.byte	'x3',0,1,82,13
+	.word	.L342,.L361
+	.byte	6
+	.byte	'x5',0,1,83,13
+	.word	.L342,.L362
+	.byte	6
+	.byte	'x7',0,1,84,13
+	.word	.L342,.L363
+	.byte	6
+	.byte	'x9',0,1,85,13
+	.word	.L342,.L364
+	.byte	6
+	.byte	'tanValue',0,1,86,13
+	.word	.L342,.L365
+	.byte	0,0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_TanAbsDeg')
+	.sect	'.debug_abbrev'
+.L205:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,73,16
+	.byte	54,15,39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,1,17,1,18,1,0,0,6,52,0,3
+	.byte	8,58,15,59,15,57,15,73,16,2,6,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_TanAbsDeg')
+	.sect	'.debug_line'
+.L206:
+	.word	.L901-.L900
+.L900:
+	.half	3
+	.word	.L903-.L902
+.L902:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L903:
+	.byte	5,41,7,0,5,2
+	.word	.L139
+	.byte	3,207,0,1,5,53,9
+	.half	.L442-.L139
+	.byte	1,5,51,9
+	.half	.L904-.L442
+	.byte	1,5,20,9
+	.half	.L443-.L904
+	.byte	3,1,1,9
+	.half	.L445-.L443
+	.byte	3,1,1,5,21,9
+	.half	.L447-.L445
+	.byte	3,1,1,9
+	.half	.L449-.L447
+	.byte	3,1,1,9
+	.half	.L451-.L449
+	.byte	3,1,1,5,30,9
+	.half	.L452-.L451
+	.byte	3,2,1,5,28,9
+	.half	.L446-.L452
+	.byte	1,5,26,9
+	.half	.L905-.L446
+	.byte	3,127,1,9
+	.half	.L444-.L905
+	.byte	3,2,1,5,31,9
+	.half	.L906-.L444
+	.byte	1,5,39,9
+	.half	.L907-.L906
+	.byte	1,5,37,9
+	.half	.L448-.L907
+	.byte	1,5,36,9
+	.half	.L908-.L448
+	.byte	3,127,1,5,26,9
+	.half	.L909-.L908
+	.byte	3,2,1,5,32,9
+	.half	.L910-.L909
+	.byte	1,5,40,9
+	.half	.L911-.L910
+	.byte	1,5,38,9
+	.half	.L912-.L911
+	.byte	1,5,46,9
+	.half	.L913-.L912
+	.byte	3,127,1,5,26,9
+	.half	.L914-.L913
+	.byte	3,2,1,5,32,9
+	.half	.L915-.L914
+	.byte	1,5,40,9
+	.half	.L916-.L915
+	.byte	1,5,38,9
+	.half	.L917-.L916
+	.byte	1,5,48,9
+	.half	.L918-.L917
+	.byte	3,127,1,5,23,9
+	.half	.L453-.L918
+	.byte	3,3,1,5,21,9
+	.half	.L919-.L453
+	.byte	1,5,5,9
+	.half	.L450-.L919
+	.byte	1,5,1,9
+	.half	.L18-.L450
+	.byte	3,1,1,7,9
+	.half	.L208-.L18
+	.byte	0,1,1
+.L901:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_TanAbsDeg')
+	.sect	'.debug_ranges'
+.L207:
+	.word	-1,.L139,0,.L208-.L139,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_CurvatureFromSteering')
+	.sect	'.debug_info'
+.L209:
+	.word	401
+	.half	3
+	.word	.L210
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L212,.L211
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_CurvatureFromSteering',0,1,95,16
+	.word	.L342
+	.byte	1,1
+	.word	.L141,.L366,.L140
+	.byte	4
+	.byte	'steeringDeg',0,1,95,61
+	.word	.L342,.L367
+	.byte	5
+	.word	.L141,.L366
+	.byte	6
+	.byte	'limitedDeg',0,1,97,13
+	.word	.L342,.L368
+	.byte	6
+	.byte	'tanValue',0,1,100,13
+	.word	.L342,.L369
+	.byte	6
+	.byte	'denominator',0,1,101,13
+	.word	.L342,.L370
+	.byte	0,0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_CurvatureFromSteering')
+	.sect	'.debug_abbrev'
+.L210:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,73,16
+	.byte	54,15,39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,1,17,1,18,1,0,0,6,52,0,3
+	.byte	8,58,15,59,15,57,15,73,16,2,6,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_CurvatureFromSteering')
+	.sect	'.debug_line'
+.L211:
+	.word	.L921-.L920
+.L920:
+	.half	3
+	.word	.L923-.L922
+.L922:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L923:
+	.byte	5,53,7,0,5,2
+	.word	.L141
+	.byte	3,225,0,1,9
+	.half	.L924-.L141
+	.byte	3,1,1,5,49,9
+	.half	.L454-.L924
+	.byte	3,1,1,5,27,9
+	.half	.L455-.L454
+	.byte	3,1,1,5,63,9
+	.half	.L925-.L455
+	.byte	1,5,42,9
+	.half	.L926-.L925
+	.byte	1,5,23,9
+	.half	.L458-.L926
+	.byte	3,8,1,5,21,9
+	.half	.L927-.L458
+	.byte	1,5,5,9
+	.half	.L928-.L927
+	.byte	1,5,23,7,9
+	.half	.L929-.L928
+	.byte	3,2,1,5,21,9
+	.half	.L19-.L929
+	.byte	3,3,1,5,5,9
+	.half	.L457-.L19
+	.byte	1,5,1,9
+	.half	.L20-.L457
+	.byte	3,1,1,7,9
+	.half	.L213-.L20
+	.byte	0,1,1
+.L921:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_CurvatureFromSteering')
+	.sect	'.debug_ranges'
+.L212:
+	.word	-1,.L141,0,.L213-.L141,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_LateralAccel')
+	.sect	'.debug_info'
+.L214:
+	.word	368
+	.half	3
+	.word	.L215
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L217,.L216
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_LateralAccel',0,1,117,16
+	.word	.L342
+	.byte	1,1
+	.word	.L143,.L371,.L142
+	.byte	4
+	.byte	'speedKph',0,1,117,52
+	.word	.L342,.L372
+	.byte	4
+	.byte	'curvatureInvM',0,1,118,52
+	.word	.L342,.L373
+	.byte	5
+	.word	.L143,.L371
+	.byte	6
+	.byte	'speedMps',0,1,120,13
+	.word	.L342,.L374
+	.byte	0,0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_LateralAccel')
+	.sect	'.debug_abbrev'
+.L215:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,73,16
+	.byte	54,15,39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,1,17,1,18,1,0,0,6,52,0,3
+	.byte	8,58,15,59,15,57,15,73,16,2,6,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_LateralAccel')
+	.sect	'.debug_line'
+.L216:
+	.word	.L931-.L930
+.L930:
+	.half	3
+	.word	.L933-.L932
+.L932:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L933:
+	.byte	5,16,7,0,5,2
+	.word	.L143
+	.byte	3,244,0,1,5,48,9
+	.half	.L460-.L143
+	.byte	3,3,1,5,60,9
+	.half	.L459-.L460
+	.byte	1,5,58,9
+	.half	.L934-.L459
+	.byte	1,5,21,9
+	.half	.L461-.L934
+	.byte	3,1,1,5,32,9
+	.half	.L462-.L461
+	.byte	1,5,5,9
+	.half	.L935-.L462
+	.byte	1,5,1,9
+	.half	.L21-.L935
+	.byte	3,1,1,7,9
+	.half	.L218-.L21
+	.byte	0,1,1
+.L931:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_LateralAccel')
+	.sect	'.debug_ranges'
+.L217:
+	.word	-1,.L143,0,.L218-.L143,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_FindTurnSpeedLimitKph')
+	.sect	'.debug_info'
+.L219:
+	.word	443
+	.half	3
+	.word	.L220
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L222,.L221
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_FindTurnSpeedLimitKph',0,1,124,16
+	.word	.L342
+	.byte	1,1
+	.word	.L145,.L375,.L144
+	.byte	4
+	.byte	'curvatureInvM',0,1,124,61
+	.word	.L342,.L376
+	.byte	4
+	.byte	'sourceMaxKph',0,1,125,61
+	.word	.L342,.L377
+	.byte	5
+	.word	.L145,.L375
+	.byte	6
+	.byte	'lowKph',0,1,127,13
+	.word	.L342,.L378
+	.byte	6
+	.byte	'highKph',0,1,128,1,13
+	.word	.L342,.L379
+	.byte	6
+	.byte	'midKph',0,1,129,1,13
+	.word	.L342,.L380
+	.byte	6
+	.byte	'iteration',0,1,130,1,11
+	.word	.L336,.L381
+	.byte	0,0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_FindTurnSpeedLimitKph')
+	.sect	'.debug_abbrev'
+.L220:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,73,16
+	.byte	54,15,39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,1,17,1,18,1,0,0,6,52,0,3
+	.byte	8,58,15,59,15,57,15,73,16,2,6,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_FindTurnSpeedLimitKph')
+	.sect	'.debug_line'
+.L221:
+	.word	.L937-.L936
+.L936:
+	.half	3
+	.word	.L939-.L938
+.L938:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L939:
+	.byte	5,16,7,0,5,2
+	.word	.L145
+	.byte	3,251,0,1,5,20,9
+	.half	.L940-.L145
+	.byte	3,3,1,5,26,9
+	.half	.L465-.L940
+	.byte	3,5,1,5,23,9
+	.half	.L466-.L465
+	.byte	1,5,5,9
+	.half	.L941-.L466
+	.byte	1,5,9,7,9
+	.half	.L468-.L941
+	.byte	3,2,1,5,46,9
+	.half	.L22-.L468
+	.byte	3,3,1,5,9,9
+	.half	.L942-.L22
+	.byte	3,1,1,5,61,9
+	.half	.L943-.L942
+	.byte	3,127,1,5,5,9
+	.half	.L944-.L943
+	.byte	1,5,9,7,9
+	.half	.L469-.L944
+	.byte	3,3,1,5,20,9
+	.half	.L24-.L469
+	.byte	3,3,1,5,69,9
+	.half	.L471-.L24
+	.byte	1,5,26,9
+	.half	.L27-.L471
+	.byte	3,2,1,5,39,9
+	.half	.L472-.L27
+	.byte	1,5,37,9
+	.half	.L945-.L472
+	.byte	1,5,49,9
+	.half	.L473-.L945
+	.byte	3,1,1,5,13,9
+	.half	.L946-.L473
+	.byte	3,1,1,5,64,9
+	.half	.L947-.L946
+	.byte	3,127,1,5,9,9
+	.half	.L948-.L947
+	.byte	1,5,21,7,9
+	.half	.L949-.L948
+	.byte	3,7,1,5,28,9
+	.half	.L475-.L949
+	.byte	3,124,1,5,20,9
+	.half	.L28-.L475
+	.byte	1,5,80,9
+	.half	.L29-.L28
+	.byte	3,122,1,5,69,9
+	.half	.L26-.L29
+	.byte	1,5,5,7,9
+	.half	.L950-.L26
+	.byte	3,14,1,5,1,9
+	.half	.L23-.L950
+	.byte	3,1,1,7,9
+	.half	.L223-.L23
+	.byte	0,1,1
+.L937:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_FindTurnSpeedLimitKph')
+	.sect	'.debug_ranges'
+.L222:
+	.word	-1,.L145,0,.L223-.L145,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_FindSteeringLimitDeg')
+	.sect	'.debug_info'
+.L224:
+	.word	454
+	.half	3
+	.word	.L225
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L227,.L226
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_FindSteeringLimitDeg',0,1,160,1,16
+	.word	.L342
+	.byte	1,1
+	.word	.L147,.L382,.L146
+	.byte	4
+	.byte	'measuredSpeedKph',0,1,160,1,60
+	.word	.L342,.L383
+	.byte	5
+	.word	.L147,.L382
+	.byte	6
+	.byte	'lowDeg',0,1,162,1,13
+	.word	.L342,.L384
+	.byte	6
+	.byte	'highDeg',0,1,163,1,13
+	.word	.L342,.L385
+	.byte	6
+	.byte	'midDeg',0,1,164,1,13
+	.word	.L342,.L386
+	.byte	6
+	.byte	'speedMagnitudeKph',0,1,165,1,13
+	.word	.L342,.L387
+	.byte	6
+	.byte	'iteration',0,1,166,1,11
+	.word	.L336,.L388
+	.byte	0,0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_FindSteeringLimitDeg')
+	.sect	'.debug_abbrev'
+.L225:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,73,16
+	.byte	54,15,39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,1,17,1,18,1,0,0,6,52,0,3
+	.byte	8,58,15,59,15,57,15,73,16,2,6,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_FindSteeringLimitDeg')
+	.sect	'.debug_line'
+.L226:
+	.word	.L952-.L951
+.L951:
+	.half	3
+	.word	.L954-.L953
+.L953:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L954:
+	.byte	5,20,7,0,5,2
+	.word	.L147
+	.byte	3,161,1,1,5,23,9
+	.half	.L478-.L147
+	.byte	3,1,1,5,57,9
+	.half	.L479-.L478
+	.byte	3,2,1,5,31,9
+	.half	.L477-.L479
+	.byte	1,5,74,9
+	.half	.L481-.L477
+	.byte	3,4,1,5,73,9
+	.half	.L480-.L481
+	.byte	1,5,9,9
+	.half	.L955-.L480
+	.byte	3,1,1,5,84,9
+	.half	.L956-.L955
+	.byte	3,127,1,5,5,9
+	.half	.L957-.L956
+	.byte	3,127,1,5,16,7,9
+	.half	.L958-.L957
+	.byte	3,4,1,5,9,9
+	.half	.L959-.L958
+	.byte	1,5,20,9
+	.half	.L31-.L959
+	.byte	3,3,1,5,69,9
+	.half	.L483-.L31
+	.byte	1,5,26,9
+	.half	.L34-.L483
+	.byte	3,2,1,5,39,9
+	.half	.L960-.L34
+	.byte	1,5,37,9
+	.half	.L961-.L960
+	.byte	1,5,78,9
+	.half	.L484-.L961
+	.byte	3,2,1,5,77,9
+	.half	.L486-.L484
+	.byte	1,5,13,9
+	.half	.L962-.L486
+	.byte	3,1,1,5,87,9
+	.half	.L963-.L962
+	.byte	3,127,1,5,9,9
+	.half	.L964-.L963
+	.byte	3,127,1,5,21,7,9
+	.half	.L965-.L964
+	.byte	3,8,1,5,28,9
+	.half	.L966-.L965
+	.byte	3,124,1,5,20,9
+	.half	.L35-.L966
+	.byte	1,5,80,9
+	.half	.L36-.L35
+	.byte	3,121,1,5,69,9
+	.half	.L33-.L36
+	.byte	1,5,5,7,9
+	.half	.L967-.L33
+	.byte	3,15,1,5,1,9
+	.half	.L32-.L967
+	.byte	3,1,1,7,9
+	.half	.L228-.L32
+	.byte	0,1,1
+.L952:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_FindSteeringLimitDeg')
+	.sect	'.debug_ranges'
+.L227:
+	.word	-1,.L147,0,.L228-.L147,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_ClearOutputFields')
+	.sect	'.debug_info'
+.L229:
+	.word	321
+	.half	3
+	.word	.L230
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L232,.L231
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_ClearOutputFields',0,1,193,1,13,1,1
+	.word	.L149,.L389,.L148
+	.byte	4
+	.byte	'output',0,1,193,1,68
+	.word	.L334,.L390
+	.byte	5
+	.word	.L149,.L389
+	.byte	0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_ClearOutputFields')
+	.sect	'.debug_abbrev'
+.L230:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,54,15
+	.byte	39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,0,17,1,18,1,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_ClearOutputFields')
+	.sect	'.debug_line'
+.L231:
+	.word	.L969-.L968
+.L968:
+	.half	3
+	.word	.L971-.L970
+.L970:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L971:
+	.byte	5,21,7,0,5,2
+	.word	.L149
+	.byte	3,194,1,1,5,19,9
+	.half	.L972-.L149
+	.byte	1,5,21,9
+	.half	.L973-.L972
+	.byte	3,1,1,5,19,9
+	.half	.L974-.L973
+	.byte	1,5,25,9
+	.half	.L975-.L974
+	.byte	3,1,1,5,23,9
+	.half	.L976-.L975
+	.byte	1,5,33,9
+	.half	.L977-.L976
+	.byte	3,1,1,5,31,9
+	.half	.L978-.L977
+	.byte	1,5,36,9
+	.half	.L979-.L978
+	.byte	3,1,1,5,34,9
+	.half	.L980-.L979
+	.byte	1,5,30,9
+	.half	.L981-.L980
+	.byte	3,1,1,5,28,9
+	.half	.L982-.L981
+	.byte	1,5,33,9
+	.half	.L983-.L982
+	.byte	3,1,1,5,31,9
+	.half	.L984-.L983
+	.byte	1,5,36,9
+	.half	.L985-.L984
+	.byte	3,1,1,5,34,9
+	.half	.L986-.L985
+	.byte	1,5,32,9
+	.half	.L987-.L986
+	.byte	3,1,1,5,30,9
+	.half	.L988-.L987
+	.byte	1,5,29,9
+	.half	.L989-.L988
+	.byte	3,1,1,5,27,9
+	.half	.L990-.L989
+	.byte	1,5,33,9
+	.half	.L991-.L990
+	.byte	3,1,1,5,31,9
+	.half	.L992-.L991
+	.byte	1,5,41,9
+	.half	.L993-.L992
+	.byte	3,1,1,5,39,9
+	.half	.L994-.L993
+	.byte	1,5,27,9
+	.half	.L995-.L994
+	.byte	3,1,1,5,25,9
+	.half	.L996-.L995
+	.byte	1,5,35,9
+	.half	.L997-.L996
+	.byte	3,1,1,5,33,9
+	.half	.L998-.L997
+	.byte	1,5,34,9
+	.half	.L999-.L998
+	.byte	3,1,1,5,32,9
+	.half	.L1000-.L999
+	.byte	1,5,35,9
+	.half	.L1001-.L1000
+	.byte	3,1,1,5,33,9
+	.half	.L1002-.L1001
+	.byte	1,5,32,9
+	.half	.L1003-.L1002
+	.byte	3,1,1,5,30,9
+	.half	.L1004-.L1003
+	.byte	1,5,35,9
+	.half	.L1005-.L1004
+	.byte	3,1,1,5,33,9
+	.half	.L1006-.L1005
+	.byte	1,9
+	.half	.L1007-.L1006
+	.byte	3,1,1,5,31,9
+	.half	.L1008-.L1007
+	.byte	1,5,1,9
+	.half	.L1009-.L1008
+	.byte	3,1,1,7,9
+	.half	.L233-.L1009
+	.byte	0,1,1
+.L969:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_ClearOutputFields')
+	.sect	'.debug_ranges'
+.L232:
+	.word	-1,.L149,0,.L233-.L149,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_ClearOutput')
+	.sect	'.debug_info'
+.L234:
+	.word	315
+	.half	3
+	.word	.L235
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L237,.L236
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_ClearOutput',0,1,216,1,13,1,1
+	.word	.L151,.L391,.L150
+	.byte	4
+	.byte	'output',0,1,216,1,62
+	.word	.L334,.L392
+	.byte	5
+	.word	.L151,.L391
+	.byte	0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_ClearOutput')
+	.sect	'.debug_abbrev'
+.L235:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,54,15
+	.byte	39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,0,17,1,18,1,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_ClearOutput')
+	.sect	'.debug_line'
+.L236:
+	.word	.L1011-.L1010
+.L1010:
+	.half	3
+	.word	.L1013-.L1012
+.L1012:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L1013:
+	.byte	5,13,7,0,5,2
+	.word	.L151
+	.byte	3,215,1,1,5,38,9
+	.half	.L489-.L151
+	.byte	3,2,1,5,32,9
+	.half	.L488-.L489
+	.byte	3,1,1,5,30,9
+	.half	.L1014-.L488
+	.byte	1,5,1,9
+	.half	.L1015-.L1014
+	.byte	3,1,1,7,9
+	.half	.L238-.L1015
+	.byte	0,1,1
+.L1011:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_ClearOutput')
+	.sect	'.debug_ranges'
+.L237:
+	.word	-1,.L151,0,.L238-.L151,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_StartCanRearm')
+	.sect	'.debug_info'
+.L239:
+	.word	366
+	.half	3
+	.word	.L240
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L242,.L241
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_StartCanRearm',0,1,222,1,13,1,1
+	.word	.L153,.L393,.L152
+	.byte	4
+	.byte	'input',0,1,222,1,69
+	.word	.L332,.L394
+	.byte	4
+	.byte	'output',0,1,223,1,64
+	.word	.L334,.L395
+	.byte	4
+	.byte	'invalidateShadow',0,1,224,1,50
+	.word	.L336,.L396
+	.byte	5
+	.word	.L153,.L393
+	.byte	0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_StartCanRearm')
+	.sect	'.debug_abbrev'
+.L240:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,54,15
+	.byte	39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,0,17,1,18,1,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_StartCanRearm')
+	.sect	'.debug_line'
+.L241:
+	.word	.L1017-.L1016
+.L1016:
+	.half	3
+	.word	.L1019-.L1018
+.L1018:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L1019:
+	.byte	5,5,7,0,5,2
+	.word	.L153
+	.byte	3,225,1,1,5,28,9
+	.half	.L1020-.L153
+	.byte	1,5,26,9
+	.half	.L1021-.L1020
+	.byte	1,5,5,9
+	.half	.L1022-.L1021
+	.byte	3,1,1,5,26,9
+	.half	.L1023-.L1022
+	.byte	1,5,24,9
+	.half	.L1024-.L1023
+	.byte	1,5,5,9
+	.half	.L1025-.L1024
+	.byte	3,1,1,5,38,9
+	.half	.L1026-.L1025
+	.byte	1,5,31,9
+	.half	.L1027-.L1026
+	.byte	1,5,5,9
+	.half	.L1028-.L1027
+	.byte	3,1,1,5,36,9
+	.half	.L1029-.L1028
+	.byte	1,5,34,9
+	.half	.L1030-.L1029
+	.byte	1,5,32,9
+	.half	.L1031-.L1030
+	.byte	3,1,1,5,30,9
+	.half	.L1032-.L1031
+	.byte	1,5,5,9
+	.half	.L1033-.L1032
+	.byte	3,2,1,5,39,7,9
+	.half	.L1034-.L1033
+	.byte	3,2,1,5,37,9
+	.half	.L1035-.L1034
+	.byte	1,5,1,9
+	.half	.L38-.L1035
+	.byte	3,2,1,7,9
+	.half	.L243-.L38
+	.byte	0,1,1
+.L1017:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_StartCanRearm')
+	.sect	'.debug_ranges'
+.L242:
+	.word	-1,.L153,0,.L243-.L153,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_LatchSafetyRearm')
+	.sect	'.debug_info'
+.L244:
+	.word	339
+	.half	3
+	.word	.L245
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L247,.L246
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_LatchSafetyRearm',0,1,238,1,13,1,1
+	.word	.L155,.L397,.L154
+	.byte	4
+	.byte	'input',0,1,238,1,72
+	.word	.L332,.L398
+	.byte	4
+	.byte	'output',0,1,239,1,67
+	.word	.L334,.L399
+	.byte	5
+	.word	.L155,.L397
+	.byte	0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_LatchSafetyRearm')
+	.sect	'.debug_abbrev'
+.L245:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,54,15
+	.byte	39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,0,17,1,18,1,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_LatchSafetyRearm')
+	.sect	'.debug_line'
+.L246:
+	.word	.L1037-.L1036
+.L1036:
+	.half	3
+	.word	.L1039-.L1038
+.L1038:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L1039:
+	.byte	5,15,7,0,5,2
+	.word	.L155
+	.byte	3,241,1,1,5,9,9
+	.half	.L1040-.L155
+	.byte	1,5,10,7,9
+	.half	.L1041-.L1040
+	.byte	3,1,1,5,39,9
+	.half	.L1042-.L1041
+	.byte	1,5,10,7,9
+	.half	.L1043-.L1042
+	.byte	3,1,1,5,31,9
+	.half	.L1044-.L1043
+	.byte	1,5,53,7,9
+	.half	.L39-.L1044
+	.byte	3,2,1,5,5,9
+	.half	.L41-.L39
+	.byte	3,4,1,5,30,9
+	.half	.L1045-.L41
+	.byte	1,5,28,9
+	.half	.L1046-.L1045
+	.byte	1,5,1,9
+	.half	.L1047-.L1046
+	.byte	3,1,1,7,9
+	.half	.L248-.L1047
+	.byte	0,1,1
+.L1037:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_LatchSafetyRearm')
+	.sect	'.debug_ranges'
+.L247:
+	.word	-1,.L155,0,.L248-.L155,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_RequestCenter')
+	.sect	'.debug_info'
+.L249:
+	.word	336
+	.half	3
+	.word	.L250
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L252,.L251
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_RequestCenter',0,1,253,1,13,1,1
+	.word	.L157,.L400,.L156
+	.byte	4
+	.byte	'input',0,1,253,1,69
+	.word	.L332,.L401
+	.byte	4
+	.byte	'output',0,1,254,1,64
+	.word	.L334,.L402
+	.byte	5
+	.word	.L157,.L400
+	.byte	0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_RequestCenter')
+	.sect	'.debug_abbrev'
+.L250:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,54,15
+	.byte	39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,0,17,1,18,1,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_RequestCenter')
+	.sect	'.debug_line'
+.L251:
+	.word	.L1049-.L1048
+.L1048:
+	.half	3
+	.word	.L1051-.L1050
+.L1050:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L1051:
+	.byte	5,13,7,0,5,2
+	.word	.L157
+	.byte	3,252,1,1,5,30,9
+	.half	.L491-.L157
+	.byte	3,3,1,5,28,9
+	.half	.L1052-.L491
+	.byte	1,5,33,9
+	.half	.L1053-.L1052
+	.byte	3,1,1,5,31,9
+	.half	.L1054-.L1053
+	.byte	1,5,27,9
+	.half	.L1055-.L1054
+	.byte	3,1,1,5,25,9
+	.half	.L1056-.L1055
+	.byte	1,5,14,9
+	.half	.L1057-.L1056
+	.byte	3,2,1,5,5,9
+	.half	.L1058-.L1057
+	.byte	1,5,42,7,9
+	.half	.L1059-.L1058
+	.byte	3,2,1,5,13,9
+	.half	.L490-.L1059
+	.byte	3,1,1,5,65,9
+	.half	.L1060-.L490
+	.byte	3,127,1,5,9,9
+	.half	.L1061-.L1060
+	.byte	1,5,43,7,9
+	.half	.L1062-.L1061
+	.byte	3,3,1,5,41,9
+	.half	.L1063-.L1062
+	.byte	1,5,23,9
+	.half	.L1064-.L1063
+	.byte	3,1,1,5,13,9
+	.half	.L1065-.L1064
+	.byte	1,5,33,7,9
+	.half	.L1066-.L1065
+	.byte	3,2,1,5,31,9
+	.half	.L1067-.L1066
+	.byte	1,5,1,9
+	.half	.L42-.L1067
+	.byte	3,4,1,7,9
+	.half	.L253-.L42
+	.byte	0,1,1
+.L1049:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_RequestCenter')
+	.sect	'.debug_ranges'
+.L252:
+	.word	-1,.L157,0,.L253-.L157,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_TryCompleteCanRearm')
+	.sect	'.debug_info'
+.L254:
+	.word	346
+	.half	3
+	.word	.L255
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L257,.L256
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_TryCompleteCanRearm',0,1,146,2,16
+	.word	.L336
+	.byte	1,1
+	.word	.L159,.L403,.L158
+	.byte	4
+	.byte	'input',0,1,146,2,78
+	.word	.L332,.L404
+	.byte	4
+	.byte	'output',0,1,147,2,73
+	.word	.L334,.L405
+	.byte	5
+	.word	.L159,.L403
+	.byte	0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_TryCompleteCanRearm')
+	.sect	'.debug_abbrev'
+.L255:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,73,16
+	.byte	54,15,39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,0,17,1,18,1,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_TryCompleteCanRearm')
+	.sect	'.debug_line'
+.L256:
+	.word	.L1069-.L1068
+.L1068:
+	.half	3
+	.word	.L1071-.L1070
+.L1070:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L1071:
+	.byte	5,16,7,0,5,2
+	.word	.L159
+	.byte	3,145,2,1,5,15,9
+	.half	.L494-.L159
+	.byte	3,3,1,5,9,9
+	.half	.L1072-.L494
+	.byte	1,5,41,7,9
+	.half	.L1073-.L1072
+	.byte	3,1,1,5,36,9
+	.half	.L1074-.L1073
+	.byte	3,1,1,5,63,9
+	.half	.L492-.L1074
+	.byte	1,5,18,7,9
+	.half	.L1075-.L492
+	.byte	3,2,1,5,9,9
+	.half	.L1076-.L1075
+	.byte	1,5,13,7,9
+	.half	.L1077-.L1076
+	.byte	3,2,1,5,34,9
+	.half	.L1078-.L1077
+	.byte	1,5,32,9
+	.half	.L1079-.L1078
+	.byte	1,5,13,9
+	.half	.L1080-.L1079
+	.byte	3,1,1,5,40,9
+	.half	.L1081-.L1080
+	.byte	1,5,33,9
+	.half	.L1082-.L1081
+	.byte	1,5,13,9
+	.half	.L1083-.L1082
+	.byte	3,1,1,5,43,9
+	.half	.L1084-.L1083
+	.byte	1,5,36,9
+	.half	.L1085-.L1084
+	.byte	1,5,38,9
+	.half	.L1086-.L1085
+	.byte	3,126,1,5,19,9
+	.half	.L47-.L1086
+	.byte	3,4,1,5,18,9
+	.half	.L1087-.L47
+	.byte	1,5,50,7,9
+	.half	.L1088-.L1087
+	.byte	3,1,1,5,45,9
+	.half	.L1089-.L1088
+	.byte	3,1,1,5,66,9
+	.half	.L1090-.L1089
+	.byte	1,5,52,7,9
+	.half	.L1091-.L1090
+	.byte	3,1,1,5,57,9
+	.half	.L1092-.L1091
+	.byte	3,1,1,5,72,9
+	.half	.L1093-.L1092
+	.byte	1,5,13,7,9
+	.half	.L1094-.L1093
+	.byte	3,2,1,5,36,9
+	.half	.L1095-.L1094
+	.byte	1,5,34,9
+	.half	.L1096-.L1095
+	.byte	1,5,13,9
+	.half	.L1097-.L1096
+	.byte	3,1,1,5,34,9
+	.half	.L1098-.L1097
+	.byte	1,5,32,9
+	.half	.L1099-.L1098
+	.byte	1,5,13,9
+	.half	.L1100-.L1099
+	.byte	3,1,1,5,44,9
+	.half	.L1101-.L1100
+	.byte	1,5,42,9
+	.half	.L1102-.L1101
+	.byte	1,5,13,9
+	.half	.L1103-.L1102
+	.byte	3,1,1,5,41,9
+	.half	.L1104-.L1103
+	.byte	1,5,34,9
+	.half	.L1105-.L1104
+	.byte	1,5,13,9
+	.half	.L1106-.L1105
+	.byte	3,1,1,5,44,9
+	.half	.L1107-.L1106
+	.byte	1,5,37,9
+	.half	.L1108-.L1107
+	.byte	1,5,40,9
+	.half	.L1109-.L1108
+	.byte	3,1,1,5,38,9
+	.half	.L1110-.L1109
+	.byte	1,5,20,9
+	.half	.L1111-.L1110
+	.byte	3,1,1,5,13,9
+	.half	.L1112-.L1111
+	.byte	1,5,21,9
+	.half	.L45-.L1112
+	.byte	3,4,1,5,19,9
+	.half	.L1113-.L45
+	.byte	1,5,11,9
+	.half	.L1114-.L1113
+	.byte	3,1,1,5,23,9
+	.half	.L1115-.L1114
+	.byte	1,5,32,9
+	.half	.L1116-.L1115
+	.byte	3,1,1,5,30,9
+	.half	.L1117-.L1116
+	.byte	1,5,12,9
+	.half	.L1118-.L1117
+	.byte	3,1,1,5,5,9
+	.half	.L1119-.L1118
+	.byte	1,5,1,9
+	.half	.L52-.L1119
+	.byte	3,1,1,7,9
+	.half	.L258-.L52
+	.byte	0,1,1
+.L1069:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_TryCompleteCanRearm')
+	.sect	'.debug_ranges'
+.L257:
+	.word	-1,.L159,0,.L258-.L159,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_CheckActiveCanSequence')
+	.sect	'.debug_info'
+.L259:
+	.word	349
+	.half	3
+	.word	.L260
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L262,.L261
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_CheckActiveCanSequence',0,1,181,2,16
+	.word	.L336
+	.byte	1,1
+	.word	.L161,.L406,.L160
+	.byte	4
+	.byte	'input',0,1,181,2,81
+	.word	.L332,.L407
+	.byte	4
+	.byte	'output',0,1,182,2,76
+	.word	.L334,.L408
+	.byte	5
+	.word	.L161,.L406
+	.byte	0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_CheckActiveCanSequence')
+	.sect	'.debug_abbrev'
+.L260:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,73,16
+	.byte	54,15,39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,0,17,1,18,1,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_CheckActiveCanSequence')
+	.sect	'.debug_line'
+.L261:
+	.word	.L1121-.L1120
+.L1120:
+	.half	3
+	.word	.L1123-.L1122
+.L1122:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L1123:
+	.byte	5,16,7,0,5,2
+	.word	.L161
+	.byte	3,180,2,1,5,9,9
+	.half	.L497-.L161
+	.byte	3,3,1,5,5,9
+	.half	.L1124-.L497
+	.byte	1,5,9,7,9
+	.half	.L1125-.L1124
+	.byte	3,2,1,5,40,9
+	.half	.L1126-.L1125
+	.byte	1,5,38,9
+	.half	.L1127-.L1126
+	.byte	1,5,9,9
+	.half	.L1128-.L1127
+	.byte	3,1,1,5,37,9
+	.half	.L1129-.L1128
+	.byte	1,5,30,9
+	.half	.L1130-.L1129
+	.byte	1,5,9,9
+	.half	.L1131-.L1130
+	.byte	3,1,1,5,40,9
+	.half	.L1132-.L1131
+	.byte	1,5,33,9
+	.half	.L1133-.L1132
+	.byte	1,5,16,9
+	.half	.L1134-.L1133
+	.byte	3,1,1,5,9,9
+	.half	.L1135-.L1134
+	.byte	1,5,40,9
+	.half	.L54-.L1135
+	.byte	3,3,1,5,57,9
+	.half	.L1136-.L54
+	.byte	1,5,5,9
+	.half	.L495-.L1136
+	.byte	1,5,46,7,9
+	.half	.L1137-.L495
+	.byte	3,2,1,5,51,9
+	.half	.L1138-.L1137
+	.byte	3,1,1,5,9,9
+	.half	.L1139-.L1138
+	.byte	3,127,1,5,57,7,9
+	.half	.L1140-.L1139
+	.byte	3,3,1,5,29,9
+	.half	.L501-.L1140
+	.byte	3,1,1,5,27,9
+	.half	.L1141-.L501
+	.byte	1,5,19,9
+	.half	.L1142-.L1141
+	.byte	3,1,1,5,31,9
+	.half	.L1143-.L1142
+	.byte	1,5,20,9
+	.half	.L1144-.L1143
+	.byte	3,1,1,5,13,9
+	.half	.L1145-.L1144
+	.byte	1,5,9,9
+	.half	.L57-.L1145
+	.byte	3,3,1,5,37,9
+	.half	.L1146-.L57
+	.byte	1,5,30,9
+	.half	.L1147-.L1146
+	.byte	1,5,9,9
+	.half	.L1148-.L1147
+	.byte	3,1,1,5,40,9
+	.half	.L1149-.L1148
+	.byte	1,5,33,9
+	.half	.L1150-.L1149
+	.byte	1,5,12,9
+	.half	.L56-.L1150
+	.byte	3,3,1,5,5,9
+	.half	.L1151-.L56
+	.byte	1,5,1,9
+	.half	.L55-.L1151
+	.byte	3,1,1,7,9
+	.half	.L263-.L55
+	.byte	0,1,1
+.L1121:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_CheckActiveCanSequence')
+	.sect	'.debug_ranges'
+.L262:
+	.word	-1,.L161,0,.L263-.L161,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_ApplyMotionEnvelope')
+	.sect	'.debug_info'
+.L264:
+	.word	497
+	.half	3
+	.word	.L265
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L267,.L266
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_ApplyMotionEnvelope',0,1,210,2,13,1,1
+	.word	.L163,.L409,.L162
+	.byte	4
+	.byte	'output',0,1,210,2,70
+	.word	.L334,.L410
+	.byte	4
+	.byte	'sourceMaxKph',0,1,211,2,56
+	.word	.L342,.L411
+	.byte	4
+	.byte	'measuredSpeedKph',0,1,212,2,56
+	.word	.L342,.L412
+	.byte	4
+	.byte	'measuredSteeringDeg',0,1,213,2,56
+	.word	.L342,.L413
+	.byte	5
+	.word	.L163,.L409
+	.byte	6
+	.byte	'requestedMagnitude',0,1,215,2,13
+	.word	.L342,.L414
+	.byte	6
+	.byte	'targetMagnitude',0,1,216,2,13
+	.word	.L342,.L415
+	.byte	6
+	.byte	'speedSign',0,1,217,2,13
+	.word	.L342,.L416
+	.byte	0,0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_ApplyMotionEnvelope')
+	.sect	'.debug_abbrev'
+.L265:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,54,15
+	.byte	39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,1,17,1,18,1,0,0,6,52,0,3,8,58
+	.byte	15,59,15,57,15,73,16,2,6,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_ApplyMotionEnvelope')
+	.sect	'.debug_line'
+.L266:
+	.word	.L1153-.L1152
+.L1152:
+	.half	3
+	.word	.L1155-.L1154
+.L1154:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L1155:
+	.byte	5,13,7,0,5,2
+	.word	.L163
+	.byte	3,209,2,1,5,68,9
+	.half	.L511-.L163
+	.byte	3,9,1,5,62,9
+	.half	.L506-.L511
+	.byte	3,1,1,9
+	.half	.L503-.L506
+	.byte	3,1,1,5,34,9
+	.half	.L505-.L503
+	.byte	3,126,1,5,39,9
+	.half	.L1156-.L505
+	.byte	3,3,1,5,31,9
+	.half	.L1157-.L1156
+	.byte	1,5,68,9
+	.half	.L1158-.L1157
+	.byte	3,1,1,5,30,9
+	.half	.L513-.L1158
+	.byte	1,5,39,9
+	.half	.L1159-.L513
+	.byte	3,1,1,5,15,9
+	.half	.L1160-.L1159
+	.byte	3,1,1,5,63,9
+	.half	.L510-.L1160
+	.byte	3,127,1,5,5,9
+	.half	.L1161-.L510
+	.byte	1,5,44,7,9
+	.half	.L1162-.L1161
+	.byte	3,3,1,5,69,9
+	.half	.L1163-.L1162
+	.byte	1,5,37,9
+	.half	.L1164-.L1163
+	.byte	1,5,47,9
+	.half	.L1165-.L1164
+	.byte	3,1,1,5,39,9
+	.half	.L1166-.L1165
+	.byte	1,5,20,9
+	.half	.L61-.L1166
+	.byte	1,5,13,9
+	.half	.L1167-.L61
+	.byte	1,5,35,9
+	.half	.L62-.L1167
+	.byte	3,127,1,5,39,9
+	.half	.L1168-.L62
+	.byte	3,2,1,5,37,9
+	.half	.L1169-.L1168
+	.byte	1,5,66,9
+	.half	.L60-.L1169
+	.byte	3,2,1,5,34,9
+	.half	.L1170-.L60
+	.byte	1,5,33,9
+	.half	.L1171-.L1170
+	.byte	3,1,1,5,62,9
+	.half	.L515-.L1171
+	.byte	1,5,54,9
+	.half	.L1172-.L515
+	.byte	1,5,5,9
+	.half	.L1173-.L1172
+	.byte	1,5,64,7,9
+	.half	.L1174-.L1173
+	.byte	3,2,1,5,38,9
+	.half	.L517-.L1174
+	.byte	1,5,72,9
+	.half	.L63-.L517
+	.byte	3,2,1,5,27,9
+	.half	.L1175-.L63
+	.byte	1,5,76,9
+	.half	.L1176-.L1175
+	.byte	3,1,1,5,69,9
+	.half	.L1177-.L1176
+	.byte	3,1,1,5,31,9
+	.half	.L519-.L1177
+	.byte	3,127,1,5,56,9
+	.half	.L1178-.L519
+	.byte	3,3,1,5,24,9
+	.half	.L520-.L1178
+	.byte	3,1,1,5,46,9
+	.half	.L1179-.L520
+	.byte	1,5,17,9
+	.half	.L1180-.L1179
+	.byte	1,5,62,9
+	.half	.L1181-.L1180
+	.byte	1,5,60,9
+	.half	.L522-.L1181
+	.byte	1,5,54,9
+	.half	.L64-.L522
+	.byte	1,5,25,9
+	.half	.L65-.L64
+	.byte	3,2,1,5,5,9
+	.half	.L1182-.L65
+	.byte	1,5,25,7,9
+	.half	.L1183-.L1182
+	.byte	3,2,1,5,33,9
+	.half	.L66-.L1183
+	.byte	3,2,1,5,25,9
+	.half	.L1184-.L66
+	.byte	1,5,5,9
+	.half	.L1185-.L1184
+	.byte	1,5,33,7,9
+	.half	.L1186-.L1185
+	.byte	3,2,1,5,38,9
+	.half	.L1187-.L1186
+	.byte	3,1,1,5,36,9
+	.half	.L1188-.L1187
+	.byte	1,5,40,9
+	.half	.L67-.L1188
+	.byte	3,3,1,5,28,9
+	.half	.L1189-.L67
+	.byte	1,5,43,9
+	.half	.L1190-.L1189
+	.byte	3,2,1,5,67,9
+	.half	.L1191-.L1190
+	.byte	1,5,39,9
+	.half	.L521-.L1191
+	.byte	3,127,1,5,1,9
+	.half	.L1192-.L521
+	.byte	3,2,1,7,9
+	.half	.L268-.L1192
+	.byte	0,1,1
+.L1153:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_ApplyMotionEnvelope')
+	.sect	'.debug_ranges'
+.L267:
+	.word	-1,.L163,0,.L268-.L163,0,0
+	.sdecl	'.debug_info',debug,cluster('VehicleManager_PublishTrace')
+	.sect	'.debug_info'
+.L269:
+	.word	316
+	.half	3
+	.word	.L270
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1
+	.word	.L272,.L271
+	.byte	2
+	.word	.L170
+	.byte	3
+	.byte	'VehicleManager_PublishTrace',0,1,130,3,13,1,1
+	.word	.L165,.L417,.L164
+	.byte	4
+	.byte	'output',0,1,130,3,69
+	.word	.L418,.L419
+	.byte	5
+	.word	.L165,.L417
+	.byte	0,0
+	.sdecl	'.debug_abbrev',debug,cluster('VehicleManager_PublishTrace')
+	.sect	'.debug_abbrev'
+.L270:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,85,6,16,6,0,0,2,61,0,24,16,0,0,3,46,1,3,8,58,15,59,15,57,15,54,15
+	.byte	39,12,17,1,18,1,64,6,0,0,4,5,0,3,8,58,15,59,15,57,15,73,16,2,6,0,0,5,11,0,17,1,18,1,0,0,0
+	.sdecl	'.debug_line',debug,cluster('VehicleManager_PublishTrace')
+	.sect	'.debug_line'
+.L271:
+	.word	.L1194-.L1193
+.L1193:
+	.half	3
+	.word	.L1196-.L1195
+.L1195:
+	.byte	2,1,-4,9,10,0,1,1,1,1,0,0,0,1,0
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0,0,0,0,0
+.L1196:
+	.byte	5,5,7,0,5,2
+	.word	.L165
+	.byte	3,131,3,1,5,42,9
+	.half	.L1197-.L165
+	.byte	1,5,27,9
+	.half	.L1198-.L1197
+	.byte	1,5,5,9
+	.half	.L1199-.L1198
+	.byte	3,1,1,5,42,9
+	.half	.L1200-.L1199
+	.byte	1,5,27,9
+	.half	.L1201-.L1200
+	.byte	1,5,5,9
+	.half	.L1202-.L1201
+	.byte	3,1,1,5,39,9
+	.half	.L1203-.L1202
+	.byte	1,5,31,9
+	.half	.L1204-.L1203
+	.byte	1,5,5,9
+	.half	.L1205-.L1204
+	.byte	3,1,1,5,47,9
+	.half	.L1206-.L1205
+	.byte	1,5,39,9
+	.half	.L1207-.L1206
+	.byte	1,5,5,9
+	.half	.L1208-.L1207
+	.byte	3,1,1,5,44,9
+	.half	.L1209-.L1208
+	.byte	1,5,36,9
+	.half	.L1210-.L1209
+	.byte	1,5,5,9
+	.half	.L1211-.L1210
+	.byte	3,1,1,5,50,9
+	.half	.L1212-.L1211
+	.byte	1,5,42,9
+	.half	.L1213-.L1212
+	.byte	1,5,5,9
+	.half	.L1214-.L1213
+	.byte	3,1,1,5,47,9
+	.half	.L1215-.L1214
+	.byte	1,5,39,9
+	.half	.L1216-.L1215
+	.byte	1,5,5,9
+	.half	.L1217-.L1216
+	.byte	3,1,1,5,50,9
+	.half	.L1218-.L1217
+	.byte	1,5,42,9
+	.half	.L1219-.L1218
+	.byte	1,5,5,9
+	.half	.L1220-.L1219
+	.byte	3,1,1,5,46,9
+	.half	.L1221-.L1220
+	.byte	1,5,38,9
+	.half	.L1222-.L1221
+	.byte	1,5,5,9
+	.half	.L1223-.L1222
+	.byte	3,1,1,5,43,9
+	.half	.L1224-.L1223
+	.byte	1,5,35,9
+	.half	.L1225-.L1224
+	.byte	1,5,5,9
+	.half	.L1226-.L1225
+	.byte	3,1,1,5,47,9
+	.half	.L1227-.L1226
+	.byte	1,5,39,9
+	.half	.L1228-.L1227
+	.byte	1,5,5,9
+	.half	.L1229-.L1228
+	.byte	3,1,1,5,55,9
+	.half	.L1230-.L1229
+	.byte	1,5,47,9
+	.half	.L1231-.L1230
+	.byte	1,5,49,9
+	.half	.L1232-.L1231
+	.byte	3,1,1,5,42,9
+	.half	.L1233-.L1232
+	.byte	1,5,80,7,9
+	.half	.L1234-.L1233
+	.byte	1,5,85,9
+	.half	.L1235-.L1234
+	.byte	1,5,80,9
+	.half	.L68-.L1235
+	.byte	1,5,5,9
+	.half	.L69-.L68
+	.byte	1,5,40,9
+	.half	.L1236-.L69
+	.byte	1,5,50,9
+	.half	.L1237-.L1236
+	.byte	3,1,1,5,43,9
+	.half	.L1238-.L1237
+	.byte	1,5,82,7,9
+	.half	.L1239-.L1238
+	.byte	1,5,87,9
+	.half	.L1240-.L1239
+	.byte	1,5,82,9
+	.half	.L70-.L1240
+	.byte	1,5,5,9
+	.half	.L71-.L70
+	.byte	1,5,41,9
+	.half	.L1241-.L71
+	.byte	1,5,47,9
+	.half	.L1242-.L1241
+	.byte	3,1,1,5,40,9
+	.half	.L1243-.L1242
+	.byte	1,5,76,7,9
+	.half	.L1244-.L1243
+	.byte	1,5,81,9
+	.half	.L1245-.L1244
+	.byte	1,5,76,9
+	.half	.L72-.L1245
+	.byte	1,5,5,9
+	.half	.L73-.L72
+	.byte	1,5,38,9
+	.half	.L1246-.L73
+	.byte	1,5,5,9
+	.half	.L1247-.L1246
+	.byte	3,1,1,5,30,9
+	.half	.L1248-.L1247
+	.byte	1,5,1,9
+	.half	.L1249-.L1248
+	.byte	3,1,1,7,9
+	.half	.L273-.L1249
+	.byte	0,1,1
+.L1194:
+	.sdecl	'.debug_ranges',debug,cluster('VehicleManager_PublishTrace')
+	.sect	'.debug_ranges'
+.L272:
+	.word	-1,.L165,0,.L273-.L165,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerState')
+	.sect	'.debug_info'
+.L274:
+	.word	268
+	.half	3
+	.word	.L275
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerState',0,2,9,16
+	.word	.L420
+	.byte	1,5,3
+	.word	g_vehicleManagerState
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerState')
+	.sect	'.debug_abbrev'
+.L275:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerOwner')
+	.sect	'.debug_info'
+.L276:
+	.word	268
+	.half	3
+	.word	.L277
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerOwner',0,2,10,16
+	.word	.L421
+	.byte	1,5,3
+	.word	g_vehicleManagerOwner
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerOwner')
+	.sect	'.debug_abbrev'
+.L277:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerFaultMask')
+	.sect	'.debug_info'
+.L278:
+	.word	272
+	.half	3
+	.word	.L279
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerFaultMask',0,2,11,17
+	.word	.L422
+	.byte	1,5,3
+	.word	g_vehicleManagerFaultMask
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerFaultMask')
+	.sect	'.debug_abbrev'
+.L279:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerRequestedSpeedKph')
+	.sect	'.debug_info'
+.L280:
+	.word	280
+	.half	3
+	.word	.L281
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerRequestedSpeedKph',0,2,12,18
+	.word	.L423
+	.byte	1,5,3
+	.word	g_vehicleManagerRequestedSpeedKph
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerRequestedSpeedKph')
+	.sect	'.debug_abbrev'
+.L281:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerTargetSpeedKph')
+	.sect	'.debug_info'
+.L282:
+	.word	277
+	.half	3
+	.word	.L283
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerTargetSpeedKph',0,2,13,18
+	.word	.L424
+	.byte	1,5,3
+	.word	g_vehicleManagerTargetSpeedKph
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerTargetSpeedKph')
+	.sect	'.debug_abbrev'
+.L283:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerRequestedSteeringDeg')
+	.sect	'.debug_info'
+.L284:
+	.word	283
+	.half	3
+	.word	.L285
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerRequestedSteeringDeg',0,2,14,18
+	.word	.L425
+	.byte	1,5,3
+	.word	g_vehicleManagerRequestedSteeringDeg
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerRequestedSteeringDeg')
+	.sect	'.debug_abbrev'
+.L285:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerTargetSteeringDeg')
+	.sect	'.debug_info'
+.L286:
+	.word	280
+	.half	3
+	.word	.L287
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerTargetSteeringDeg',0,2,15,18
+	.word	.L426
+	.byte	1,5,3
+	.word	g_vehicleManagerTargetSteeringDeg
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerTargetSteeringDeg')
+	.sect	'.debug_abbrev'
+.L287:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerEffectiveSteeringDeg')
+	.sect	'.debug_info'
+.L288:
+	.word	283
+	.half	3
+	.word	.L289
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerEffectiveSteeringDeg',0,2,16,18
+	.word	.L427
+	.byte	1,5,3
+	.word	g_vehicleManagerEffectiveSteeringDeg
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerEffectiveSteeringDeg')
+	.sect	'.debug_abbrev'
+.L289:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerSteeringLimitDeg')
+	.sect	'.debug_info'
+.L290:
+	.word	279
+	.half	3
+	.word	.L291
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerSteeringLimitDeg',0,2,17,18
+	.word	.L428
+	.byte	1,5,3
+	.word	g_vehicleManagerSteeringLimitDeg
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerSteeringLimitDeg')
+	.sect	'.debug_abbrev'
+.L291:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerCurvatureInvM')
+	.sect	'.debug_info'
+.L292:
+	.word	276
+	.half	3
+	.word	.L293
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerCurvatureInvM',0,2,18,18
+	.word	.L429
+	.byte	1,5,3
+	.word	g_vehicleManagerCurvatureInvM
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerCurvatureInvM')
+	.sect	'.debug_abbrev'
+.L293:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerTurnSpeedLimitKph')
+	.sect	'.debug_info'
+.L294:
+	.word	280
+	.half	3
+	.word	.L295
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerTurnSpeedLimitKph',0,2,19,18
+	.word	.L430
+	.byte	1,5,3
+	.word	g_vehicleManagerTurnSpeedLimitKph
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerTurnSpeedLimitKph')
+	.sect	'.debug_abbrev'
+.L295:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerPredictedLateralAccelMps2')
+	.sect	'.debug_info'
+.L296:
+	.word	288
+	.half	3
+	.word	.L297
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerPredictedLateralAccelMps2',0,2,20,18
+	.word	.L431
+	.byte	1,5,3
+	.word	g_vehicleManagerPredictedLateralAccelMps2
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerPredictedLateralAccelMps2')
+	.sect	'.debug_abbrev'
+.L297:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerLateralLimitActive')
+	.sect	'.debug_info'
+.L298:
+	.word	281
+	.half	3
+	.word	.L299
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerLateralLimitActive',0,2,21,16
+	.word	.L432
+	.byte	1,5,3
+	.word	g_vehicleManagerLateralLimitActive
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerLateralLimitActive')
+	.sect	'.debug_abbrev'
+.L299:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerSteeringLimitActive')
+	.sect	'.debug_info'
+.L300:
+	.word	282
+	.half	3
+	.word	.L301
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerSteeringLimitActive',0,2,22,16
+	.word	.L433
+	.byte	1,5,3
+	.word	g_vehicleManagerSteeringLimitActive
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerSteeringLimitActive')
+	.sect	'.debug_abbrev'
+.L301:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerCanRearmRequired')
+	.sect	'.debug_info'
+.L302:
+	.word	279
+	.half	3
+	.word	.L303
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerCanRearmRequired',0,2,23,16
+	.word	.L434
+	.byte	1,5,3
+	.word	g_vehicleManagerCanRearmRequired
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerCanRearmRequired')
+	.sect	'.debug_abbrev'
+.L303:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vehicleManagerStepCount')
+	.sect	'.debug_info'
+.L304:
+	.word	272
+	.half	3
+	.word	.L305
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vehicleManagerStepCount',0,2,24,17
+	.word	.L435
+	.byte	1,5,3
+	.word	g_vehicleManagerStepCount
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vehicleManagerStepCount')
+	.sect	'.debug_abbrev'
+.L305:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,63,12,2,9
+	.byte	0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vmPreviousPs2Available')
+	.sect	'.debug_info'
+.L306:
+	.word	270
+	.half	3
+	.word	.L307
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vmPreviousPs2Available',0,2,26,16
+	.word	.L336
+	.byte	5,3
+	.word	g_vmPreviousPs2Available
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vmPreviousPs2Available')
+	.sect	'.debug_abbrev'
+.L307:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,2,9,0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vmCanRearmRequired')
+	.sect	'.debug_info'
+.L308:
+	.word	266
+	.half	3
+	.word	.L309
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vmCanRearmRequired',0,2,27,16
+	.word	.L336
+	.byte	5,3
+	.word	g_vmCanRearmRequired
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vmCanRearmRequired')
+	.sect	'.debug_abbrev'
+.L309:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,2,9,0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vmCanDisableSeen')
+	.sect	'.debug_info'
+.L310:
+	.word	264
+	.half	3
+	.word	.L311
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vmCanDisableSeen',0,2,28,16
+	.word	.L336
+	.byte	5,3
+	.word	g_vmCanDisableSeen
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vmCanDisableSeen')
+	.sect	'.debug_abbrev'
+.L311:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,2,9,0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vmCanRearmBaselineCount')
+	.sect	'.debug_info'
+.L312:
+	.word	271
+	.half	3
+	.word	.L313
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vmCanRearmBaselineCount',0,2,29,15
+	.word	.L340
+	.byte	5,3
+	.word	g_vmCanRearmBaselineCount
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vmCanRearmBaselineCount')
+	.sect	'.debug_abbrev'
+.L313:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,2,9,0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vmCanDisableCount')
+	.sect	'.debug_info'
+.L314:
+	.word	265
+	.half	3
+	.word	.L315
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vmCanDisableCount',0,2,30,15
+	.word	.L340
+	.byte	5,3
+	.word	g_vmCanDisableCount
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vmCanDisableCount')
+	.sect	'.debug_abbrev'
+.L315:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,2,9,0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vmCanDisableSequence')
+	.sect	'.debug_info'
+.L316:
+	.word	268
+	.half	3
+	.word	.L317
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vmCanDisableSequence',0,2,31,14
+	.word	.L336
+	.byte	5,3
+	.word	g_vmCanDisableSequence
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vmCanDisableSequence')
+	.sect	'.debug_abbrev'
+.L317:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,2,9,0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vmCanAcceptedSequenceValid')
+	.sect	'.debug_info'
+.L318:
+	.word	274
+	.half	3
+	.word	.L319
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vmCanAcceptedSequenceValid',0,2,32,16
+	.word	.L336
+	.byte	5,3
+	.word	g_vmCanAcceptedSequenceValid
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vmCanAcceptedSequenceValid')
+	.sect	'.debug_abbrev'
+.L319:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,2,9,0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vmCanAcceptedCount')
+	.sect	'.debug_info'
+.L320:
+	.word	266
+	.half	3
+	.word	.L321
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vmCanAcceptedCount',0,2,33,15
+	.word	.L340
+	.byte	5,3
+	.word	g_vmCanAcceptedCount
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vmCanAcceptedCount')
+	.sect	'.debug_abbrev'
+.L321:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,2,9,0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vmCanAcceptedSequence')
+	.sect	'.debug_info'
+.L322:
+	.word	269
+	.half	3
+	.word	.L323
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vmCanAcceptedSequence',0,2,34,14
+	.word	.L336
+	.byte	5,3
+	.word	g_vmCanAcceptedSequence
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vmCanAcceptedSequence')
+	.sect	'.debug_abbrev'
+.L323:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,2,9,0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vmPreviousEstopActive')
+	.sect	'.debug_info'
+.L324:
+	.word	269
+	.half	3
+	.word	.L325
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vmPreviousEstopActive',0,2,35,16
+	.word	.L336
+	.byte	5,3
+	.word	g_vmPreviousEstopActive
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vmPreviousEstopActive')
+	.sect	'.debug_abbrev'
+.L325:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,2,9,0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vmFeedbackFaultActive')
+	.sect	'.debug_info'
+.L326:
+	.word	269
+	.half	3
+	.word	.L327
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vmFeedbackFaultActive',0,2,36,16
+	.word	.L336
+	.byte	5,3
+	.word	g_vmFeedbackFaultActive
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vmFeedbackFaultActive')
+	.sect	'.debug_abbrev'
+.L327:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,2,9,0,0,0
+	.sdecl	'.debug_info',debug,cluster('g_vmPs2NeutralRequired')
+	.sect	'.debug_info'
+.L328:
+	.word	268
+	.half	3
+	.word	.L329
+	.byte	4,1
+	.byte	'../0_Src/AppSw/Tricore/VehicleManager.c',0
+	.byte	'TASKING VX-toolset for AURIX Development Studio (non-commercial): C compiler',0
+	.byte	'C:\\Users\\junyoung\\Desktop\\2026_FMA\\ADAS_AMG_src_build_ready\\ADAS_AMG_src\\TriCore Debug (TASKING)\\',0
+	.byte	12,1,2
+	.word	.L170
+	.byte	3
+	.byte	'g_vmPs2NeutralRequired',0,2,37,16
+	.word	.L336
+	.byte	5,3
+	.word	g_vmPs2NeutralRequired
+	.byte	0
+	.sdecl	'.debug_abbrev',debug,cluster('g_vmPs2NeutralRequired')
+	.sect	'.debug_abbrev'
+.L329:
+	.byte	1,17,1,3,8,37,8,27,8,19,15,128,70,12,0,0,2,61,0,24,16,0,0,3,52,0,3,8,58,15,59,15,57,15,73,16,2,9,0,0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_AbsFloat')
+	.sect	'.debug_loc'
+.L130:
+	.word	-1,.L131,0,.L343-.L131
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L344:
+	.word	-1,.L131,0,.L343-.L131
+	.half	1
+	.byte	84
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_ApplyMotionEnvelope')
+	.sect	'.debug_loc'
+.L162:
+	.word	-1,.L163,0,.L409-.L163
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L412:
+	.word	-1,.L163,0,.L503-.L163
+	.half	1
+	.byte	85
+	.word	.L509-.L163,.L510-.L163
+	.half	1
+	.byte	95
+	.word	.L512-.L163,.L513-.L163
+	.half	1
+	.byte	84
+	.word	0,0
+.L413:
+	.word	-1,.L163,0,.L504-.L163
+	.half	1
+	.byte	86
+	.word	.L511-.L163,.L409-.L163
+	.half	1
+	.byte	89
+	.word	.L514-.L163,.L515-.L163
+	.half	1
+	.byte	84
+	.word	.L516-.L163,.L517-.L163
+	.half	1
+	.byte	84
+	.word	0,0
+.L410:
+	.word	-1,.L163,0,.L505-.L163
+	.half	1
+	.byte	100
+	.word	.L507-.L163,.L409-.L163
+	.half	1
+	.byte	111
+	.word	0,0
+.L414:
+	.word	-1,.L163,.L520-.L163,.L521-.L163
+	.half	1
+	.byte	82
+	.word	0,0
+.L411:
+	.word	-1,.L163,0,.L506-.L163
+	.half	1
+	.byte	84
+	.word	.L508-.L163,.L409-.L163
+	.half	1
+	.byte	88
+	.word	.L518-.L163,.L519-.L163
+	.half	1
+	.byte	85
+	.word	0,0
+.L416:
+	.word	-1,.L163,.L522-.L163,.L64-.L163
+	.half	5
+	.byte	144,32,157,32,0
+	.word	.L65-.L163,.L521-.L163
+	.half	5
+	.byte	144,32,157,32,0
+	.word	0,0
+.L415:
+	.word	-1,.L163,.L520-.L163,.L521-.L163
+	.half	1
+	.byte	82
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_CheckActiveCanSequence')
+	.sect	'.debug_loc'
+.L160:
+	.word	-1,.L161,0,.L406-.L161
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L407:
+	.word	-1,.L161,0,.L495-.L161
+	.half	1
+	.byte	100
+	.word	.L496-.L161,.L406-.L161
+	.half	1
+	.byte	108
+	.word	.L500-.L161,.L501-.L161
+	.half	1
+	.byte	100
+	.word	0,0
+.L408:
+	.word	-1,.L161,0,.L495-.L161
+	.half	1
+	.byte	101
+	.word	.L497-.L161,.L498-.L161
+	.half	1
+	.byte	111
+	.word	.L54-.L161,.L499-.L161
+	.half	1
+	.byte	111
+	.word	.L502-.L161,.L501-.L161
+	.half	1
+	.byte	101
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_ClampFloat')
+	.sect	'.debug_loc'
+.L132:
+	.word	-1,.L133,0,.L345-.L133
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L348:
+	.word	-1,.L133,0,.L345-.L133
+	.half	1
+	.byte	86
+	.word	.L437-.L133,.L7-.L133
+	.half	1
+	.byte	82
+	.word	0,0
+.L347:
+	.word	-1,.L133,0,.L345-.L133
+	.half	1
+	.byte	85
+	.word	.L436-.L133,.L5-.L133
+	.half	1
+	.byte	82
+	.word	0,0
+.L346:
+	.word	-1,.L133,0,.L345-.L133
+	.half	1
+	.byte	84
+	.word	.L438-.L133,.L6-.L133
+	.half	1
+	.byte	82
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_ClearOutput')
+	.sect	'.debug_loc'
+.L150:
+	.word	-1,.L151,0,.L391-.L151
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L392:
+	.word	-1,.L151,0,.L488-.L151
+	.half	1
+	.byte	100
+	.word	.L489-.L151,.L391-.L151
+	.half	1
+	.byte	111
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_ClearOutputFields')
+	.sect	'.debug_loc'
+.L148:
+	.word	-1,.L149,0,.L389-.L149
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L390:
+	.word	-1,.L149,0,.L389-.L149
+	.half	1
+	.byte	100
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_CurvatureFromSteering')
+	.sect	'.debug_loc'
+.L140:
+	.word	-1,.L141,0,.L366-.L141
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L370:
+	.word	-1,.L141,.L458-.L141,.L366-.L141
+	.half	5
+	.byte	144,32,157,32,0
+	.word	0,0
+.L368:
+	.word	-1,.L141,.L454-.L141,.L455-.L141
+	.half	1
+	.byte	82
+	.word	.L456-.L141,.L455-.L141
+	.half	1
+	.byte	84
+	.word	0,0
+.L367:
+	.word	-1,.L141,0,.L454-.L141
+	.half	1
+	.byte	84
+	.word	0,0
+.L369:
+	.word	-1,.L141,.L455-.L141,.L457-.L141
+	.half	1
+	.byte	82
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_FindSteeringLimitDeg')
+	.sect	'.debug_loc'
+.L146:
+	.word	-1,.L147,0,.L382-.L147
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L385:
+	.word	-1,.L147,.L479-.L147,.L382-.L147
+	.half	1
+	.byte	89
+	.word	.L482-.L147,.L480-.L147
+	.half	1
+	.byte	84
+	.word	0,0
+.L388:
+	.word	-1,.L147,.L483-.L147,.L32-.L147
+	.half	1
+	.byte	91
+	.word	0,0
+.L384:
+	.word	-1,.L147,.L478-.L147,.L382-.L147
+	.half	1
+	.byte	88
+	.word	.L487-.L147,.L32-.L147
+	.half	1
+	.byte	82
+	.word	0,0
+.L383:
+	.word	-1,.L147,0,.L477-.L147
+	.half	1
+	.byte	84
+	.word	0,0
+.L386:
+	.word	-1,.L147,.L484-.L147,.L33-.L147
+	.half	1
+	.byte	92
+	.word	.L485-.L147,.L486-.L147
+	.half	1
+	.byte	84
+	.word	0,0
+.L387:
+	.word	-1,.L147,.L477-.L147,.L480-.L147
+	.half	1
+	.byte	82
+	.word	.L481-.L147,.L382-.L147
+	.half	1
+	.byte	90
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_FindTurnSpeedLimitKph')
+	.sect	'.debug_loc'
+.L144:
+	.word	-1,.L145,0,.L375-.L145
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L376:
+	.word	-1,.L145,0,.L463-.L145
+	.half	1
+	.byte	84
+	.word	.L466-.L145,.L467-.L145
+	.half	1
+	.byte	88
+	.word	.L22-.L145,.L463-.L145
+	.half	1
+	.byte	88
+	.word	.L473-.L145,.L474-.L145
+	.half	1
+	.byte	88
+	.word	0,0
+.L379:
+	.word	0,0
+.L381:
+	.word	-1,.L145,.L471-.L145,.L23-.L145
+	.half	1
+	.byte	91
+	.word	0,0
+.L378:
+	.word	-1,.L145,.L465-.L145,.L375-.L145
+	.half	1
+	.byte	90
+	.word	.L476-.L145,.L23-.L145
+	.half	1
+	.byte	82
+	.word	0,0
+.L380:
+	.word	-1,.L145,.L473-.L145,.L26-.L145
+	.half	1
+	.byte	92
+	.word	0,0
+.L377:
+	.word	-1,.L145,0,.L464-.L145
+	.half	1
+	.byte	85
+	.word	.L468-.L145,.L464-.L145
+	.half	1
+	.byte	89
+	.word	.L464-.L145,.L22-.L145
+	.half	1
+	.byte	82
+	.word	.L22-.L145,.L463-.L145
+	.half	1
+	.byte	85
+	.word	.L22-.L145,.L463-.L145
+	.half	1
+	.byte	89
+	.word	.L469-.L145,.L470-.L145
+	.half	1
+	.byte	89
+	.word	.L470-.L145,.L24-.L145
+	.half	1
+	.byte	82
+	.word	.L27-.L145,.L472-.L145
+	.half	1
+	.byte	89
+	.word	.L475-.L145,.L28-.L145
+	.half	1
+	.byte	89
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_Init')
+	.sect	'.debug_loc'
+.L166:
+	.word	-1,.L167,0,.L330-.L167
+	.half	2
+	.byte	138,0
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_IsForwardSequence')
+	.sect	'.debug_loc'
+.L136:
+	.word	-1,.L137,0,.L353-.L137
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L355:
+	.word	-1,.L137,0,.L440-.L137
+	.half	1
+	.byte	85
+	.word	0,0
+.L356:
+	.word	-1,.L137,.L441-.L137,.L353-.L137
+	.half	1
+	.byte	95
+	.word	0,0
+.L354:
+	.word	-1,.L137,0,.L353-.L137
+	.half	1
+	.byte	84
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_IsNewCount')
+	.sect	'.debug_loc'
+.L134:
+	.word	-1,.L135,0,.L349-.L135
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L350:
+	.word	-1,.L135,0,.L439-.L135
+	.half	1
+	.byte	84
+	.word	0,0
+.L352:
+	.word	-1,.L135,0,.L349-.L135
+	.half	1
+	.byte	84
+	.word	0,0
+.L351:
+	.word	-1,.L135,0,.L349-.L135
+	.half	1
+	.byte	85
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_LatchSafetyRearm')
+	.sect	'.debug_loc'
+.L154:
+	.word	-1,.L155,0,.L397-.L155
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L398:
+	.word	-1,.L155,0,.L41-.L155
+	.half	1
+	.byte	100
+	.word	0,0
+.L399:
+	.word	-1,.L155,0,.L41-.L155
+	.half	1
+	.byte	101
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_LateralAccel')
+	.sect	'.debug_loc'
+.L142:
+	.word	-1,.L143,0,.L371-.L143
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L373:
+	.word	-1,.L143,0,.L459-.L143
+	.half	1
+	.byte	85
+	.word	.L460-.L143,.L371-.L143
+	.half	1
+	.byte	95
+	.word	0,0
+.L372:
+	.word	-1,.L143,0,.L459-.L143
+	.half	1
+	.byte	84
+	.word	0,0
+.L374:
+	.word	-1,.L143,.L461-.L143,.L462-.L143
+	.half	5
+	.byte	144,32,157,32,0
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_PublishTrace')
+	.sect	'.debug_loc'
+.L164:
+	.word	-1,.L165,0,.L417-.L165
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L419:
+	.word	-1,.L165,0,.L417-.L165
+	.half	1
+	.byte	100
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_RequestCenter')
+	.sect	'.debug_loc'
+.L156:
+	.word	-1,.L157,0,.L400-.L157
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L401:
+	.word	-1,.L157,0,.L490-.L157
+	.half	1
+	.byte	100
+	.word	0,0
+.L402:
+	.word	-1,.L157,0,.L490-.L157
+	.half	1
+	.byte	101
+	.word	.L491-.L157,.L400-.L157
+	.half	1
+	.byte	111
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_StartCanRearm')
+	.sect	'.debug_loc'
+.L152:
+	.word	-1,.L153,0,.L393-.L153
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L394:
+	.word	-1,.L153,0,.L393-.L153
+	.half	1
+	.byte	100
+	.word	0,0
+.L396:
+	.word	-1,.L153,0,.L393-.L153
+	.half	1
+	.byte	84
+	.word	0,0
+.L395:
+	.word	-1,.L153,0,.L393-.L153
+	.half	1
+	.byte	101
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_Step5ms')
+	.sect	'.debug_loc'
+.L168:
+	.word	-1,.L169,0,.L331-.L169
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L341:
+	.word	-1,.L169,.L544-.L169,.L545-.L169
+	.half	1
+	.byte	88
+	.word	.L99-.L169,.L76-.L169
+	.half	1
+	.byte	88
+	.word	0,0
+.L333:
+	.word	-1,.L169,0,.L523-.L169
+	.half	1
+	.byte	100
+	.word	.L524-.L169,.L525-.L169
+	.half	1
+	.byte	111
+	.word	.L532-.L169,.L529-.L169
+	.half	1
+	.byte	100
+	.word	.L534-.L169,.L84-.L169
+	.half	1
+	.byte	100
+	.word	.L536-.L169,.L87-.L169
+	.half	1
+	.byte	100
+	.word	.L538-.L169,.L539-.L169
+	.half	1
+	.byte	100
+	.word	.L546-.L169,.L101-.L169
+	.half	1
+	.byte	100
+	.word	.L548-.L169,.L549-.L169
+	.half	1
+	.byte	100
+	.word	.L554-.L169,.L555-.L169
+	.half	1
+	.byte	100
+	.word	.L562-.L169,.L561-.L169
+	.half	1
+	.byte	100
+	.word	.L564-.L169,.L565-.L169
+	.half	1
+	.byte	100
+	.word	.L569-.L169,.L570-.L169
+	.half	1
+	.byte	100
+	.word	.L572-.L169,.L573-.L169
+	.half	1
+	.byte	100
+	.word	.L577-.L169,.L578-.L169
+	.half	1
+	.byte	100
+	.word	.L582-.L169,.L583-.L169
+	.half	1
+	.byte	100
+	.word	.L585-.L169,.L586-.L169
+	.half	1
+	.byte	100
+	.word	.L596-.L169,.L595-.L169
+	.half	1
+	.byte	100
+	.word	.L108-.L169,.L600-.L169
+	.half	1
+	.byte	111
+	.word	0,0
+.L335:
+	.word	-1,.L169,0,.L523-.L169
+	.half	1
+	.byte	101
+	.word	.L526-.L169,.L331-.L169
+	.half	1
+	.byte	108
+	.word	.L523-.L169,.L527-.L169
+	.half	1
+	.byte	100
+	.word	.L533-.L169,.L529-.L169
+	.half	1
+	.byte	101
+	.word	.L535-.L169,.L84-.L169
+	.half	1
+	.byte	101
+	.word	.L537-.L169,.L87-.L169
+	.half	1
+	.byte	101
+	.word	.L540-.L169,.L539-.L169
+	.half	1
+	.byte	101
+	.word	.L541-.L169,.L542-.L169
+	.half	1
+	.byte	100
+	.word	.L547-.L169,.L101-.L169
+	.half	1
+	.byte	101
+	.word	.L550-.L169,.L549-.L169
+	.half	1
+	.byte	101
+	.word	.L551-.L169,.L552-.L169
+	.half	1
+	.byte	100
+	.word	.L556-.L169,.L555-.L169
+	.half	1
+	.byte	101
+	.word	.L557-.L169,.L558-.L169
+	.half	1
+	.byte	100
+	.word	.L559-.L169,.L560-.L169
+	.half	1
+	.byte	100
+	.word	.L563-.L169,.L561-.L169
+	.half	1
+	.byte	101
+	.word	.L566-.L169,.L565-.L169
+	.half	1
+	.byte	101
+	.word	.L567-.L169,.L568-.L169
+	.half	1
+	.byte	100
+	.word	.L571-.L169,.L570-.L169
+	.half	1
+	.byte	101
+	.word	.L574-.L169,.L573-.L169
+	.half	1
+	.byte	101
+	.word	.L575-.L169,.L576-.L169
+	.half	1
+	.byte	100
+	.word	.L579-.L169,.L578-.L169
+	.half	1
+	.byte	101
+	.word	.L580-.L169,.L581-.L169
+	.half	1
+	.byte	100
+	.word	.L584-.L169,.L583-.L169
+	.half	1
+	.byte	101
+	.word	.L587-.L169,.L586-.L169
+	.half	1
+	.byte	101
+	.word	.L588-.L169,.L589-.L169
+	.half	1
+	.byte	100
+	.word	.L590-.L169,.L591-.L169
+	.half	1
+	.byte	100
+	.word	.L593-.L169,.L594-.L169
+	.half	1
+	.byte	100
+	.word	.L597-.L169,.L595-.L169
+	.half	1
+	.byte	101
+	.word	.L598-.L169,.L599-.L169
+	.half	1
+	.byte	100
+	.word	.L601-.L169,.L76-.L169
+	.half	1
+	.byte	100
+	.word	0,0
+.L338:
+	.word	-1,.L169,.L530-.L169,.L80-.L169
+	.half	1
+	.byte	95
+	.word	.L82-.L169,.L531-.L169
+	.half	1
+	.byte	95
+	.word	0,0
+.L337:
+	.word	-1,.L169,.L528-.L169,.L77-.L169
+	.half	5
+	.byte	144,32,157,32,0
+	.word	.L79-.L169,.L529-.L169
+	.half	5
+	.byte	144,32,157,32,0
+	.word	0,0
+.L339:
+	.word	-1,.L169,.L543-.L169,.L92-.L169
+	.half	5
+	.byte	144,32,157,32,0
+	.word	.L95-.L169,.L101-.L169
+	.half	5
+	.byte	144,32,157,32,0
+	.word	.L99-.L169,.L553-.L169
+	.half	5
+	.byte	144,32,157,32,0
+	.word	.L104-.L169,.L561-.L169
+	.half	5
+	.byte	144,32,157,32,0
+	.word	.L109-.L169,.L592-.L169
+	.half	5
+	.byte	144,32,157,32,0
+	.word	.L120-.L169,.L595-.L169
+	.half	5
+	.byte	144,32,157,32,0
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_TanAbsDeg')
+	.sect	'.debug_loc'
+.L138:
+	.word	-1,.L139,0,.L357-.L139
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L358:
+	.word	-1,.L139,0,.L442-.L139
+	.half	1
+	.byte	84
+	.word	0,0
+.L365:
+	.word	-1,.L139,.L453-.L139,.L357-.L139
+	.half	1
+	.byte	95
+	.word	0,0
+.L359:
+	.word	-1,.L139,.L443-.L139,.L444-.L139
+	.half	1
+	.byte	95
+	.word	0,0
+.L360:
+	.word	-1,.L139,.L445-.L139,.L446-.L139
+	.half	5
+	.byte	144,32,157,32,0
+	.word	0,0
+.L361:
+	.word	-1,.L139,.L447-.L139,.L448-.L139
+	.half	1
+	.byte	81
+	.word	0,0
+.L362:
+	.word	-1,.L139,.L449-.L139,.L450-.L139
+	.half	1
+	.byte	82
+	.word	0,0
+.L363:
+	.word	-1,.L139,.L451-.L139,.L357-.L139
+	.half	1
+	.byte	83
+	.word	0,0
+.L364:
+	.word	-1,.L139,.L452-.L139,.L357-.L139
+	.half	1
+	.byte	84
+	.word	0,0
+	.sdecl	'.debug_loc',debug,cluster('VehicleManager_TryCompleteCanRearm')
+	.sect	'.debug_loc'
+.L158:
+	.word	-1,.L159,0,.L403-.L159
+	.half	2
+	.byte	138,0
+	.word	0,0
+.L404:
+	.word	-1,.L159,0,.L492-.L159
+	.half	1
+	.byte	100
+	.word	.L493-.L159,.L403-.L159
+	.half	1
+	.byte	108
+	.word	0,0
+.L405:
+	.word	-1,.L159,0,.L492-.L159
+	.half	1
+	.byte	101
+	.word	.L494-.L159,.L403-.L159
+	.half	1
+	.byte	111
+	.word	0,0
+	.sdecl	'.debug_frame',debug
+	.sect	'.debug_frame'
+.L1250:
+	.word	48
+	.word	-1
+	.byte	3,0,2,1,27,12,26,0,8,26,8,27,8,30,8,29,8,28,8,16,8,17,8,24,8,25,8,31,8,32,8,33,8,34,8,35,8,36,8,37,8,38
+	.byte	8,39
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_AbsFloat')
+	.sect	'.debug_frame'
+	.word	24
+	.word	.L1250,.L131,.L343-.L131
+	.byte	8,18,8,19,8,20,8,21,8,22,8,23
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_ClampFloat')
+	.sect	'.debug_frame'
+	.word	24
+	.word	.L1250,.L133,.L345-.L133
+	.byte	8,18,8,19,8,20,8,21,8,22,8,23
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_IsNewCount')
+	.sect	'.debug_frame'
+	.word	24
+	.word	.L1250,.L135,.L349-.L135
+	.byte	8,18,8,19,8,20,8,21,8,22,8,23
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_IsForwardSequence')
+	.sect	'.debug_frame'
+	.word	24
+	.word	.L1250,.L137,.L353-.L137
+	.byte	8,18,8,19,8,20,8,21,8,22,8,23
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_TanAbsDeg')
+	.sect	'.debug_frame'
+	.word	12
+	.word	.L1250,.L139,.L357-.L139
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_CurvatureFromSteering')
+	.sect	'.debug_frame'
+	.word	12
+	.word	.L1250,.L141,.L366-.L141
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_LateralAccel')
+	.sect	'.debug_frame'
+	.word	12
+	.word	.L1250,.L143,.L371-.L143
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_FindTurnSpeedLimitKph')
+	.sect	'.debug_frame'
+	.word	12
+	.word	.L1250,.L145,.L375-.L145
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_FindSteeringLimitDeg')
+	.sect	'.debug_frame'
+	.word	12
+	.word	.L1250,.L147,.L382-.L147
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_ClearOutputFields')
+	.sect	'.debug_frame'
+	.word	24
+	.word	.L1250,.L149,.L389-.L149
+	.byte	8,18,8,19,8,21,8,22,8,23,0,0
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_ClearOutput')
+	.sect	'.debug_frame'
+	.word	12
+	.word	.L1250,.L151,.L391-.L151
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_StartCanRearm')
+	.sect	'.debug_frame'
+	.word	20
+	.word	.L1250,.L153,.L393-.L153
+	.byte	8,18,8,19,8,22,8,23
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_LatchSafetyRearm')
+	.sect	'.debug_frame'
+	.word	12
+	.word	.L1250,.L155,.L397-.L155
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_RequestCenter')
+	.sect	'.debug_frame'
+	.word	12
+	.word	.L1250,.L157,.L400-.L157
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_TryCompleteCanRearm')
+	.sect	'.debug_frame'
+	.word	12
+	.word	.L1250,.L159,.L403-.L159
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_CheckActiveCanSequence')
+	.sect	'.debug_frame'
+	.word	12
+	.word	.L1250,.L161,.L406-.L161
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_ApplyMotionEnvelope')
+	.sect	'.debug_frame'
+	.word	12
+	.word	.L1250,.L163,.L409-.L163
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_PublishTrace')
+	.sect	'.debug_frame'
+	.word	20
+	.word	.L1250,.L165,.L417-.L165
+	.byte	8,19,8,21,8,22,8,23
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_Init')
+	.sect	'.debug_frame'
+	.word	24
+	.word	.L1250,.L167,.L330-.L167
+	.byte	8,18,8,19,8,20,8,21,8,22,8,23
+	.sdecl	'.debug_frame',debug,cluster('VehicleManager_Step5ms')
+	.sect	'.debug_frame'
+	.word	12
+	.word	.L1250,.L169,.L331-.L169
+	; Module end

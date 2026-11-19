@@ -1,0 +1,957 @@
+#include "Can_SpeedTx.h"
+
+#include "Board_Pins.h"
+#include "CCU6_PWM_Generation.h"
+#include "GPT12_Timer_Interrupt.h"
+#include "IfxPort.h"
+#include "Multican/Can/IfxMultican_Can.h"
+
+#define ACKERMANN_CAN_BAUDRATE       500000U
+#define ACKERMANN_CAN_NODE_ID        IfxMultican_NodeId_0
+#define ACKERMANN_CAN_RX_PIN         (&IfxMultican_RXD0B_P20_7_IN)
+#define ACKERMANN_CAN_TX_PIN         (&IfxMultican_TXD0_P20_8_OUT)
+#define ACKERMANN_CAN_SPEED_OBJ_ID   0u
+#define ACKERMANN_CAN_STEER_OBJ_ID   1u
+#define ACKERMANN_CAN_DRIVE_OBJ_ID   2u
+#define ACKERMANN_CAN_ENCODER_OBJ_ID 3u
+#define ACKERMANN_CAN_ENCDBG_OBJ_ID  4u
+#define ACKERMANN_CAN_SPEED_CTRL_OBJ_ID 5u
+#define ACKERMANN_CAN_RPM_DEBUG_OBJ_ID 6u
+#define ACKERMANN_CAN_STEER_FB_OBJ_ID 7u
+#define ACKERMANN_CAN_BUFFER_TEST_OBJ_ID 8u
+#define ACKERMANN_CAN_DEADBAND_TEST_OBJ_ID 9u
+#define ACKERMANN_CAN_DEADBAND_RESULT_OBJ_ID 10u
+#define ACKERMANN_CAN_MAX_SPEED_TEST_OBJ_ID 11u
+#define ACKERMANN_CAN_MAX_SPEED_RESULT_OBJ_ID 12u
+#define ACKERMANN_CAN_JOYSTICK_CMD_OBJ_ID 13u
+#define ACKERMANN_CAN_PC_COMMAND_OBJ_ID 14u
+#define ACKERMANN_CAN_SENSOR_FEEDBACK_OBJ_ID 15u
+#define ACKERMANN_CAN_RX_ALIVE_TIMEOUT_MS 500u
+#define ACKERMANN_CAN_SENSOR_FEEDBACK_PERIOD_TICK100US 200u
+
+static IfxMultican_Can        g_canModule;
+static IfxMultican_Can_Node   g_canNode;
+static IfxMultican_Can_MsgObj g_txObjSpeed;
+static IfxMultican_Can_MsgObj g_txObjSteering;
+static IfxMultican_Can_MsgObj g_txObjDriveStatus;
+static IfxMultican_Can_MsgObj g_txObjEncoderCount;
+static IfxMultican_Can_MsgObj g_txObjEncoderDebug;
+static IfxMultican_Can_MsgObj g_txObjSpeedControl;
+static IfxMultican_Can_MsgObj g_txObjRpmDebug;
+static IfxMultican_Can_MsgObj g_txObjSteeringFeedback;
+static IfxMultican_Can_MsgObj g_txObjBufferTest;
+static IfxMultican_Can_MsgObj g_txObjDeadbandTest;
+static IfxMultican_Can_MsgObj g_txObjDeadbandResult;
+static IfxMultican_Can_MsgObj g_txObjMaxSpeedTest;
+static IfxMultican_Can_MsgObj g_txObjMaxSpeedResult;
+static IfxMultican_Can_MsgObj g_txObjJoystickCommand;
+static IfxMultican_Can_MsgObj g_rxObjPcCommand;
+static IfxMultican_Can_MsgObj g_txObjSensorFeedback;
+
+volatile uint8  g_canInitDone = 0u;
+volatile uint8  g_canTransceiverNENLow = 0u;
+volatile uint32 g_canNodeInitStatus = 0xFFFFFFFFu;
+volatile uint32 g_canMsgObjInitStatus = 0xFFFFFFFFu;
+volatile uint32 g_canTxAttemptCount = 0u;
+volatile uint32 g_canTxOkCount = 0u;
+volatile uint32 g_canTxBusyCount = 0u;
+volatile uint32 g_canTxErrorCount = 0u;
+volatile uint32 g_canLastTxStatus = 0xFFFFFFFFu;
+volatile uint32 g_canLastTxId = 0u;
+volatile uint32 g_canLastDataLow = 0u;
+volatile uint32 g_canLastDataHigh = 0u;
+volatile uint8  g_canRxAlive = 0u;
+volatile uint32 g_canRxCount = 0u;
+volatile uint32 g_canRxEmptyCount = 0u;
+volatile uint32 g_canRxLostCount = 0u;
+volatile uint32 g_canRxLastStatus = 0xFFFFFFFFu;
+volatile uint32 g_canRxLastId = 0u;
+volatile uint32 g_canRxLastDataLow = 0u;
+volatile uint32 g_canRxLastDataHigh = 0u;
+volatile uint32 g_canRxLastTick100us = 0u;
+volatile uint32 g_canRxLastAgeMs = 0xFFFFFFFFu;
+volatile uint8  g_canBusOffRecoveryActive = 0u;
+volatile uint32 g_canBusOffDetectCount = 0u;
+volatile uint32 g_canBusOffRecoveryAttemptCount = 0u;
+volatile uint32 g_canBusOffRecoveryOkCount = 0u;
+volatile uint32 g_canBusOffLastStatus = 0xFFFFFFFFu;
+volatile uint32 g_sensorFeedbackTxOkCount = 0u;
+volatile uint32 g_sensorFeedbackTxRetryCount = 0u;
+volatile uint8  g_pcCommandModeSeen = 0u;
+volatile uint8  g_pcCommandValid = 0u;
+volatile uint8  g_pcCommandEnabled = 0u;
+volatile uint16 g_pcCommandSpeedKphX100 = 0u;
+volatile sint16 g_pcCommandSteeringDegX10 = 0;
+volatile uint16 g_pcCommandSteeringPulseUs = STEERING_SERVO_CENTER_US;
+volatile uint8  g_pcCommandSequence = 0u;
+volatile uint32 g_pcCommandLastValidTick100us = 0u;
+volatile uint32 g_pcCommandAgeMs = 0xFFFFFFFFu;
+volatile uint32 g_pcCommandValidCount = 0u;
+volatile uint32 g_pcCommandInvalidCount = 0u;
+volatile uint32 g_pcCommandDuplicateCount = 0u;
+volatile uint32 g_pcCommandWatchdogCount = 0u;
+volatile uint32 g_pcCommandManualBlockCount = 0u;
+
+static uint8 g_pcCommandHasSequence = 0u;
+static uint8 g_pcCommandWatchdogLatched = 0u;
+static uint8 g_sensorFeedbackSequence = 0u;
+static uint8 g_sensorFeedbackScheduleValid = 0u;
+static uint32 g_sensorFeedbackLastTick100us = 0u;
+
+static void CanSpeedTx_EnableTransceiver(void)
+{
+#if (CAN_TRANSCEIVER_ENABLE != 0u)
+    IfxPort_setPinModeOutput(CAN_TRANSCEIVER_NEN_PORT,
+                             CAN_TRANSCEIVER_NEN_PIN,
+                             IfxPort_OutputMode_pushPull,
+                             IfxPort_OutputIdx_general);
+    IfxPort_setPinLow(CAN_TRANSCEIVER_NEN_PORT, CAN_TRANSCEIVER_NEN_PIN);
+    g_canTransceiverNENLow = 1u;
+#endif
+}
+
+static sint16 CanSpeedTx_ClampFloatToS16(float32 value)
+{
+    if (value > 32767.0f)
+    {
+        return 32767;
+    }
+
+    if (value < -32768.0f)
+    {
+        return -32768;
+    }
+
+    return (sint16)value;
+}
+
+static uint16 CanSpeedTx_ClampFloatToU16(float32 value)
+{
+    if (value > 65535.0f)
+    {
+        return 65535u;
+    }
+
+    if (value < 0.0f)
+    {
+        return 0u;
+    }
+
+    return (uint16)value;
+}
+
+static sint16 CanSpeedTx_ClampS32ToS16(sint32 value)
+{
+    if (value > 32767)
+    {
+        return 32767;
+    }
+
+    if (value < -32768)
+    {
+        return -32768;
+    }
+
+    return (sint16)value;
+}
+
+static uint8 CanSpeedTx_EncodePulseOffset5us(uint16 pulseUs)
+{
+    uint16 offset;
+
+    if (pulseUs < 900u)
+    {
+        pulseUs = 900u;
+    }
+    else if (pulseUs > 2175u)
+    {
+        pulseUs = 2175u;
+    }
+
+    offset = (uint16)((pulseUs - 900u) / 5u);
+    return (uint8)offset;
+}
+
+static uint32 CanSpeedTx_PackU32Le(const uint8 *data)
+{
+    return ((uint32)data[0]) |
+           ((uint32)data[1] << 8) |
+           ((uint32)data[2] << 16) |
+           ((uint32)data[3] << 24);
+}
+
+static void CanSpeedTx_PutS16(uint8 *data, uint8 index, sint16 value)
+{
+    data[index] = (uint8)((uint16)value & 0xFFu);
+    data[index + 1u] = (uint8)(((uint16)value >> 8u) & 0xFFu);
+}
+
+static void CanSpeedTx_PutU16(uint8 *data, uint8 index, uint16 value)
+{
+    data[index] = (uint8)(value & 0xFFu);
+    data[index + 1u] = (uint8)((value >> 8u) & 0xFFu);
+}
+
+static void CanSpeedTx_PutS32(uint8 *data, uint8 index, sint32 value)
+{
+    uint32 raw = (uint32)value;
+
+    data[index] = (uint8)(raw & 0xFFu);
+    data[index + 1u] = (uint8)((raw >> 8u) & 0xFFu);
+    data[index + 2u] = (uint8)((raw >> 16u) & 0xFFu);
+    data[index + 3u] = (uint8)((raw >> 24u) & 0xFFu);
+}
+
+static uint16 CanSpeedTx_PcCommandExpectedPulseUs(sint16 steeringDegX10)
+{
+    uint32 magnitude;
+    uint32 offset;
+
+    if (steeringDegX10 >= 0)
+    {
+        magnitude = (uint32)steeringDegX10;
+        offset = ((magnitude * (uint32)(STEERING_SERVO_CENTER_US - STEERING_SERVO_LEFT_US)) + 125u) / 250u;
+        return (uint16)((uint32)STEERING_SERVO_CENTER_US - offset);
+    }
+
+    magnitude = (uint32)(-(sint32)steeringDegX10);
+    offset = ((magnitude * (uint32)(STEERING_SERVO_RIGHT_US - STEERING_SERVO_CENTER_US)) + 125u) / 250u;
+    return (uint16)((uint32)STEERING_SERVO_CENTER_US + offset);
+}
+
+static boolean CanSpeedTx_IsPcCommandPayloadValid(uint16 speedKphX100,
+                                                   sint16 steeringDegX10,
+                                                   uint16 steeringPulseUs,
+                                                   uint8 flags)
+{
+    uint16 expectedPulseUs;
+    uint16 pulseErrorUs;
+    uint8 enabled;
+
+    if ((flags & 0xFEu) != ACKERMANN_CAN_PC_COMMAND_SIGNATURE)
+    {
+        return FALSE;
+    }
+
+    if (speedKphX100 > ACKERMANN_CAN_PC_COMMAND_MAX_SPEED_X100)
+    {
+        return FALSE;
+    }
+
+    if ((steeringDegX10 < -ACKERMANN_CAN_PC_COMMAND_MAX_STEER_X10) ||
+        (steeringDegX10 > ACKERMANN_CAN_PC_COMMAND_MAX_STEER_X10))
+    {
+        return FALSE;
+    }
+
+    expectedPulseUs = CanSpeedTx_PcCommandExpectedPulseUs(steeringDegX10);
+    pulseErrorUs = (steeringPulseUs >= expectedPulseUs) ?
+                   (uint16)(steeringPulseUs - expectedPulseUs) :
+                   (uint16)(expectedPulseUs - steeringPulseUs);
+    if (pulseErrorUs > 3u)
+    {
+        return FALSE;
+    }
+
+    enabled = flags & ACKERMANN_CAN_PC_COMMAND_ENABLE_MASK;
+    if ((enabled == 0u) &&
+        ((speedKphX100 != 0u) ||
+         (steeringDegX10 != 0) ||
+         (steeringPulseUs != STEERING_SERVO_CENTER_US)))
+    {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+static void CanSpeedTx_UpdatePcCommandWatchdog(uint32 nowTick100us)
+{
+    uint32 ageTick100us;
+
+    if (g_pcCommandModeSeen == 0u)
+    {
+        g_pcCommandAgeMs = 0xFFFFFFFFu;
+        return;
+    }
+
+    ageTick100us = nowTick100us - g_pcCommandLastValidTick100us;
+    g_pcCommandAgeMs = ageTick100us / 10u;
+    if (g_pcCommandAgeMs > ACKERMANN_CAN_PC_COMMAND_TIMEOUT_MS)
+    {
+        if ((g_pcCommandValid != 0u) && (g_pcCommandWatchdogLatched == 0u))
+        {
+            g_pcCommandWatchdogCount++;
+        }
+
+        g_pcCommandValid = 0u;
+        g_pcCommandEnabled = 0u;
+        g_pcCommandWatchdogLatched = 1u;
+    }
+}
+
+static boolean CanSpeedTx_SendRaw(IfxMultican_Can_MsgObj *txObj,
+                                  uint32 id,
+                                  const uint8 data[8])
+{
+    IfxMultican_Message msg;
+    IfxMultican_Status status;
+    uint32 dataLow;
+    uint32 dataHigh;
+
+    if ((txObj == 0) || (data == 0))
+    {
+        return FALSE;
+    }
+
+    dataLow = CanSpeedTx_PackU32Le(&data[0]);
+    dataHigh = CanSpeedTx_PackU32Le(&data[4]);
+    g_canTxAttemptCount++;
+    g_canLastTxId = id;
+    g_canLastDataLow = dataLow;
+    g_canLastDataHigh = dataHigh;
+
+    IfxMultican_Message_init(&msg,
+                             id,
+                             dataLow,
+                             dataHigh,
+                             IfxMultican_DataLengthCode_8);
+    status = IfxMultican_Can_MsgObj_sendMessage(txObj, &msg);
+    g_canLastTxStatus = (uint32)status;
+
+    if (status == IfxMultican_Status_ok)
+    {
+        g_canTxOkCount++;
+        return TRUE;
+    }
+
+    if (status == IfxMultican_Status_notSentBusy)
+    {
+        g_canTxBusyCount++;
+    }
+    else
+    {
+        g_canTxErrorCount++;
+    }
+
+    return FALSE;
+}
+
+static boolean CanSpeedTx_ServiceBusOffRecovery(void)
+{
+    IfxMultican_Status status;
+
+    if ((g_canNode.node == 0) ||
+        ((g_canNode.node->SR.B.BOFF == 0u) &&
+         (g_canBusOffRecoveryActive == 0u)))
+    {
+        return TRUE;
+    }
+
+    if (g_canBusOffRecoveryActive == 0u)
+    {
+        g_canBusOffRecoveryActive = 1u;
+        g_canBusOffDetectCount++;
+    }
+
+    status = IfxMultican_Can_Node_recoverBusOff(&g_canNode);
+    g_canBusOffRecoveryAttemptCount++;
+    g_canBusOffLastStatus = (uint32)status;
+
+    if (status == IfxMultican_Status_ok)
+    {
+        g_canBusOffRecoveryActive = 0u;
+        g_canBusOffRecoveryOkCount++;
+        /* Retry the 0x130 heartbeat immediately after the node is active. */
+        g_sensorFeedbackScheduleValid = 0u;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+static void CanSpeedTx_InitTxObject(IfxMultican_Can_MsgObj *obj,
+                                    uint32 objectId,
+                                    uint32 messageId)
+{
+    IfxMultican_Can_MsgObjConfig msgConfig;
+    IfxMultican_Status status;
+
+    IfxMultican_Can_MsgObj_initConfig(&msgConfig, &g_canNode);
+    msgConfig.msgObjId = objectId;
+    msgConfig.messageId = messageId;
+    msgConfig.acceptanceMask = 0x7FFFFFFFul;
+    msgConfig.frame = IfxMultican_Frame_transmit;
+    msgConfig.control.messageLen = IfxMultican_DataLengthCode_8;
+    msgConfig.control.extendedFrame = FALSE;
+    msgConfig.control.matchingId = TRUE;
+    status = IfxMultican_Can_MsgObj_init(obj, &msgConfig);
+    g_canMsgObjInitStatus = (uint32)status;
+}
+
+static void CanSpeedTx_InitPcCommandRxObject(void)
+{
+    IfxMultican_Can_MsgObjConfig msgConfig;
+    IfxMultican_Status status;
+
+    IfxMultican_Can_MsgObj_initConfig(&msgConfig, &g_canNode);
+    msgConfig.msgObjId = ACKERMANN_CAN_PC_COMMAND_OBJ_ID;
+    msgConfig.messageId = ACKERMANN_CAN_PC_COMMAND_ID;
+    msgConfig.acceptanceMask = 0x7FFFFFFFul;
+    msgConfig.frame = IfxMultican_Frame_receive;
+    msgConfig.control.messageLen = IfxMultican_DataLengthCode_8;
+    msgConfig.control.extendedFrame = FALSE;
+    msgConfig.control.matchingId = TRUE;
+    status = IfxMultican_Can_MsgObj_init(&g_rxObjPcCommand, &msgConfig);
+    g_canMsgObjInitStatus = (uint32)status;
+}
+
+void CanSpeedTx_Init(void)
+{
+    IfxMultican_Can_Config canConfig;
+    IfxMultican_Can_NodeConfig nodeConfig;
+    IfxMultican_Status status;
+
+    g_canInitDone = 0u;
+    g_canNodeInitStatus = 0xFFFFFFFFu;
+    g_canMsgObjInitStatus = 0xFFFFFFFFu;
+    g_canRxAlive = 0u;
+    g_canRxLastTick100us = 0u;
+    g_canRxLastAgeMs = 0xFFFFFFFFu;
+    g_canBusOffRecoveryActive = 0u;
+    g_canBusOffDetectCount = 0u;
+    g_canBusOffRecoveryAttemptCount = 0u;
+    g_canBusOffRecoveryOkCount = 0u;
+    g_canBusOffLastStatus = 0xFFFFFFFFu;
+    g_sensorFeedbackTxOkCount = 0u;
+    g_sensorFeedbackTxRetryCount = 0u;
+    g_pcCommandModeSeen = 0u;
+    g_pcCommandValid = 0u;
+    g_pcCommandEnabled = 0u;
+    g_pcCommandSpeedKphX100 = 0u;
+    g_pcCommandSteeringDegX10 = 0;
+    g_pcCommandSteeringPulseUs = STEERING_SERVO_CENTER_US;
+    g_pcCommandSequence = 0u;
+    g_pcCommandLastValidTick100us = 0u;
+    g_pcCommandAgeMs = 0xFFFFFFFFu;
+    g_pcCommandHasSequence = 0u;
+    g_pcCommandWatchdogLatched = 0u;
+    g_sensorFeedbackSequence = 0u;
+    g_sensorFeedbackScheduleValid = 0u;
+    g_sensorFeedbackLastTick100us = 0u;
+    CanSpeedTx_EnableTransceiver();
+
+    IfxMultican_Can_initModuleConfig(&canConfig, &MODULE_CAN);
+    IfxMultican_Can_initModule(&g_canModule, &canConfig);
+
+    IfxMultican_Can_Node_initConfig(&nodeConfig, &g_canModule);
+    nodeConfig.nodeId = ACKERMANN_CAN_NODE_ID;
+    nodeConfig.baudrate = ACKERMANN_CAN_BAUDRATE;
+    nodeConfig.rxPin = ACKERMANN_CAN_RX_PIN;
+    nodeConfig.rxPinMode = IfxPort_InputMode_pullUp;
+    nodeConfig.txPin = ACKERMANN_CAN_TX_PIN;
+    nodeConfig.txPinMode = IfxPort_OutputMode_pushPull;
+    status = IfxMultican_Can_Node_init(&g_canNode, &nodeConfig);
+    g_canNodeInitStatus = (uint32)status;
+
+    CanSpeedTx_InitTxObject(&g_txObjSpeed,
+                            ACKERMANN_CAN_SPEED_OBJ_ID,
+                            ACKERMANN_CAN_WHEEL_SPEED_ID);
+    CanSpeedTx_InitTxObject(&g_txObjSteering,
+                            ACKERMANN_CAN_STEER_OBJ_ID,
+                            ACKERMANN_CAN_STEERING_ID);
+    CanSpeedTx_InitTxObject(&g_txObjDriveStatus,
+                            ACKERMANN_CAN_DRIVE_OBJ_ID,
+                            ACKERMANN_CAN_DRIVE_STATUS_ID);
+    CanSpeedTx_InitTxObject(&g_txObjEncoderCount,
+                            ACKERMANN_CAN_ENCODER_OBJ_ID,
+                            ACKERMANN_CAN_ENCODER_COUNT_ID);
+    CanSpeedTx_InitTxObject(&g_txObjEncoderDebug,
+                            ACKERMANN_CAN_ENCDBG_OBJ_ID,
+                            ACKERMANN_CAN_ENCODER_DEBUG_ID);
+    CanSpeedTx_InitTxObject(&g_txObjSpeedControl,
+                            ACKERMANN_CAN_SPEED_CTRL_OBJ_ID,
+                            ACKERMANN_CAN_SPEED_CONTROL_ID);
+    CanSpeedTx_InitTxObject(&g_txObjRpmDebug,
+                            ACKERMANN_CAN_RPM_DEBUG_OBJ_ID,
+                            ACKERMANN_CAN_RPM_DEBUG_ID);
+    CanSpeedTx_InitTxObject(&g_txObjSteeringFeedback,
+                            ACKERMANN_CAN_STEER_FB_OBJ_ID,
+                            ACKERMANN_CAN_STEER_FB_ID);
+    CanSpeedTx_InitTxObject(&g_txObjBufferTest,
+                            ACKERMANN_CAN_BUFFER_TEST_OBJ_ID,
+                            ACKERMANN_CAN_BUFFER_TEST_ID);
+    CanSpeedTx_InitTxObject(&g_txObjDeadbandTest,
+                            ACKERMANN_CAN_DEADBAND_TEST_OBJ_ID,
+                            ACKERMANN_CAN_DEADBAND_TEST_ID);
+    CanSpeedTx_InitTxObject(&g_txObjDeadbandResult,
+                            ACKERMANN_CAN_DEADBAND_RESULT_OBJ_ID,
+                            ACKERMANN_CAN_DEADBAND_RESULT_ID);
+    CanSpeedTx_InitTxObject(&g_txObjMaxSpeedTest,
+                            ACKERMANN_CAN_MAX_SPEED_TEST_OBJ_ID,
+                            ACKERMANN_CAN_MAX_SPEED_TEST_ID);
+    CanSpeedTx_InitTxObject(&g_txObjMaxSpeedResult,
+                            ACKERMANN_CAN_MAX_SPEED_RESULT_OBJ_ID,
+                            ACKERMANN_CAN_MAX_SPEED_RESULT_ID);
+    CanSpeedTx_InitTxObject(&g_txObjJoystickCommand,
+                            ACKERMANN_CAN_JOYSTICK_CMD_OBJ_ID,
+                            ACKERMANN_CAN_JOYSTICK_CMD_ID);
+    CanSpeedTx_InitTxObject(&g_txObjSensorFeedback,
+                            ACKERMANN_CAN_SENSOR_FEEDBACK_OBJ_ID,
+                            ACKERMANN_CAN_SENSOR_FEEDBACK_ID);
+    CanSpeedTx_InitPcCommandRxObject();
+    g_canInitDone = 1u;
+}
+
+void CanSpeedTx_PollReceive(void)
+{
+    IfxMultican_Message msg;
+    IfxMultican_Status status;
+    uint32 nowTick100us;
+    uint32 ageTick100us;
+    uint16 speedKphX100;
+    sint16 steeringDegX10;
+    uint16 steeringPulseUs;
+    uint8 sequence;
+    uint8 flags;
+    boolean payloadValid;
+
+    if (g_canInitDone == 0u)
+    {
+        g_canRxAlive = 0u;
+        g_canRxLastAgeMs = 0xFFFFFFFFu;
+        g_pcCommandValid = 0u;
+        g_pcCommandEnabled = 0u;
+        g_pcCommandAgeMs = 0xFFFFFFFFu;
+        return;
+    }
+
+    if (CanSpeedTx_ServiceBusOffRecovery() == FALSE)
+    {
+        nowTick100us = tick100us;
+        g_canRxAlive = 0u;
+        g_canRxLastAgeMs = 0xFFFFFFFFu;
+        CanSpeedTx_UpdatePcCommandWatchdog(nowTick100us);
+        return;
+    }
+
+    IfxMultican_Message_init(&msg,
+                             0u,
+                             0u,
+                             0u,
+                             IfxMultican_DataLengthCode_8);
+    status = IfxMultican_Can_MsgObj_readMessage(&g_rxObjPcCommand, &msg);
+    g_canRxLastStatus = (uint32)status;
+
+    if ((status & IfxMultican_Status_newData) != 0u)
+    {
+        g_canRxCount++;
+        g_canRxLastId = msg.id;
+        g_canRxLastDataLow = msg.data[0];
+        g_canRxLastDataHigh = msg.data[1];
+        g_canRxLastTick100us = tick100us;
+
+        speedKphX100 = (uint16)(msg.data[0] & 0xFFFFu);
+        steeringDegX10 = (sint16)((msg.data[0] >> 16u) & 0xFFFFu);
+        steeringPulseUs = (uint16)(msg.data[1] & 0xFFFFu);
+        sequence = (uint8)((msg.data[1] >> 16u) & 0xFFu);
+        flags = (uint8)((msg.data[1] >> 24u) & 0xFFu);
+
+        payloadValid = ((status & IfxMultican_Status_messageLost) == 0u) &&
+                       (msg.id == ACKERMANN_CAN_PC_COMMAND_ID) &&
+                       (msg.lengthCode == IfxMultican_DataLengthCode_8) &&
+                       (CanSpeedTx_IsPcCommandPayloadValid(speedKphX100,
+                                                           steeringDegX10,
+                                                           steeringPulseUs,
+                                                           flags) != FALSE);
+
+        if (payloadValid != FALSE)
+        {
+            if ((g_pcCommandHasSequence != 0u) &&
+                (sequence == g_pcCommandSequence))
+            {
+                /* A repeated enabled command must not extend the watchdog. */
+                g_pcCommandDuplicateCount++;
+            }
+            else
+            {
+                g_pcCommandModeSeen = 1u;
+                g_pcCommandValid = 1u;
+                g_pcCommandEnabled = flags & ACKERMANN_CAN_PC_COMMAND_ENABLE_MASK;
+                g_pcCommandSpeedKphX100 = speedKphX100;
+                g_pcCommandSteeringDegX10 = steeringDegX10;
+                g_pcCommandSteeringPulseUs = steeringPulseUs;
+                g_pcCommandSequence = sequence;
+                g_pcCommandLastValidTick100us = tick100us;
+                g_pcCommandAgeMs = 0u;
+                g_pcCommandValidCount++;
+                g_pcCommandHasSequence = 1u;
+                g_pcCommandWatchdogLatched = 0u;
+            }
+        }
+        else
+        {
+            g_pcCommandInvalidCount++;
+            if (g_pcCommandModeSeen != 0u)
+            {
+                /* A malformed frame on the command ID is an immediate STOP. */
+                g_pcCommandValid = 0u;
+                g_pcCommandEnabled = 0u;
+            }
+        }
+    }
+    else if ((status & IfxMultican_Status_receiveEmpty) != 0u)
+    {
+        g_canRxEmptyCount++;
+    }
+
+    if ((status & IfxMultican_Status_messageLost) != 0u)
+    {
+        g_canRxLostCount++;
+    }
+
+    nowTick100us = tick100us;
+    if (g_canRxLastTick100us == 0u)
+    {
+        g_canRxAlive = 0u;
+        g_canRxLastAgeMs = 0xFFFFFFFFu;
+        CanSpeedTx_UpdatePcCommandWatchdog(nowTick100us);
+        return;
+    }
+
+    ageTick100us = nowTick100us - g_canRxLastTick100us;
+    g_canRxLastAgeMs = ageTick100us / 10u;
+    g_canRxAlive = (g_canRxLastAgeMs <= ACKERMANN_CAN_RX_ALIVE_TIMEOUT_MS) ? 1u : 0u;
+    CanSpeedTx_UpdatePcCommandWatchdog(nowTick100us);
+}
+
+void CanSpeedTx_InvalidatePcCommandForManualOverride(void)
+{
+    if ((g_pcCommandValid != 0u) || (g_pcCommandEnabled != 0u))
+    {
+        g_pcCommandManualBlockCount++;
+    }
+
+    /* Keep the sequence history so a replayed packet cannot resume control. */
+    g_pcCommandValid = 0u;
+    g_pcCommandEnabled = 0u;
+}
+
+void CanSpeedTx_SendWheelSpeed(const VehicleSpeedValue *speed)
+{
+    uint8 data[8] = {0u};
+    sint16 leftRpmX10;
+    sint16 rightRpmX10;
+    sint16 vehicleMpsX1000;
+
+    if (speed == 0)
+    {
+        return;
+    }
+
+    leftRpmX10 = CanSpeedTx_ClampFloatToS16(speed->left.avgRpm * 10.0f);
+    rightRpmX10 = CanSpeedTx_ClampFloatToS16(speed->right.avgRpm * 10.0f);
+    vehicleMpsX1000 = CanSpeedTx_ClampFloatToS16(speed->vehicleMps * 1000.0f);
+
+    CanSpeedTx_PutS16(data, 0u, leftRpmX10);
+    CanSpeedTx_PutS16(data, 2u, rightRpmX10);
+    CanSpeedTx_PutS16(data, 4u, vehicleMpsX1000);
+    data[6] = (speed->valid == TRUE) ? 1u : 0u;
+    data[7] = 0u;
+
+    CanSpeedTx_SendRaw(&g_txObjSpeed, ACKERMANN_CAN_WHEEL_SPEED_ID, data);
+}
+
+void CanSpeedTx_SendRpmDebug(const VehicleSpeedValue *speed)
+{
+    uint8 data[8] = {0u};
+
+    if (speed == 0)
+    {
+        return;
+    }
+
+    CanSpeedTx_PutS16(data, 0u, CanSpeedTx_ClampFloatToS16(speed->left.rawRpm * 10.0f));
+    CanSpeedTx_PutS16(data, 2u, CanSpeedTx_ClampFloatToS16(speed->left.avgRpm * 10.0f));
+    CanSpeedTx_PutS16(data, 4u, CanSpeedTx_ClampFloatToS16(speed->right.rawRpm * 10.0f));
+    CanSpeedTx_PutS16(data, 6u, CanSpeedTx_ClampFloatToS16(speed->right.avgRpm * 10.0f));
+
+    CanSpeedTx_SendRaw(&g_txObjRpmDebug, ACKERMANN_CAN_RPM_DEBUG_ID, data);
+}
+
+void CanSpeedTx_SendDriveStatus(uint8 dutyPercent,
+                                uint8 driveDirection,
+                                uint8 estopActive,
+                                uint8 speedBufferCount,
+                                sint32 leftDeltaCount,
+                                sint32 rightDeltaCount)
+{
+    uint8 data[8] = {0u};
+
+    data[0] = dutyPercent;
+    data[1] = driveDirection;
+    data[2] = estopActive;
+    data[3] = speedBufferCount;
+    CanSpeedTx_PutS16(data, 4u, CanSpeedTx_ClampS32ToS16(leftDeltaCount));
+    CanSpeedTx_PutS16(data, 6u, CanSpeedTx_ClampS32ToS16(rightDeltaCount));
+
+    CanSpeedTx_SendRaw(&g_txObjDriveStatus, ACKERMANN_CAN_DRIVE_STATUS_ID, data);
+}
+
+void CanSpeedTx_SendEncoderCount(sint32 leftCount, sint32 rightCount)
+{
+    uint8 data[8] = {0u};
+
+    CanSpeedTx_PutS32(data, 0u, leftCount);
+    CanSpeedTx_PutS32(data, 4u, rightCount);
+
+    CanSpeedTx_SendRaw(&g_txObjEncoderCount, ACKERMANN_CAN_ENCODER_COUNT_ID, data);
+}
+
+void CanSpeedTx_SendEncoderDebug(uint16 leftHwCount,
+                                 uint16 rightHwCount,
+                                 sint32 leftHwDelta,
+                                 sint32 rightHwDelta)
+{
+    uint8 data[8] = {0u};
+
+    CanSpeedTx_PutU16(data, 0u, leftHwCount);
+    CanSpeedTx_PutU16(data, 2u, rightHwCount);
+    CanSpeedTx_PutS16(data, 4u, CanSpeedTx_ClampS32ToS16(leftHwDelta));
+    CanSpeedTx_PutS16(data, 6u, CanSpeedTx_ClampS32ToS16(rightHwDelta));
+
+    CanSpeedTx_SendRaw(&g_txObjEncoderDebug, ACKERMANN_CAN_ENCODER_DEBUG_ID, data);
+}
+
+void CanSpeedTx_SendSpeedControlStatus(float32 targetRpm,
+                                       float32 currentRpm,
+                                       float32 dutyCommand,
+                                       float32 feedforwardDuty)
+{
+    uint8 data[8] = {0u};
+
+    CanSpeedTx_PutS16(data, 0u, CanSpeedTx_ClampFloatToS16(targetRpm * 10.0f));
+    CanSpeedTx_PutS16(data, 2u, CanSpeedTx_ClampFloatToS16(currentRpm * 10.0f));
+    CanSpeedTx_PutU16(data, 4u, CanSpeedTx_ClampFloatToU16(dutyCommand * 10.0f));
+    CanSpeedTx_PutU16(data, 6u, CanSpeedTx_ClampFloatToU16(feedforwardDuty * 10.0f));
+
+    CanSpeedTx_SendRaw(&g_txObjSpeedControl, ACKERMANN_CAN_SPEED_CONTROL_ID, data);
+}
+
+void CanSpeedTx_SendSteeringStatus(float32 targetDeg,
+                                   float32 measuredDeg,
+                                   uint16 adcRaw,
+                                   uint16 pulseUs,
+                                   uint8 stateCode)
+{
+    uint8 data[8] = {0u};
+    sint16 targetDegX10;
+    sint16 measuredDegX10;
+
+    targetDegX10 = CanSpeedTx_ClampFloatToS16(targetDeg * 10.0f);
+    measuredDegX10 = CanSpeedTx_ClampFloatToS16(measuredDeg * 10.0f);
+
+    CanSpeedTx_PutS16(data, 0u, targetDegX10);
+    CanSpeedTx_PutS16(data, 2u, measuredDegX10);
+    CanSpeedTx_PutU16(data, 4u, adcRaw);
+    data[6] = CanSpeedTx_EncodePulseOffset5us(pulseUs);
+    data[7] = stateCode;
+
+    CanSpeedTx_SendRaw(&g_txObjSteering, ACKERMANN_CAN_STEERING_ID, data);
+}
+
+void CanSpeedTx_SendSteeringFeedback(float32 currentDeg,
+                                     uint16 adcRaw,
+                                     float32 adcMv,
+                                     float32 errorDeg)
+{
+    uint8 data[8] = {0u};
+
+    CanSpeedTx_PutS16(data, 0u, CanSpeedTx_ClampFloatToS16(currentDeg * 10.0f));
+    CanSpeedTx_PutU16(data, 2u, adcRaw);
+    CanSpeedTx_PutU16(data, 4u, CanSpeedTx_ClampFloatToU16(adcMv));
+    CanSpeedTx_PutS16(data, 6u, CanSpeedTx_ClampFloatToS16(errorDeg * 10.0f));
+
+    CanSpeedTx_SendRaw(&g_txObjSteeringFeedback, ACKERMANN_CAN_STEER_FB_ID, data);
+}
+
+void CanSpeedTx_SendSensorFeedback(const VehicleSpeedValue *speed,
+                                   float32 measuredSteeringDeg,
+                                   uint16 steeringPotAdcRaw,
+                                   uint8 steeringPotValid,
+                                   uint8 pcControlActive,
+                                   uint8 estopActive)
+{
+    uint8 data[8] = {0u};
+    uint8 flags = ACKERMANN_CAN_SENSOR_FEEDBACK_SIGNATURE;
+    uint32 nowTick100us = tick100us;
+    float32 measuredSpeedKph = 0.0f;
+
+    if ((g_sensorFeedbackScheduleValid != 0u) &&
+        ((nowTick100us - g_sensorFeedbackLastTick100us) <
+         ACKERMANN_CAN_SENSOR_FEEDBACK_PERIOD_TICK100US))
+    {
+        return;
+    }
+
+    if ((speed != 0) &&
+        (speed->valid == TRUE) &&
+        (speed->left.valid == TRUE) &&
+        (speed->right.valid == TRUE))
+    {
+        measuredSpeedKph = speed->vehicleMpsSigned * 3.6f;
+        flags |= ACKERMANN_CAN_SENSOR_FEEDBACK_SPEED_VALID_MASK;
+    }
+
+    if (steeringPotValid != 0u)
+    {
+        flags |= ACKERMANN_CAN_SENSOR_FEEDBACK_STEERING_VALID_MASK;
+    }
+
+    if (pcControlActive != 0u)
+    {
+        flags |= ACKERMANN_CAN_SENSOR_FEEDBACK_PC_ACTIVE_MASK;
+    }
+
+    if (estopActive != 0u)
+    {
+        flags |= ACKERMANN_CAN_SENSOR_FEEDBACK_ESTOP_MASK;
+    }
+
+    CanSpeedTx_PutS16(data, 0u,
+                      CanSpeedTx_ClampFloatToS16(measuredSpeedKph * 100.0f));
+    CanSpeedTx_PutS16(data, 2u,
+                      CanSpeedTx_ClampFloatToS16(measuredSteeringDeg * 10.0f));
+    CanSpeedTx_PutU16(data, 4u, steeringPotAdcRaw);
+    data[6] = g_sensorFeedbackSequence;
+    data[7] = flags;
+
+    if (CanSpeedTx_SendRaw(&g_txObjSensorFeedback,
+                           ACKERMANN_CAN_SENSOR_FEEDBACK_ID,
+                           data) != FALSE)
+    {
+        g_sensorFeedbackScheduleValid = 1u;
+        g_sensorFeedbackLastTick100us = nowTick100us;
+        g_sensorFeedbackSequence++;
+        g_sensorFeedbackTxOkCount++;
+    }
+    else
+    {
+        /* Do not consume the period or sequence; retry on the next loop. */
+        g_sensorFeedbackTxRetryCount++;
+    }
+}
+
+void CanSpeedTx_SendBufferTestStatus(uint8 bufferSize,
+                                     uint8 stageIndex,
+                                     uint8 dutyPercent,
+                                     uint8 statusCode,
+                                     float32 avgVehicleRpm,
+                                     uint16 elapsedMs)
+{
+    uint8 data[8] = {0u};
+
+    data[0] = bufferSize;
+    data[1] = stageIndex;
+    data[2] = dutyPercent;
+    data[3] = statusCode;
+    CanSpeedTx_PutS16(data, 4u, CanSpeedTx_ClampFloatToS16(avgVehicleRpm * 10.0f));
+    CanSpeedTx_PutU16(data, 6u, elapsedMs);
+
+    CanSpeedTx_SendRaw(&g_txObjBufferTest, ACKERMANN_CAN_BUFFER_TEST_ID, data);
+}
+
+void CanSpeedTx_SendDriveDeadbandTestStatus(uint8 testCaseId,
+                                            uint8 statusCode,
+                                            uint8 currentDutyPercent,
+                                            uint8 lastStoppedDutyPercent,
+                                            uint8 firstMovingDutyPercent,
+                                            float32 currentRpm,
+                                            uint8 elapsedSec)
+{
+    uint8 data[8] = {0u};
+
+    data[0] = testCaseId;
+    data[1] = statusCode;
+    data[2] = currentDutyPercent;
+    data[3] = lastStoppedDutyPercent;
+    data[4] = firstMovingDutyPercent;
+    CanSpeedTx_PutS16(data, 5u, CanSpeedTx_ClampFloatToS16(currentRpm * 10.0f));
+    data[7] = elapsedSec;
+
+    CanSpeedTx_SendRaw(&g_txObjDeadbandTest, ACKERMANN_CAN_DEADBAND_TEST_ID, data);
+}
+
+void CanSpeedTx_SendDriveDeadbandResult(uint8 testCaseId,
+                                        uint8 statusCode,
+                                        uint8 lastStoppedDutyPercent,
+                                        uint8 firstMovingDutyPercent,
+                                        float32 firstMovingRpm,
+                                        float32 firstMovingKph)
+{
+    uint8 data[8] = {0u};
+
+    data[0] = testCaseId;
+    data[1] = statusCode;
+    data[2] = lastStoppedDutyPercent;
+    data[3] = firstMovingDutyPercent;
+    CanSpeedTx_PutS16(data, 4u, CanSpeedTx_ClampFloatToS16(firstMovingRpm * 10.0f));
+    CanSpeedTx_PutU16(data, 6u, CanSpeedTx_ClampFloatToU16(firstMovingKph * 100.0f));
+
+    CanSpeedTx_SendRaw(&g_txObjDeadbandResult, ACKERMANN_CAN_DEADBAND_RESULT_ID, data);
+}
+
+void CanSpeedTx_SendMaxSpeedTestStatus(uint8 testCaseId,
+                                       uint8 statusCode,
+                                       uint8 phase,
+                                       uint8 dutyPercent,
+                                       float32 currentRpm,
+                                       float32 currentKph)
+{
+    uint8 data[8] = {0u};
+
+    data[0] = testCaseId;
+    data[1] = statusCode;
+    data[2] = phase;
+    data[3] = dutyPercent;
+    CanSpeedTx_PutS16(data, 4u, CanSpeedTx_ClampFloatToS16(currentRpm * 10.0f));
+    CanSpeedTx_PutU16(data, 6u, CanSpeedTx_ClampFloatToU16(currentKph * 100.0f));
+
+    CanSpeedTx_SendRaw(&g_txObjMaxSpeedTest, ACKERMANN_CAN_MAX_SPEED_TEST_ID, data);
+}
+
+void CanSpeedTx_SendMaxSpeedResult(uint8 testCaseId,
+                                   uint8 statusCode,
+                                   uint8 dutyPercent,
+                                   uint8 elapsedSec,
+                                   float32 avgRpm,
+                                   float32 avgKph)
+{
+    uint8 data[8] = {0u};
+
+    data[0] = testCaseId;
+    data[1] = statusCode;
+    data[2] = dutyPercent;
+    data[3] = elapsedSec;
+    CanSpeedTx_PutS16(data, 4u, CanSpeedTx_ClampFloatToS16(avgRpm * 10.0f));
+    CanSpeedTx_PutU16(data, 6u, CanSpeedTx_ClampFloatToU16(avgKph * 100.0f));
+
+    CanSpeedTx_SendRaw(&g_txObjMaxSpeedResult, ACKERMANN_CAN_MAX_SPEED_RESULT_ID, data);
+}
+
+void CanSpeedTx_SendJoystickCommand(uint8 present,
+                                    uint8 receiverAlive,
+                                    uint16 buttons,
+                                    float32 targetRpm,
+                                    uint16 steeringPulseUs)
+{
+    uint8 data[8] = {0u};
+
+    data[0] = present;
+    data[1] = receiverAlive;
+    CanSpeedTx_PutU16(data, 2u, buttons);
+    CanSpeedTx_PutS16(data, 4u, CanSpeedTx_ClampFloatToS16(targetRpm * 10.0f));
+    CanSpeedTx_PutU16(data, 6u, steeringPulseUs);
+
+    CanSpeedTx_SendRaw(&g_txObjJoystickCommand, ACKERMANN_CAN_JOYSTICK_CMD_ID, data);
+}
