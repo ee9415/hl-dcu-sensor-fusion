@@ -8,7 +8,7 @@ from oak_recorder import CaptureSource
 from frame_source_clock import SourceClock
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--start',type=float,default=55);p.add_argument('--end',type=float,default=64);p.add_argument('--name',default='device55');p.add_argument('--record-output',action='store_true');p.add_argument('--output-base',type=Path,default=ROOT/'artifacts/lane_597_20261110');a=p.parse_args()
 OUT=a.output_base/a.name;OUT.mkdir(parents=True,exist_ok=True)
-targets=[45.,45.3,46.,46.6,55.,58.,58.5,59.7,60.,378.,428.]
+targets=[28.,28.8,29.,30.,45.,45.3,46.,46.6,55.,58.,58.5,59.7,60.,378.,428.]
 rows=[];errors=[];done=threading.Event()
 before=select_camera('192.168.201.2');(OUT/'selected_camera.json').write_text(json.dumps(before,indent=2))
 def receive():
