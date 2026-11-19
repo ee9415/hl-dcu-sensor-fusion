@@ -64,6 +64,7 @@ captures/
 *.[pP][nN][mM]
 
 # Recorded video / elementary streams
+.playback/
 *.[mM][pP]4
 *.[mM]4[vV]
 *.[aA][vV][iI]
