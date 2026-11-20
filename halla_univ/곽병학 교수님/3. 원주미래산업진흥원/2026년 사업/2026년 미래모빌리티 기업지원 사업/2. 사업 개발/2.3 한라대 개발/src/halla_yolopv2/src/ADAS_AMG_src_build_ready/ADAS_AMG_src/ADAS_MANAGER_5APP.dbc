@@ -1,0 +1,125 @@
+VERSION "ADAS_MANAGER_5APP_V1"
+
+NS_ :
+	NS_DESC_
+	CM_
+	BA_DEF_
+	BA_
+	VAL_
+	CAT_DEF_
+	CAT_
+	FILTER
+	BA_DEF_DEF_
+	EV_DATA_
+	ENVVAR_DATA_
+	SGTYPE_
+	SGTYPE_VAL_
+	BA_DEF_SGTYPE_
+	BA_SGTYPE_
+	SIG_TYPE_REF_
+	VAL_TABLE_
+	SIG_GROUP_
+	SIG_VALTYPE_
+	SIGTYPE_VALTYPE_
+	BO_TX_BU_
+	BA_DEF_REL_
+	BA_REL_
+	BA_DEF_DEF_REL_
+	BU_SG_REL_
+	BU_EV_REL_
+	BU_BO_REL_
+	SG_MUL_VAL_
+
+BS_:
+
+BU_: AURIX MRM_APP COLLISION_APP PARKING_APP TRAFFIC_APP NOMINAL_APP
+
+
+BO_ 784 MinimumRiskManeuver: 8 MRM_APP
+ SG_ FunctionId : 0|3@1+ (1,0) [0|7] "" AURIX
+ SG_ LongitudinalValid : 3|1@1+ (1,0) [0|1] "" AURIX
+ SG_ LateralValid : 4|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Atomic : 5|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Enable : 6|1@1+ (1,0) [0|1] "" AURIX
+ SG_ FormatVersion : 7|1@1+ (1,0) [0|1] "" AURIX
+ SG_ TargetSpeedKph : 8|16@1- (0.01,0) [-0.7|13] "km/h" AURIX
+ SG_ TargetSteeringDeg : 24|16@1- (0.1,0) [-27|27] "deg" AURIX
+ SG_ AppContext : 40|8@1+ (1,0) [0|255] "" AURIX
+ SG_ Sequence : 48|5@1+ (1,0) [0|31] "" AURIX
+ SG_ RequestStatus : 53|3@1+ (1,0) [0|7] "" AURIX
+ SG_ Crc8 : 56|8@1+ (1,0) [0|255] "" AURIX
+
+BO_ 785 CollisionAvoidance: 8 COLLISION_APP
+ SG_ FunctionId : 0|3@1+ (1,0) [0|7] "" AURIX
+ SG_ LongitudinalValid : 3|1@1+ (1,0) [0|1] "" AURIX
+ SG_ LateralValid : 4|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Atomic : 5|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Enable : 6|1@1+ (1,0) [0|1] "" AURIX
+ SG_ FormatVersion : 7|1@1+ (1,0) [0|1] "" AURIX
+ SG_ TargetSpeedKph : 8|16@1- (0.01,0) [-0.7|13] "km/h" AURIX
+ SG_ TargetSteeringDeg : 24|16@1- (0.1,0) [-27|27] "deg" AURIX
+ SG_ ManeuverMode : 40|2@1+ (1,0) [0|3] "" AURIX
+ SG_ ThreatLevel : 42|3@1+ (1,0) [0|7] "" AURIX
+ SG_ AvoidancePhase : 45|2@1+ (1,0) [0|3] "" AURIX
+ SG_ ImmediateStop : 47|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Sequence : 48|5@1+ (1,0) [0|31] "" AURIX
+ SG_ RequestStatus : 53|3@1+ (1,0) [0|7] "" AURIX
+ SG_ Crc8 : 56|8@1+ (1,0) [0|255] "" AURIX
+
+BO_ 786 AutoParking: 8 PARKING_APP
+ SG_ FunctionId : 0|3@1+ (1,0) [0|7] "" AURIX
+ SG_ LongitudinalValid : 3|1@1+ (1,0) [0|1] "" AURIX
+ SG_ LateralValid : 4|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Atomic : 5|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Enable : 6|1@1+ (1,0) [0|1] "" AURIX
+ SG_ FormatVersion : 7|1@1+ (1,0) [0|1] "" AURIX
+ SG_ TargetSpeedKph : 8|16@1- (0.01,0) [-0.7|13] "km/h" AURIX
+ SG_ TargetSteeringDeg : 24|16@1- (0.1,0) [-27|27] "deg" AURIX
+ SG_ ParkingType : 40|2@1+ (1,0) [0|3] "" AURIX
+ SG_ ParkingPhase : 42|4@1+ (1,0) [0|15] "" AURIX
+ SG_ SlotValid : 46|1@1+ (1,0) [0|1] "" AURIX
+ SG_ StopHoldRequired : 47|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Sequence : 48|5@1+ (1,0) [0|31] "" AURIX
+ SG_ RequestStatus : 53|3@1+ (1,0) [0|7] "" AURIX
+ SG_ Crc8 : 56|8@1+ (1,0) [0|255] "" AURIX
+
+BO_ 787 TrafficCompliance: 8 TRAFFIC_APP
+ SG_ FunctionId : 0|3@1+ (1,0) [0|7] "" AURIX
+ SG_ LongitudinalValid : 3|1@1+ (1,0) [0|1] "" AURIX
+ SG_ LateralValid : 4|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Atomic : 5|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Enable : 6|1@1+ (1,0) [0|1] "" AURIX
+ SG_ FormatVersion : 7|1@1+ (1,0) [0|1] "" AURIX
+ SG_ TargetSpeedKph : 8|16@1- (0.01,0) [-0.7|13] "km/h" AURIX
+ SG_ TargetSteeringDeg : 24|16@1- (0.1,0) [-27|27] "deg" AURIX
+ SG_ TrafficSignal : 40|3@1+ (1,0) [0|7] "" AURIX
+ SG_ SelectedLane : 43|2@1+ (1,0) [0|3] "" AURIX
+ SG_ IntersectionPhase : 45|2@1+ (1,0) [0|3] "" AURIX
+ SG_ StopRequired : 47|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Sequence : 48|5@1+ (1,0) [0|31] "" AURIX
+ SG_ RequestStatus : 53|3@1+ (1,0) [0|7] "" AURIX
+ SG_ Crc8 : 56|8@1+ (1,0) [0|255] "" AURIX
+
+BO_ 788 NominalDriving: 8 NOMINAL_APP
+ SG_ FunctionId : 0|3@1+ (1,0) [0|7] "" AURIX
+ SG_ LongitudinalValid : 3|1@1+ (1,0) [0|1] "" AURIX
+ SG_ LateralValid : 4|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Atomic : 5|1@1+ (1,0) [0|1] "" AURIX
+ SG_ Enable : 6|1@1+ (1,0) [0|1] "" AURIX
+ SG_ FormatVersion : 7|1@1+ (1,0) [0|1] "" AURIX
+ SG_ TargetSpeedKph : 8|16@1- (0.01,0) [-0.7|13] "km/h" AURIX
+ SG_ TargetSteeringDeg : 24|16@1- (0.1,0) [-27|27] "deg" AURIX
+ SG_ PassIndex : 40|8@1+ (1,0) [0|255] "" AURIX
+ SG_ Sequence : 48|5@1+ (1,0) [0|31] "" AURIX
+ SG_ RequestStatus : 53|3@1+ (1,0) [0|7] "" AURIX
+ SG_ Crc8 : 56|8@1+ (1,0) [0|255] "" AURIX
+
+VAL_ 784 RequestStatus 0 "Inactive" 1 "Ready" 2 "ActiveGood" 3 "ActiveDegraded" 4 "Completed" 5 "Aborted" 6 "Fault" 7 "Invalid" ;
+VAL_ 785 RequestStatus 0 "Inactive" 1 "Ready" 2 "ActiveGood" 3 "ActiveDegraded" 4 "Completed" 5 "Aborted" 6 "Fault" 7 "Invalid" ;
+VAL_ 786 RequestStatus 0 "Inactive" 1 "Ready" 2 "ActiveGood" 3 "ActiveDegraded" 4 "Completed" 5 "Aborted" 6 "Fault" 7 "Invalid" ;
+VAL_ 787 RequestStatus 0 "Inactive" 1 "Ready" 2 "ActiveGood" 3 "ActiveDegraded" 4 "Completed" 5 "Aborted" 6 "Fault" 7 "Invalid" ;
+VAL_ 788 RequestStatus 0 "Inactive" 1 "Ready" 2 "ActiveGood" 3 "ActiveDegraded" 4 "Completed" 5 "Aborted" 6 "Fault" 7 "Invalid" ;
+VAL_ 788 PassIndex 0 "Straight" 1 "StaticObstacle" 2 "Hill" 3 "DynamicObstacleAcceleration" 4 "Parking" 5 "Intersection" 6 "SelectedLane" 255 "Invalid" ;
+
+CM_ "CRC-8/SAE-J1850: poly=0x1D init=0xFF xorout=0xFF non-reflected; input CAN-ID high, CAN-ID low, then B0..B6.";
+CM_ BO_ 788 "Temporary integration exception: Nominal v0 header with Crc8=0 is accepted for gps_waypoint_tracker_ros2. All other frames require CRC-8/SAE-J1850.";

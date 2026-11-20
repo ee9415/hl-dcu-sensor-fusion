@@ -1,0 +1,10 @@
+builtin_interfaces/Time stamp
+float32 target_speed_mps
+float32 steering_norm
+float32 brake_norm
+uint8 source
+uint8 heartbeat
+uint8 drive_state
+uint8 gate
+uint32 fault_bits
+uint32 intervention_bits

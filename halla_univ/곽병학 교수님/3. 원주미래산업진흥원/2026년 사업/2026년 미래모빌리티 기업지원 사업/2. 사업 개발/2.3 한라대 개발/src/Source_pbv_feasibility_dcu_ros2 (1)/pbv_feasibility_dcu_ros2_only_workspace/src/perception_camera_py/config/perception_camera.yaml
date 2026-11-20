@@ -1,0 +1,11 @@
+camera_perception_node:
+  ros__parameters:
+    camera_index: 0
+    frame_width: 640
+    frame_height: 480
+    target_fps: 5.0
+    publish_debug_image: true
+    lane_roi_top_ratio: 0.55
+    stopline_roi_top_ratio: 0.72
+    meters_per_half_frame: 0.90
+    simulate_no_camera: false

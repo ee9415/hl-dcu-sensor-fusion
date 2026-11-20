@@ -1,0 +1,373 @@
+AURIX ACKERMANN TC275 - AURIX Studio Expression / CANoe logging list
+====================================================================
+
+기준 설정
+---------
+- 제어 주기: 5 ms
+- CAN: Classic CAN, 500 kbit/s, standard ID, DLC 8, little-endian
+- VM CAN 계측 주기: 20 ms (50 Hz)
+- 엔코더: 39,600 count/wheel rev, 20 samples, 5 ms/sample
+- 바퀴 지름: 0.265 m
+- 차량: wheelbase 0.44 m, front track 0.51 m, steering +/-27 deg
+- 속도 상한: CAN/PS2 forward 13 km/h, PS2 reverse 1.0 km/h,
+  CAN reverse 0.7 km/h
+
+반드시 AURIX_ACKERMANN_TC275.dbc만 CANoe에 로드한다.
+AURIX_ACKERMANN_TC275_CANOE_FEEDBACK.dbc는 이전 버전이며 0x12D와 VM 프레임이 없다.
+
+
+1. AURIX Studio Expressions - 최소 속도 시험 세트
+--------------------------------------------------
+아래 이름을 Expressions view에 한 줄씩 추가한다.
+
+g_ps2SpeedTestSelectedKph
+g_ps2AckermannTargetKphX10
+g_vehicleManagerRequestedSpeedKph
+g_vehicleManagerTargetSpeedKph
+g_targetVehicleKph
+g_targetVehicleRpm
+g_currentVehicleRpm
+g_dbgSpeedLeftRawRpm
+g_dbgSpeedRightRawRpm
+g_dbgSpeedLeftAvgRpm
+g_dbgSpeedRightAvgRpm
+g_dbgSpeedLeftDeltaCount
+g_dbgSpeedRightDeltaCount
+g_dbgSpeedLeftCount
+g_dbgSpeedRightCount
+g_dbgSpeedValid
+g_speedFeedbackHealthy
+g_speedControlErrorRpm
+g_speedControlFeedforwardDuty
+g_speedControlProportionalDuty
+g_speedControlIntegralDuty
+g_speedControlDerivativeDuty
+g_speedControlPidDuty
+g_speedControlDutyCommand
+g_currentDriveDutyPercent
+g_driveDirection
+g_encoderNoMotionLoopCount
+
+해석:
+- g_ps2SpeedTestSelectedKph: UP 버튼으로 선택한 0 또는 1..13 km/h
+- g_ps2AckermannTargetKphX10: PS2 요청값. 10은 1.0 km/h, -10은 -1.0 km/h
+- g_vehicleManagerTargetSpeedKph: VM 안전 제한을 통과한 최종 속도 목표
+- g_targetVehicleRpm / g_currentVehicleRpm: 실제 속도 PI의 목표/피드백
+- RawRpm은 5 ms 값, AvgRpm은 20 samples=100 ms 평균
+- g_dbgSpeedValid는 평균버퍼 유효, g_speedFeedbackHealthy는 강화된 양륜 건강판정
+- g_driveDirection: 0 Stop, 1 Forward, 2 Reverse
+
+
+2. AURIX Studio Expressions - Vehicle Manager 세트
+--------------------------------------------------
+g_vehicleManagerState
+g_vehicleManagerOwner
+g_vehicleManagerFaultMask
+g_vehicleManagerRequestedSpeedKph
+g_vehicleManagerTargetSpeedKph
+g_vehicleManagerRequestedSteeringDeg
+g_vehicleManagerTargetSteeringDeg
+g_vehicleManagerEffectiveSteeringDeg
+g_vehicleManagerSteeringLimitDeg
+g_vehicleManagerCurvatureInvM
+g_vehicleManagerTurnSpeedLimitKph
+g_vehicleManagerPredictedLateralAccelMps2
+g_vehicleManagerLateralLimitActive
+g_vehicleManagerSteeringLimitActive
+g_vehicleManagerCanRearmRequired
+g_vehicleManagerStepCount
+
+State:
+0 Init
+1 Standby
+2 Centering
+3 ManualPs2
+4 AutoCan
+5 CanRearm
+6 FaultTorqueOff
+7 Estop
+
+Owner:
+0 None
+1 Ps2
+2 Can
+
+Fault mask (여러 비트가 동시에 켜질 수 있음):
+0x00000001 E-stop active
+0x00000002 steering feedback fault
+0x00000004 speed feedback fault
+0x00000008 CAN invalid/timeout
+0x00000010 CAN rearm required
+0x00000020 CAN sequence fault
+0x00000040 PS2 neutral required
+
+Expressions view에 추가할 수 있는 파생 판정식:
+(g_vehicleManagerFaultMask & 0x00000001u) != 0u
+(g_vehicleManagerFaultMask & 0x00000002u) != 0u
+(g_vehicleManagerFaultMask & 0x00000004u) != 0u
+(g_vehicleManagerFaultMask & 0x00000008u) != 0u
+(g_vehicleManagerFaultMask & 0x00000010u) != 0u
+(g_vehicleManagerFaultMask & 0x00000020u) != 0u
+(g_vehicleManagerFaultMask & 0x00000040u) != 0u
+
+
+3. AURIX Studio Expressions - 조향/건강/전환 세트
+--------------------------------------------------
+g_targetSteeringDeg
+g_limitedSteeringTargetDeg
+g_currentSteeringDeg
+g_dbgSteeringErrorDeg
+g_currentSteeringPulseUs
+g_steeringPotTargetRaw
+g_steeringPotErrorRaw
+g_steeringFeedbackHealthy
+g_steeringNoResponseLoopCount
+g_driveDirectionInterlockActive
+g_driveDirectionInterlockHoldLoops
+g_ps2AckermannPresent
+g_ps2AckermannStableConnected
+g_ps2AckermannButtons
+
+
+4. AURIX Studio Expressions - CAN/rearm/telemetry 세트
+-----------------------------------------------------
+g_pcCommandModeSeen
+g_pcCommandValid
+g_pcCommandEnabled
+g_pcCommandSpeedKphX100
+g_pcCommandSteeringDegX10
+g_pcCommandSequence
+g_pcCommandAgeMs
+g_pcCommandValidCount
+g_pcCommandInvalidCount
+g_pcCommandDuplicateCount
+g_pcCommandWatchdogCount
+g_pcCommandControlActive
+g_pcCommandFailsafeActive
+g_vehicleManagerTelemetryTxOkCount
+g_vehicleManagerTelemetryTxRetryCount
+g_vehicleManagerTelemetrySequence
+g_canTxAttemptCount
+g_canTxOkCount
+g_canTxBusyCount
+g_canTxErrorCount
+
+정상 50 Hz VM 송신이면 g_vehicleManagerTelemetryTxOkCount는 약 초당 50 증가한다.
+TxRetryCount가 계속 빠르게 증가하거나 TxErrorCount가 증가하면 CAN 부하/메일박스/버스 상태를 확인한다.
+
+
+5. CANoe - 새 Vehicle Manager 신호
+----------------------------------
+Symbol Explorer에서 아래 Message.Signal을 Graphics/Trace/Data 창에 추가한다.
+
+VehicleManagerStatus.VmState
+VehicleManagerStatus.VmOwner
+VehicleManagerStatus.VmFaultMask
+VehicleManagerStatus.VmDriveEnable
+VehicleManagerStatus.VmSteeringTargetValid
+VehicleManagerStatus.VmLateralLimitActive
+VehicleManagerStatus.VmSteeringLimitActive
+VehicleManagerStatus.VmCanRearmRequired
+VehicleManagerStatus.VmTelemetrySequence
+
+VehicleManagerTargets.VmRequestedSpeedKph
+VehicleManagerTargets.VmTargetSpeedKph
+VehicleManagerTargets.VmRequestedSteeringDeg
+VehicleManagerTargets.VmTargetSteeringDeg
+
+VehicleManagerEnvelope.VmEffectiveSteeringDeg
+VehicleManagerEnvelope.VmSteeringLimitDeg
+VehicleManagerEnvelope.VmTurnSpeedLimitKph
+VehicleManagerEnvelope.VmPredictedLateralAccelMps2
+
+CAN IDs:
+0x131 VehicleManagerStatus
+0x132 VehicleManagerTargets
+0x133 VehicleManagerEnvelope
+
+세 프레임의 VmTelemetrySequence는 0x131에만 실린다. 송신기는 세 프레임을
+동일 snapshot으로 고정하고, busy 프레임만 재시도한 뒤 모두 성공했을 때 sequence를 증가시킨다.
+
+
+6. CANoe - 속도/RPM 검증 신호
+--------------------------------
+JoystickCommand.JoystickPresent
+JoystickCommand.JoystickButtons
+JoystickCommand.JoystickTargetRpm
+
+SpeedControlStatus.TargetVehicleRpm
+SpeedControlStatus.CurrentVehicleRpm
+SpeedControlStatus.DutyCommandPercent
+SpeedControlStatus.FeedforwardDutyPercent
+
+WheelSpeed.LeftAvgRpm
+WheelSpeed.RightAvgRpm
+WheelSpeed.VehicleSpeedMps
+WheelSpeed.SpeedValid
+
+RpmDebug.LeftRawRpm
+RpmDebug.RightRawRpm
+RpmDebug.LeftFilteredRpm
+RpmDebug.RightFilteredRpm
+
+DriveStatus.DriveDutyPercent
+DriveStatus.DriveDirection
+DriveStatus.LeftDeltaCount
+DriveStatus.RightDeltaCount
+
+EncoderCount.LeftEncoderCount
+EncoderCount.RightEncoderCount
+
+SensorFeedback.MeasuredSpeedKph
+SensorFeedback.MeasuredSteeringDeg
+SensorFeedback.EncoderSpeedValid
+SensorFeedback.SteeringPotValid
+SensorFeedback.PcControlActive
+
+정상 PS2 시험 패턴:
+- UP press: JoystickButtons=0x0010, JoystickTargetRpm=0, duty=0
+- CROSS hold: JoystickButtons=0x4000, JoystickTargetRpm=선택속도 환산값
+- 직진/무고장: JoystickTargetRpm = TargetVehicleRpm
+- CROSS release: target=0, duty=0, 바퀴 RPM은 coast로 감소
+
+
+7. 1~13 km/h 이론 기준표
+--------------------------
+wheel diameter=0.265 m, 39,600 count/rev 기준이다.
+
+km/h | target rpm | count/5ms | count/100ms | nominal FF duty
+  1  |    20.02   |    66.1   |    1321     | 10.0 %
+  2  |    40.04   |   132.1   |    2643     | 11.9 %
+  3  |    60.06   |   198.2   |    3964     | 17.8 %
+  4  |    80.08   |   264.3   |    5285     | 23.8 %
+  5  |   100.10   |   330.3   |    6606     | 29.8 %
+  6  |   120.12   |   396.4   |    7928     | 35.7 %
+  7  |   140.14   |   462.5   |    9249     | 41.7 %
+  8  |   160.16   |   528.5   |   10570     | 47.7 %
+  9  |   180.18   |   594.6   |   11892     | 53.6 %
+ 10  |   200.19   |   660.6   |   13213     | 59.6 %
+ 11  |   220.21   |   726.7   |   14534     | 65.5 %
+ 12  |   240.23   |   792.8   |   15855     | 71.5 %
+ 13  |   260.25   |   858.8   |   17177     | 77.5 %
+
+CANoe의 0.1 rpm scaling 때문에 TargetVehicleRpm 표시는 일부 값이 0.1 rpm 단위로 절삭된다.
+
+
+8. 로그 저장 권장
+-----------------
+- 원본 CAN 로그: BLF 또는 ASC
+- CANoe Graphics: VM requested/target speed, target/current RPM, L/R RPM,
+  duty, VM state/owner/fault, requested/target steer, measured steer,
+  turn speed limit, predicted lateral acceleration
+- 시험 메타데이터: firmware ELF/HEX hash, DBC 파일 hash, 배터리 전압,
+  리프트 여부, 각 속도 시작/종료 시각, 외부 RPM 측정값
+- 각 속도는 최소 3~5초 유지하고 마지막 1초 평균을 비교한다.
+
+주의: 무부하 리프트 시험은 encoder scale과 RPM 제어를 확인하는 시험이다.
+타이어 실제 노면속도/부하 추종 성능을 증명하지는 않으므로 이후 독립 속도계로 지상 저속 검증이 필요하다.
+현재 물리 E-stop 입력은 비활성이고 P20.6이 CAN NEN과 충돌하므로, 시험 중에는
+반드시 별도 모터전원 차단 수단과 감시자를 둔다.
+
+
+9. Expression 변수별 한 줄 설명
+---------------------------------
+
+[PS2 속도 선택]
+g_ps2SpeedTestSelectedKph — UP 상승에지로 고른 시험속도[km/h]; 0은 미선택이고 1→13→1로 순환한다.
+g_ps2AckermannTargetKphX10 — PS2가 VM에 요구하는 signed 속도[0.1 km/h/count]; 10=+1.0, -10=-1.0, 버튼 해제/첫 링크 오류=0이다.
+g_ps2AckermannPresent — 패드가 현재 수동권한 후보로 간주되면 1; 순간 오류 확인창에는 1일 수 있어도 속도요청은 즉시 0이 된다.
+g_ps2AckermannStableConnected — PS2 연결 디바운스 결과[0/1]; 정상 연결=1, 5연속 오류 약100ms 뒤=0이다.
+g_ps2AckermannButtons — 눌린 버튼 active-high uint16 mask; 무입력=0, UP=0x0010, DOWN=0x0040, CROSS=0x4000이다.
+
+[엔코더와 속도 추정]
+g_dbgSpeedLeftDeltaCount — 왼쪽 바퀴 최근 5ms logical encoder 증분[count]; 현재 소스에서 전진은 음수이고 |값|이 속도에 비례한다.
+g_dbgSpeedRightDeltaCount — 오른쪽 바퀴 최근 5ms logical encoder 증분[count]; 현재 소스에서 전진은 음수이며 좌측과 비슷해야 한다.
+g_dbgSpeedLeftCount — 초기화 이후 왼쪽 누적 logical count; 정상 전진에서 감소하고 후진에서 증가한다.
+g_dbgSpeedRightCount — 초기화 이후 오른쪽 누적 logical count; 정상 전진에서 감소하고 후진에서 증가한다.
+g_dbgSpeedLeftRawRpm — 왼쪽 최근 5ms 증분으로 계산한 방향 없는 wheel RPM[rpm]; 회전에 즉시 반응한다.
+g_dbgSpeedRightRawRpm — 오른쪽 최근 5ms 증분으로 계산한 방향 없는 wheel RPM[rpm]; 좌측과 유사해야 한다.
+g_dbgSpeedLeftAvgRpm — 왼쪽 RawRpm의 20샘플=100ms 이동평균[rpm]; 안정 시 target RPM 근처여야 한다.
+g_dbgSpeedRightAvgRpm — 오른쪽 RawRpm의 20샘플=100ms 이동평균[rpm]; 안정 시 좌측 평균과 유사해야 한다.
+g_dbgSpeedValid — 양쪽 20샘플 평균버퍼가 모두 준비됐다는 estimator-valid[0/1]; plausibility나 stall 정상까지 뜻하지 않는다.
+g_speedFeedbackHealthy — 양륜 valid·좌우 plausibility·명령 중 500ms 무펄스 stall 검사를 모두 통과하면 1인 VM 속도건강 판정이다.
+g_encoderNoMotionLoopCount — target≥0.5km/h·duty≥8%인데 양쪽 |delta|≤1인 연속 5ms 횟수; 100=500ms이면 speed fault다.
+
+[VM 속도와 횡가속도]
+g_vehicleManagerRequestedSpeedKph — 선택 소스에 전후진 범위 clamp만 적용한 envelope 전 signed 요청속도[km/h]다.
+g_vehicleManagerTargetSpeedKph — 소스 상한과 선회 횡가속도 제한까지 적용해 속도 PI에 보낼 최종 signed 속도[km/h]다.
+g_vehicleManagerTurnSpeedLimitKph — 현재 effective steering 곡률에서 예상 횡가속도≤1.5m/s²가 되도록 계산한 허용 속도 크기[km/h]다.
+g_vehicleManagerLateralLimitActive — 요청속도가 turn-speed limit 때문에 실제로 낮아졌으면 1, 아니면 0이다.
+g_vehicleManagerPredictedLateralAccelMps2 — 최종 target speed와 계산 곡률로 구한 예상 횡가속도[m/s²]로 v²×curvature다.
+g_targetVehicleKph — VM drive-enable 뒤 실제 속도제어기에 저장된 signed 목표[km/h]; fault/neutral/정지 시 0이다.
+g_targetVehicleRpm — 속도제어기의 signed wheel-RPM 목표[rpm]; 전진+, 후진-, 1km/h≈20.02rpm이다.
+g_currentVehicleRpm — 제어에 쓰는 양륜 평균 RPM[rpm]; active 제어 중 부호는 현재 요청방향에 맞춰지고 크기가 target을 추종한다.
+
+[속도 PID와 구동 출력]
+g_speedControlErrorRpm — target RPM 크기−measured RPM 크기의 raw 오차[rpm]; 양수는 부족속도, 음수는 과속이다.
+g_speedControlFeedforwardDuty — 336rpm=100% 선형맵과 최소10%로 계산한 기본 duty[%]다.
+g_speedControlProportionalDuty — ±3rpm deadband 후 오차×Kp로 계산한 P 보정[percentage point]이다.
+g_speedControlIntegralDuty — RPM 오차 누적의 I 보정[percentage point]이며 -10..+10으로 제한된다.
+g_speedControlDerivativeDuty — RPM 오차 변화율의 D 보정[percentage point]이며 -5..+5로 제한된다.
+g_speedControlPidDuty — P+I+D 합계[percentage point]로, 최종 duty가 아니라 feedforward에 더할 보정량이다.
+g_speedControlDutyCommand — feedforward+PID를 제한하고 1%/5ms ramp를 적용한 최종 float 구동명령[%]이다.
+g_currentDriveDutyPercent — 실제 PWM 함수에 전달된 반올림 정수 duty[%]; 정지·fault·interlock에서는 0이어야 한다.
+g_driveDirection — 실제 출력방향 코드로 0=Stop, 1=Forward, 2=Reverse이며 방향전환 interlock 중에는 0이다.
+g_driveDirectionInterlockActive — 반대방향 요청 후 PWM=0으로 두고 정지 확인 중이면 1, 일반 주행이면 0이다.
+g_driveDirectionInterlockHoldLoops — |signed RPM|≤5를 연속 확인한 5ms 횟수; 20=100ms 뒤 방향전환을 허용하고 0으로 복귀한다.
+
+[Vehicle Manager 상태와 조향 envelope]
+g_vehicleManagerState — 현재 VM 상태로 0 Init, 1 Standby, 2 Centering, 3 ManualPs2, 4 AutoCan, 5 CanRearm, 6 FaultTorqueOff, 7 Estop이다.
+g_vehicleManagerOwner — 현재 실제 명령 소유자로 0 None, 1 Ps2, 2 Can이다.
+g_vehicleManagerFaultMask — 현재 VM 주기의 fault bitmask로 0x01 E-stop, 0x02 steer, 0x04 speed, 0x08 CAN invalid, 0x10 rearm, 0x20 sequence, 0x40 PS2 neutral이다.
+g_vehicleManagerRequestedSteeringDeg — 선택 소스 요청을 ±27deg로 clamp한 조향각[deg]이며 +좌/-우다.
+g_vehicleManagerTargetSteeringDeg — 현재 측정속도 기반 조향 제한까지 적용해 pot PID에 보낼 최종 조향각[deg]이다.
+g_vehicleManagerEffectiveSteeringDeg — 곡률 계산용 조향 크기[deg]로 |요청각|과 |측정각| 중 큰 값이다.
+g_vehicleManagerSteeringLimitDeg — 현재 측정속도에서 예상 횡가속도≤1.5m/s²가 되도록 계산한 허용 조향각 크기[deg]다.
+g_vehicleManagerCurvatureInvM — effective steering, 축거0.44m, 윤거0.51m의 보수적 모델로 계산한 곡률[1/m]이다.
+g_vehicleManagerSteeringLimitActive — 요청 조향각이 속도 기반 steering limit 때문에 실제로 줄었으면 1, 아니면 0이다.
+g_vehicleManagerCanRearmRequired — CAN 재소유 전에 새 disabled frame 뒤 새 enabled frame이 필요하면 1, 준비됐으면 0이다.
+g_vehicleManagerStepCount — 완료된 VM 5ms 실행 누적횟수로 정상 약 +200/s이며 uint32 wrap이 가능하다.
+
+[실제 조향제어와 건강판정]
+g_targetSteeringDeg — VM이 제한을 적용해 ControlLoop로 넘긴 최종 조향명령[deg, +좌/-우]이다.
+g_limitedSteeringTargetDeg — 실제 pot PID가 쓰는 clamp·ADC raw 양자화 후 목표각[deg]으로 target과 거의 같아야 한다.
+g_currentSteeringDeg — 포텐셔미터 ADC로 계산한 현재 앞바퀴 각도[deg]; feedback invalid 때 0일 수 있어 Healthy와 함께 봐야 한다.
+g_dbgSteeringErrorDeg — limited target−measured 조향오차[deg]; 정착 시 0 근처이고 |오차|>2deg 무응답이면 stuck 감시가 누적된다.
+g_currentSteeringPulseUs — 조향기에 현재 명령한 PWM[us]; 1150=좌+27deg, 1500=센터, 1800=우-27deg다.
+g_steeringPotTargetRaw — pot PID 목표 ADC raw[count]; 정상 보정값은 922..4095, 센터는 2929다.
+g_steeringPotErrorRaw — target raw−measured raw[count]; 양수는 raw 증가 방향으로 더 움직여야 한다는 뜻이다.
+g_steeringFeedbackHealthy — ADC·범위·급변·명령응답 heuristic을 통과하면 1이고 실패하면 VM fault0x02를 만든다.
+g_steeringNoResponseLoopCount — |오차|>2deg이고 raw 변화≤2인 연속 5ms 횟수; 100=약500ms이면 steering unhealthy다.
+
+[CAN 0x300 입력과 재암]
+g_pcCommandModeSeen — 부팅 후 valid·새 sequence 0x300을 한 번이라도 받으면 1로 유지되는 CAN-mode latch다.
+g_pcCommandValid — 최신 0x300이 payload 검증·250ms freshness를 통과하고 수동 무효화되지 않았으면 1이다.
+g_pcCommandEnabled — 최신 valid unique 0x300 enable bit로 0=disabled/stop, 1=enabled이며 timeout 시 0이다.
+g_pcCommandSpeedKphX100 — 최신 valid unique CAN 속도 원시값[sint16, 0.01km/h/count]으로 음수는 후진이다.
+g_pcCommandSteeringDegX10 — 최신 valid unique CAN 조향 원시값[sint16, 0.1deg/count]으로 +좌/-우다.
+g_pcCommandSequence — 최신 valid unique 0x300 rolling sequence[uint8]; duplicate에서는 갱신되지 않는다.
+g_pcCommandAgeMs — 마지막 valid unique 0x300 이후 경과시간[ms]; duplicate은 갱신하지 않고 미수신은 0xFFFFFFFF다.
+g_pcCommandValidCount — payload-valid이며 새 sequence인 0x300 누적 수신횟수로 enabled/disabled 모두 포함한다.
+g_pcCommandInvalidCount — command ID의 malformed·범위·pulse·signature·DLC 등 invalid 판정 누적횟수이며 timeout은 제외한다.
+g_pcCommandDuplicateCount — payload는 valid지만 sequence가 최신값과 같은 프레임 누적횟수이며 watchdog을 연장하지 않는다.
+g_pcCommandWatchdogCount — 이전 valid 명령이 250ms를 초과한 timeout 사건의 누적횟수로 사건당 한 번 증가한다.
+g_pcCommandControlActive — 현재 VM owner가 Can일 때만 1인 실제 CAN 권한표시로 단순 valid/enable과 다르다.
+g_pcCommandFailsafeActive — CAN invalid·rearm·sequence fault 또는 CAN mode 중 FaultTorqueOff이면 1인 현재주기 표시다.
+
+[VM telemetry와 전체 CAN 송신]
+g_vehicleManagerTelemetryTxOkCount — 0x131/0x132/0x133 snapshot 세 프레임이 모두 송신 성공한 세트 수로 정상 약 +50/s다.
+g_vehicleManagerTelemetryTxRetryCount — 세 프레임 중 하나 이상이 남아 다음 5ms 재시도가 필요했던 호출횟수다.
+g_vehicleManagerTelemetrySequence — 다음 VM snapshot heartbeat[uint8]이며 한 세트 성공 후 +1, 255 다음 0으로 순환한다.
+g_canTxAttemptCount — VM을 포함한 모든 TC275 CAN mailbox send API 호출 시도 누적횟수이며 retry도 포함한다.
+g_canTxOkCount — 모든 송신 중 mailbox가 Status_ok로 수락한 누적횟수다.
+g_canTxBusyCount — 모든 송신 중 mailbox notSentBusy 응답 누적횟수로, 계속 증가하면 버스/송신부하를 확인한다.
+g_canTxErrorCount — 모든 송신 중 ok와 notSentBusy 이외 상태 누적횟수로 정상 운용에서는 증가하지 않아야 한다.
+
+[Fault bit 파생 Expression]
+(g_vehicleManagerFaultMask & 0x00000001u) != 0u — E-stop fault가 현재 켜졌으면 1이다.
+(g_vehicleManagerFaultMask & 0x00000002u) != 0u — 조향 feedback fault가 현재 켜졌으면 1이다.
+(g_vehicleManagerFaultMask & 0x00000004u) != 0u — 속도 feedback fault가 현재 켜졌으면 1이다.
+(g_vehicleManagerFaultMask & 0x00000008u) != 0u — CAN invalid/timeout fault가 현재 켜졌으면 1이다.
+(g_vehicleManagerFaultMask & 0x00000010u) != 0u — CAN rearm 요구가 현재 켜졌으면 1이다.
+(g_vehicleManagerFaultMask & 0x00000020u) != 0u — CAN sequence fault가 현재 켜졌으면 1이다.
+(g_vehicleManagerFaultMask & 0x00000040u) != 0u — PS2 neutral 확인 요구가 현재 켜졌으면 1이다.

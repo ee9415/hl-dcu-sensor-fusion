@@ -1,0 +1,10 @@
+aurix_can_alive_node:
+  ros__parameters:
+    team_name: "HL Global Mobility Team 1"
+    interface: "can0"
+    bitrate: 500000
+    alive_can_id: 768
+    alive_data: [0, 0, 0, 0, 0, 0, 0, 0]
+    alive_period_ms: 50.0
+    reconnect_period_ms: 200.0
+    status_period_ms: 1000.0

@@ -1,0 +1,6 @@
+builtin_interfaces/Time stamp
+uint8 enforced_gate
+bool override_stop
+float32 max_speed_mps
+float32 max_steer_norm
+uint32 intervention_bits

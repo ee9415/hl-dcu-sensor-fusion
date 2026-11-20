@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>pbv_dcu_core_ros2</name>
+  <version>0.2.0</version>
+  <description>ROS 2 pipeline package that keeps the PBV DCU control logic in C and removes the UDP bridge.</description>
+  <maintainer email="openai@example.com">OpenAI</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>pbv_dcu_interfaces</depend>
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

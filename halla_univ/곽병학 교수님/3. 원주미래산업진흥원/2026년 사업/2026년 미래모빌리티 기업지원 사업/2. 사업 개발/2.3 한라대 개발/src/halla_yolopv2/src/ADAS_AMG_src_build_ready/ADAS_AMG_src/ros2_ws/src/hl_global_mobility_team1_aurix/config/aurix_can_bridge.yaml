@@ -1,0 +1,8 @@
+aurix_can_bridge_node:
+  ros__parameters:
+    interface: "can0"
+    drive_topic: "/ackermann_cmd"
+    send_period_ms: 20.0
+    command_timeout_ms: 300.0
+    reconnect_period_ms: 200.0
+    status_period_ms: 1000.0

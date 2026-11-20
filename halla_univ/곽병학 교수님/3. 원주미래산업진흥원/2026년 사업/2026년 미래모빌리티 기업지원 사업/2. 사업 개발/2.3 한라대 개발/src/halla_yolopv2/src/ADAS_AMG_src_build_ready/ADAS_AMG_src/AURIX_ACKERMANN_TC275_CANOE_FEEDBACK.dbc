@@ -1,0 +1,122 @@
+VERSION "AURIX_ACKERMANN_TC275"
+
+NS_ :
+    NS_DESC_
+    CM_
+    BA_DEF_
+    BA_
+    VAL_
+    CAT_DEF_
+    CAT_
+    FILTER
+    BA_DEF_DEF_
+    EV_DATA_
+    ENVVAR_DATA_
+    SGTYPE_
+    SGTYPE_VAL_
+    BA_DEF_SGTYPE_
+    BA_SGTYPE_
+    SIG_TYPE_REF_
+    VAL_TABLE_
+    SIG_GROUP_
+    SIG_VALTYPE_
+    SIGTYPE_VALTYPE_
+    BO_TX_BU_
+    BA_DEF_REL_
+    BA_REL_
+    BA_DEF_DEF_REL_
+    BU_SG_REL_
+    BU_EV_REL_
+    BU_BO_REL_
+    SG_MUL_VAL_
+
+BS_:
+
+BU_: AURIX LOGGER PCAN
+
+BO_ 288 WheelSpeed: 8 AURIX
+ SG_ LeftRpmX10 : 0|16@1- (0.1,0) [-3276.8|3276.7] "rpm" LOGGER
+ SG_ RightRpmX10 : 16|16@1- (0.1,0) [-3276.8|3276.7] "rpm" LOGGER
+ SG_ VehicleMpsX1000 : 32|16@1- (0.001,0) [-32.768|32.767] "m/s" LOGGER
+ SG_ SpeedValid : 48|8@1+ (1,0) [0|1] "" LOGGER
+ SG_ SpeedReserved : 56|8@1+ (1,0) [0|255] "" LOGGER
+
+BO_ 289 SteeringStatus: 8 AURIX
+ SG_ TargetSteeringDegX10 : 0|16@1- (0.1,0) [-3276.8|3276.7] "deg" LOGGER
+ SG_ MeasuredSteeringDegX10 : 16|16@1- (0.1,0) [-3276.8|3276.7] "deg" LOGGER
+ SG_ SteeringAdcRaw : 32|16@1+ (1,0) [0|4095] "raw" LOGGER
+ SG_ ServoPulseOffset5us : 48|8@1+ (5,900) [900|2175] "us" LOGGER
+ SG_ AckermannState : 56|8@1+ (1,0) [0|255] "" LOGGER
+
+BO_ 290 DriveStatus: 8 AURIX
+ SG_ DriveDutyPercent : 0|8@1+ (1,0) [0|100] "%" LOGGER
+ SG_ DriveDirection : 8|8@1+ (1,0) [0|2] "" LOGGER
+ SG_ EStopActive : 16|8@1+ (1,0) [0|1] "" LOGGER
+ SG_ SpeedBufferCount : 24|8@1+ (1,0) [0|8] "" LOGGER
+ SG_ LeftDeltaCount : 32|16@1- (1,0) [-32768|32767] "cnt" LOGGER
+ SG_ RightDeltaCount : 48|16@1- (1,0) [-32768|32767] "cnt" LOGGER
+
+BO_ 291 EncoderCount: 8 AURIX
+ SG_ LeftEncoderCount : 0|32@1- (1,0) [-2147483648|2147483647] "cnt" LOGGER
+ SG_ RightEncoderCount : 32|32@1- (1,0) [-2147483648|2147483647] "cnt" LOGGER
+
+BO_ 292 EncoderDebug: 8 AURIX
+ SG_ LeftHwCount : 0|16@1+ (1,0) [0|65535] "cnt" LOGGER
+ SG_ RightHwCount : 16|16@1+ (1,0) [0|65535] "cnt" LOGGER
+ SG_ LeftHwDelta : 32|16@1- (1,0) [-32768|32767] "cnt" LOGGER
+ SG_ RightHwDelta : 48|16@1- (1,0) [-32768|32767] "cnt" LOGGER
+
+BO_ 293 SpeedControlStatus: 8 AURIX
+ SG_ TargetVehicleRpmX10 : 0|16@1- (0.1,0) [-3276.8|3276.7] "rpm" LOGGER
+ SG_ CurrentVehicleRpmX10 : 16|16@1- (0.1,0) [-3276.8|3276.7] "rpm" LOGGER
+ SG_ DutyCommandX10 : 32|16@1+ (0.1,0) [0|100] "%" LOGGER
+ SG_ FeedforwardDutyX10 : 48|16@1+ (0.1,0) [0|100] "%" LOGGER
+
+BO_ 294 RpmDebug: 8 AURIX
+ SG_ LeftRawRpmX10 : 0|16@1- (0.1,0) [-3276.8|3276.7] "rpm" LOGGER
+ SG_ LeftAvgRpmX10 : 16|16@1- (0.1,0) [-3276.8|3276.7] "rpm" LOGGER
+ SG_ RightRawRpmX10 : 32|16@1- (0.1,0) [-3276.8|3276.7] "rpm" LOGGER
+ SG_ RightAvgRpmX10 : 48|16@1- (0.1,0) [-3276.8|3276.7] "rpm" LOGGER
+
+BO_ 295 SteeringFeedback: 8 AURIX
+ SG_ CurrentSteeringDegX10 : 0|16@1- (0.1,0) [-3276.8|3276.7] "deg" LOGGER
+ SG_ PotAdcRaw : 16|16@1+ (1,0) [0|4095] "raw" LOGGER
+ SG_ PotAdcMv : 32|16@1+ (1,0) [0|5000] "mV" LOGGER
+ SG_ SteeringErrorDegX10 : 48|16@1- (0.1,0) [-3276.8|3276.7] "deg" LOGGER
+
+BO_ 304 SensorFeedback: 8 AURIX
+ SG_ MeasuredSpeedKph : 0|16@1- (0.01,0) [-327.68|327.67] "km/h" LOGGER,PCAN
+ SG_ MeasuredSteeringDeg : 16|16@1- (0.1,0) [-3276.8|3276.7] "deg" LOGGER,PCAN
+ SG_ SteeringPotAdcRaw : 32|16@1+ (1,0) [0|4095] "raw" LOGGER,PCAN
+ SG_ SensorFeedbackSequence : 48|8@1+ (1,0) [0|255] "" LOGGER,PCAN
+ SG_ EncoderSpeedValid : 56|1@1+ (1,0) [0|1] "" LOGGER,PCAN
+ SG_ SteeringPotValid : 57|1@1+ (1,0) [0|1] "" LOGGER,PCAN
+ SG_ PcControlActive : 58|1@1+ (1,0) [0|1] "" LOGGER,PCAN
+ SG_ SensorFeedbackEstop : 59|1@1+ (1,0) [0|1] "" LOGGER,PCAN
+ SG_ SensorFeedbackSignature : 60|4@1+ (1,0) [0|15] "" LOGGER,PCAN
+
+BO_ 768 AckermannCommand: 8 PCAN
+ SG_ TargetSpeedKph : 0|16@1- (0.01,0) [-0.7|13] "km/h" AURIX,LOGGER
+ SG_ TargetSteeringDeg : 16|16@1- (0.1,0) [-27|27] "deg" AURIX,LOGGER
+ SG_ SteeringPulseUs : 32|16@1+ (1,0) [1150|1950] "us" AURIX,LOGGER
+ SG_ CommandSequence : 48|8@1+ (1,0) [0|255] "" AURIX,LOGGER
+ SG_ CommandFlags : 56|8@1+ (1,0) [160|161] "" AURIX,LOGGER
+
+CM_ BO_ 288 "Left/right encoder speed and averaged vehicle speed.";
+CM_ BO_ 289 "Steering target, ADC feedback, PWM command, and control state.";
+CM_ BO_ 290 "Drive duty, direction enable, E-STOP state, speed buffer count, and encoder deltas.";
+VAL_ 290 DriveDirection 0 "Stop" 1 "Forward" 2 "Reverse" ;
+CM_ BO_ 291 "Raw accumulated encoder counts for left and right wheels.";
+CM_ BO_ 292 "Encoder debug counts and forward-positive CAN-frame deltas. Left count is GPT12 T3 raw count; right count is GPT12 T2 raw count.";
+CM_ BO_ 293 "Speed controller target/current rpm and duty command/feedforward.";
+CM_ BO_ 294 "Raw and averaged wheel rpm for CANoe plots.";
+CM_ BO_ 295 "Steering potentiometer feedback angle, ADC raw/mV, and target-current steering error.";
+CM_ BO_ 304 "Consolidated 50 Hz encoder-speed and steering-potentiometer feedback used by the PC safety/controller path. Byte7 high nibble must be 0xD.";
+CM_ BO_ 768 "PC Ackermann command, standard CAN DLC8, little-endian. Speed is signed: -0.70 km/h reverse through +13.00 km/h forward. Steering is +LEFT/-RIGHT. Byte7 must be 0xA0 STOP or 0xA1 enabled; valid unique frames must arrive within 250 ms.";
+CM_ SG_ 768 SteeringPulseUs "Redundant angle check: +27deg=1150us, 0deg=1515us, -27deg=1950us, tolerance 3us.";
+VAL_ 768 CommandFlags 160 "SignatureValid_Disabled" 161 "SignatureValid_Enabled" ;
+VAL_ 304 EncoderSpeedValid 0 "Invalid" 1 "Valid" ;
+VAL_ 304 SteeringPotValid 0 "Invalid" 1 "Valid" ;
+VAL_ 304 PcControlActive 0 "Inactive" 1 "Active" ;
+VAL_ 304 SensorFeedbackEstop 0 "Released" 1 "Active" ;
+VAL_ 304 SensorFeedbackSignature 13 "Valid" ;

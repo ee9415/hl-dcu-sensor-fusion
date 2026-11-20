@@ -1,0 +1,609 @@
+#include "Speed_Calculate.h"
+
+#include "ERU_Interrupt.h"
+#include "GPT12_Timer_Interrupt.h"
+#include "IfxCpu.h"
+
+typedef struct
+{
+    float32 rpm[SPEED_BUFFER_MAX_COUNT];
+    uint32  tick100us[SPEED_BUFFER_MAX_COUNT];
+    uint16  head;
+    uint16  size;
+    double  rpmSum;
+    uint32  tickSum100us;
+} SpeedRingBuffer;
+
+typedef struct
+{
+    sint32          previousCount;
+    boolean         hasPreviousSample;
+    /* Median-of-3 despike on the raw per-5ms rpm sample, applied before it
+     * ever enters the moving-average buffer. A single glitched encoder edge
+     * (electrical noise, a missed/double-counted transition) otherwise gets
+     * baked into the 20-sample average for a full 100 ms once it's pushed;
+     * despiking here stops that at the source, upstream of (and in addition
+     * to) the feedback low-pass in ControlLoop.c, which only smooths the
+     * already-averaged output. */
+    float32         despikeHistory[2];
+    boolean         despikeHistoryValid;
+    SpeedRingBuffer buffer;
+} WheelSpeedState;
+
+typedef struct
+{
+    float32 rpm[SPEED_BUFFER_SCAN_MAX_COUNT];
+    uint16  head;
+    uint16  size;
+    float32 minAvgRpm[SPEED_BUFFER_SCAN_COUNT];
+    float32 maxAvgRpm[SPEED_BUFFER_SCAN_COUNT];
+    double  meanAvgRpm[SPEED_BUFFER_SCAN_COUNT];
+    double  m2AvgRpm[SPEED_BUFFER_SCAN_COUNT];
+    uint32  validSampleCount[SPEED_BUFFER_SCAN_COUNT];
+} SpeedBufferScanState;
+
+static WheelSpeedState g_leftState;
+static WheelSpeedState g_rightState;
+static SpeedBufferScanState g_bufferScanState;
+/*
+ * Encoder deltas can legitimately be zero for an individual 5 ms sample even
+ * while the 100 ms moving-average speed is non-zero.  Remember the last
+ * observed direction so consolidated CAN feedback does not pulse back to
+ * 0 km/h between encoder edges.
+ */
+static sint8 g_lastVehicleDirectionSign = 0;
+static const uint16 g_bufferScanSizes[SPEED_BUFFER_SCAN_COUNT] =
+{
+    SPEED_BUFFER_FIXED_COUNT
+};
+
+volatile sint32  g_dbgSpeedLeftCount = 0;
+volatile sint32  g_dbgSpeedRightCount = 0;
+volatile sint32  g_dbgSpeedLeftDeltaCount = 0;
+volatile sint32  g_dbgSpeedRightDeltaCount = 0;
+volatile float32 g_dbgSpeedLeftRawRpm = 0.0f;
+volatile float32 g_dbgSpeedRightRawRpm = 0.0f;
+volatile float32 g_dbgSpeedLeftAvgRpm = 0.0f;
+volatile float32 g_dbgSpeedRightAvgRpm = 0.0f;
+volatile float32 g_dbgSpeedVehicleMps = 0.0f;
+volatile float32 g_dbgSpeedCountsPerRev = COUNTS_PER_REV;
+volatile float32 g_dbgSpeedGearRatio = MOTOR_GEAR_RATIO;
+volatile float32 g_dbgSpeedWheelDiameterM = WHEEL_DIAMETER_M;
+volatile uint32  g_dbgSpeedDeltaTick100us = 0u;
+volatile uint8   g_dbgSpeedValid = 0u;
+volatile uint8   g_dbgSpeedBufferCount = 0u;
+volatile uint16  g_speedAverageBufferSize = SPEED_BUFFER_FIXED_COUNT;
+volatile uint8   g_speedBufferScanEnable = 0u;
+volatile uint8   g_speedBufferScanReset = 0u;
+volatile uint8   g_speedBufferScanDutyPercent = 0u;
+volatile uint32  g_speedBufferScanRawSampleCount = 0u;
+volatile float32 g_speedBufferScanRawVehicleRpm = 0.0f;
+volatile SpeedBufferScanResult g_speedBufferScan[SPEED_BUFFER_SCAN_COUNT];
+
+static void SpeedCalc_ClearWheelOutput(WheelSpeedValue *wheel)
+{
+    wheel->count = 0;
+    wheel->deltaCount = 0;
+    wheel->rawRpm = 0.0f;
+    wheel->avgRpm = 0.0f;
+    wheel->rawTick100us = 0u;
+    wheel->avgTick100us = 0u;
+    wheel->valid = FALSE;
+}
+
+static void SpeedCalc_ClearVehicleOutput(VehicleSpeedValue *vehicle)
+{
+    SpeedCalc_ClearWheelOutput(&vehicle->left);
+    SpeedCalc_ClearWheelOutput(&vehicle->right);
+    vehicle->vehicleRpm = 0.0f;
+    vehicle->vehicleMps = 0.0f;
+    vehicle->vehicleRpmSigned = 0.0f;
+    vehicle->vehicleMpsSigned = 0.0f;
+    vehicle->vehiclePositionM = 0.0f;
+    vehicle->valid = FALSE;
+}
+
+static void SpeedCalc_ClearBuffer(SpeedRingBuffer *buffer)
+{
+    uint16 i;
+
+    buffer->head = 0u;
+    buffer->size = 0u;
+    buffer->rpmSum = 0.0;
+    buffer->tickSum100us = 0u;
+
+    for (i = 0u; i < SPEED_BUFFER_MAX_COUNT; ++i)
+    {
+        buffer->rpm[i] = 0.0f;
+        buffer->tick100us[i] = 0u;
+    }
+}
+
+static void SpeedCalc_ClearWheel(WheelSpeedState *wheel)
+{
+    wheel->previousCount = 0;
+    wheel->hasPreviousSample = FALSE;
+    wheel->despikeHistory[0] = 0.0f;
+    wheel->despikeHistory[1] = 0.0f;
+    wheel->despikeHistoryValid = FALSE;
+    SpeedCalc_ClearBuffer(&wheel->buffer);
+}
+
+static float32 SpeedCalc_Median3(float32 a, float32 b, float32 c)
+{
+    float32 lo = (a < b) ? a : b;
+    float32 hi = (a < b) ? b : a;
+
+    if (c < lo)
+    {
+        return lo;
+    }
+
+    if (c > hi)
+    {
+        return hi;
+    }
+
+    return c;
+}
+
+static float32 SpeedCalc_CountsToRpm(sint32 deltaCount)
+{
+    return (60.0f * (float32)deltaCount) /
+           ((float32)COUNTS_PER_REV * SPEED_SAMPLE_PERIOD_SEC);
+}
+
+static float32 SpeedCalc_AbsFloat(float32 value)
+{
+    return (value < 0.0f) ? -value : value;
+}
+
+static uint16 SpeedCalc_ClampBufferSize(uint16 bufferSize)
+{
+    (void)bufferSize;
+    return SPEED_BUFFER_FIXED_COUNT;
+}
+
+static float32 SpeedCalc_SqrtFloat(float32 value)
+{
+    float32 x;
+    uint8 i;
+
+    if (value <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    x = (value > 1.0f) ? value : 1.0f;
+
+    for (i = 0u; i < 8u; i++)
+    {
+        x = 0.5f * (x + (value / x));
+    }
+
+    return x;
+}
+
+static void SpeedCalc_ResetBufferScanInternal(void)
+{
+    uint16 i;
+
+    g_bufferScanState.head = 0u;
+    g_bufferScanState.size = 0u;
+    g_speedBufferScanRawSampleCount = 0u;
+    g_speedBufferScanRawVehicleRpm = 0.0f;
+    g_speedBufferScanReset = 0u;
+
+    for (i = 0u; i < SPEED_BUFFER_SCAN_MAX_COUNT; i++)
+    {
+        g_bufferScanState.rpm[i] = 0.0f;
+    }
+
+    for (i = 0u; i < SPEED_BUFFER_SCAN_COUNT; i++)
+    {
+        g_bufferScanState.minAvgRpm[i] = 0.0f;
+        g_bufferScanState.maxAvgRpm[i] = 0.0f;
+        g_bufferScanState.meanAvgRpm[i] = 0.0;
+        g_bufferScanState.m2AvgRpm[i] = 0.0;
+        g_bufferScanState.validSampleCount[i] = 0u;
+
+        g_speedBufferScan[i].bufferSize = g_bufferScanSizes[i];
+        g_speedBufferScan[i].avgMaxMinRpm = 0.0f;
+        g_speedBufferScan[i].minAvgRpm = 0.0f;
+        g_speedBufferScan[i].maxAvgRpm = 0.0f;
+        g_speedBufferScan[i].meanAvgRpm = 0.0f;
+        g_speedBufferScan[i].stddevAvgRpm = 0.0f;
+        g_speedBufferScan[i].validSampleCount = 0u;
+        g_speedBufferScan[i].dutyPercent = g_speedBufferScanDutyPercent;
+        g_speedBufferScan[i].reserved0 = 0u;
+        g_speedBufferScan[i].reserved1 = 0u;
+        g_speedBufferScan[i].reserved2 = 0u;
+    }
+}
+
+static void SpeedCalc_UpdateBufferScanStats(uint16 scanIndex, float32 avgRpm)
+{
+    uint32 count = g_bufferScanState.validSampleCount[scanIndex] + 1u;
+    double delta;
+    double delta2;
+    float32 variance;
+
+    g_bufferScanState.validSampleCount[scanIndex] = count;
+
+    if (count == 1u)
+    {
+        g_bufferScanState.minAvgRpm[scanIndex] = avgRpm;
+        g_bufferScanState.maxAvgRpm[scanIndex] = avgRpm;
+        g_bufferScanState.meanAvgRpm[scanIndex] = (double)avgRpm;
+        g_bufferScanState.m2AvgRpm[scanIndex] = 0.0;
+    }
+    else
+    {
+        if (avgRpm < g_bufferScanState.minAvgRpm[scanIndex])
+        {
+            g_bufferScanState.minAvgRpm[scanIndex] = avgRpm;
+        }
+
+        if (avgRpm > g_bufferScanState.maxAvgRpm[scanIndex])
+        {
+            g_bufferScanState.maxAvgRpm[scanIndex] = avgRpm;
+        }
+
+        delta = (double)avgRpm - g_bufferScanState.meanAvgRpm[scanIndex];
+        g_bufferScanState.meanAvgRpm[scanIndex] += delta / (double)count;
+        delta2 = (double)avgRpm - g_bufferScanState.meanAvgRpm[scanIndex];
+        g_bufferScanState.m2AvgRpm[scanIndex] += delta * delta2;
+    }
+
+    variance = (float32)(g_bufferScanState.m2AvgRpm[scanIndex] / (double)count);
+    g_speedBufferScan[scanIndex].bufferSize = g_bufferScanSizes[scanIndex];
+    g_speedBufferScan[scanIndex].avgMaxMinRpm =
+        g_bufferScanState.maxAvgRpm[scanIndex] - g_bufferScanState.minAvgRpm[scanIndex];
+    g_speedBufferScan[scanIndex].minAvgRpm = g_bufferScanState.minAvgRpm[scanIndex];
+    g_speedBufferScan[scanIndex].maxAvgRpm = g_bufferScanState.maxAvgRpm[scanIndex];
+    g_speedBufferScan[scanIndex].meanAvgRpm = (float32)g_bufferScanState.meanAvgRpm[scanIndex];
+    g_speedBufferScan[scanIndex].stddevAvgRpm = SpeedCalc_SqrtFloat(variance);
+    g_speedBufferScan[scanIndex].validSampleCount = count;
+    g_speedBufferScan[scanIndex].dutyPercent = g_speedBufferScanDutyPercent;
+}
+
+static void SpeedCalc_UpdateBufferScan(float32 rawVehicleRpm)
+{
+    uint16 scanIndex;
+    uint16 sampleIndex;
+    uint16 bufferSize;
+    uint16 writeIndex;
+    double sum;
+    float32 avgRpm;
+
+    if (g_speedBufferScanReset != 0u)
+    {
+        SpeedCalc_ResetBufferScanInternal();
+    }
+
+    if (g_speedBufferScanEnable == 0u)
+    {
+        return;
+    }
+
+    writeIndex = g_bufferScanState.head;
+    g_bufferScanState.rpm[writeIndex] = rawVehicleRpm;
+    g_bufferScanState.head = (uint16)((writeIndex + 1u) % SPEED_BUFFER_SCAN_MAX_COUNT);
+
+    if (g_bufferScanState.size < SPEED_BUFFER_SCAN_MAX_COUNT)
+    {
+        g_bufferScanState.size++;
+    }
+
+    g_speedBufferScanRawVehicleRpm = rawVehicleRpm;
+    g_speedBufferScanRawSampleCount++;
+
+    for (scanIndex = 0u; scanIndex < SPEED_BUFFER_SCAN_COUNT; scanIndex++)
+    {
+        bufferSize = g_bufferScanSizes[scanIndex];
+        if (g_bufferScanState.size < bufferSize)
+        {
+            continue;
+        }
+
+        sum = 0.0;
+        for (sampleIndex = 0u; sampleIndex < bufferSize; sampleIndex++)
+        {
+            uint16 index = (uint16)((g_bufferScanState.head +
+                                     SPEED_BUFFER_SCAN_MAX_COUNT - 1u - sampleIndex) %
+                                     SPEED_BUFFER_SCAN_MAX_COUNT);
+            sum += (double)g_bufferScanState.rpm[index];
+        }
+
+        avgRpm = (float32)(sum / (double)bufferSize);
+        SpeedCalc_UpdateBufferScanStats(scanIndex, avgRpm);
+    }
+}
+
+static void SpeedCalc_PushSample(SpeedRingBuffer *buffer, float32 rpm, uint32 deltaTick100us)
+{
+    uint16 writeIndex = buffer->head;
+
+    if (buffer->size >= SPEED_BUFFER_MAX_COUNT)
+    {
+        buffer->rpmSum -= (double)buffer->rpm[writeIndex];
+        buffer->tickSum100us -= buffer->tick100us[writeIndex];
+    }
+    else
+    {
+        buffer->size++;
+    }
+
+    buffer->rpm[writeIndex] = rpm;
+    buffer->tick100us[writeIndex] = deltaTick100us;
+    buffer->rpmSum += (double)rpm;
+    buffer->tickSum100us += deltaTick100us;
+    buffer->head = (uint16)((writeIndex + 1u) % SPEED_BUFFER_MAX_COUNT);
+}
+
+static uint16 SpeedCalc_NewestIndex(const SpeedRingBuffer *buffer)
+{
+    if (buffer->head == 0u)
+    {
+        return (uint16)(SPEED_BUFFER_MAX_COUNT - 1u);
+    }
+
+    return (uint16)(buffer->head - 1u);
+}
+
+static float32 SpeedCalc_AverageRpm(const SpeedRingBuffer *buffer, uint16 bufferSize)
+{
+    uint16 sampleIndex;
+    double sum = 0.0;
+
+    for (sampleIndex = 0u; sampleIndex < bufferSize; sampleIndex++)
+    {
+        uint16 index = (uint16)((buffer->head +
+                                 SPEED_BUFFER_MAX_COUNT - 1u - sampleIndex) %
+                                 SPEED_BUFFER_MAX_COUNT);
+        sum += (double)buffer->rpm[index];
+    }
+
+    return (float32)(sum / (double)bufferSize);
+}
+
+static uint32 SpeedCalc_AverageTick100us(const SpeedRingBuffer *buffer, uint16 bufferSize)
+{
+    uint16 sampleIndex;
+    uint32 sum = 0u;
+
+    for (sampleIndex = 0u; sampleIndex < bufferSize; sampleIndex++)
+    {
+        uint16 index = (uint16)((buffer->head +
+                                 SPEED_BUFFER_MAX_COUNT - 1u - sampleIndex) %
+                                 SPEED_BUFFER_MAX_COUNT);
+        sum += buffer->tick100us[index];
+    }
+
+    return sum / (uint32)bufferSize;
+}
+
+static void SpeedCalc_UpdateWheel(WheelSpeedState *state,
+                                  sint32 countNow,
+                                  uint32 deltaTick100us,
+                                  WheelSpeedValue *out)
+{
+    sint32 deltaCount;
+    float32 rpm;
+    uint16 newestIndex;
+    uint16 activeBufferSize = SpeedCalc_ClampBufferSize(g_speedAverageBufferSize);
+
+    out->count = countNow;
+    out->valid = FALSE;
+
+    if (state->hasPreviousSample == FALSE)
+    {
+        state->previousCount = countNow;
+        state->hasPreviousSample = TRUE;
+        return;
+    }
+
+    deltaCount = countNow - state->previousCount;
+    state->previousCount = countNow;
+
+    {
+        float32 sampleRpm = SpeedCalc_AbsFloat(SpeedCalc_CountsToRpm(deltaCount));
+
+        if (state->despikeHistoryValid != FALSE)
+        {
+            rpm = SpeedCalc_Median3(state->despikeHistory[0], state->despikeHistory[1], sampleRpm);
+        }
+        else
+        {
+            rpm = sampleRpm;
+        }
+        state->despikeHistory[0] = state->despikeHistory[1];
+        state->despikeHistory[1] = sampleRpm;
+        state->despikeHistoryValid = TRUE;
+    }
+
+    SpeedCalc_PushSample(&state->buffer, rpm, deltaTick100us);
+
+    out->deltaCount = deltaCount;
+    out->rawRpm = rpm;
+    out->rawTick100us = deltaTick100us;
+
+    if (state->buffer.size < activeBufferSize)
+    {
+        return;
+    }
+
+    newestIndex = SpeedCalc_NewestIndex(&state->buffer);
+    out->rawRpm = state->buffer.rpm[newestIndex];
+    out->avgRpm = SpeedCalc_AverageRpm(&state->buffer, activeBufferSize);
+    out->rawTick100us = state->buffer.tick100us[newestIndex];
+    out->avgTick100us = SpeedCalc_AverageTick100us(&state->buffer, activeBufferSize);
+    out->valid = TRUE;
+}
+
+static float32 SpeedCalc_RpmToMps(float32 rpm)
+{
+    return (rpm * 3.14159265f * WHEEL_DIAMETER_M) / 60.0f;
+}
+
+void SpeedCalc_Init(void)
+{
+    boolean intState = IfxCpu_disableInterrupts();
+
+    SpeedCalc_ClearWheel(&g_leftState);
+    SpeedCalc_ClearWheel(&g_rightState);
+    g_lastVehicleDirectionSign = 0;
+    g_dbgSpeedLeftCount = 0;
+    g_dbgSpeedRightCount = 0;
+    g_dbgSpeedLeftDeltaCount = 0;
+    g_dbgSpeedRightDeltaCount = 0;
+    g_dbgSpeedLeftRawRpm = 0.0f;
+    g_dbgSpeedRightRawRpm = 0.0f;
+    g_dbgSpeedLeftAvgRpm = 0.0f;
+    g_dbgSpeedRightAvgRpm = 0.0f;
+    g_dbgSpeedVehicleMps = 0.0f;
+    g_dbgSpeedCountsPerRev = COUNTS_PER_REV;
+    g_dbgSpeedGearRatio = MOTOR_GEAR_RATIO;
+    g_dbgSpeedWheelDiameterM = WHEEL_DIAMETER_M;
+    g_dbgSpeedDeltaTick100us = 0u;
+    g_dbgSpeedValid = 0u;
+    g_dbgSpeedBufferCount = 0u;
+    g_speedAverageBufferSize = SPEED_BUFFER_FIXED_COUNT;
+    g_speedBufferScanEnable = 0u;
+    g_speedBufferScanDutyPercent = 0u;
+    SpeedCalc_ResetBufferScanInternal();
+
+    IfxCpu_restoreInterrupts(intState);
+}
+
+void SpeedCalc_SetAverageBufferSize(uint16 bufferSize, boolean resetSamples)
+{
+    uint16 clampedSize = SpeedCalc_ClampBufferSize(bufferSize);
+    boolean intState = IfxCpu_disableInterrupts();
+
+    if ((g_speedAverageBufferSize != clampedSize) || (resetSamples != FALSE))
+    {
+        g_speedAverageBufferSize = clampedSize;
+        SpeedCalc_ClearWheel(&g_leftState);
+        SpeedCalc_ClearWheel(&g_rightState);
+        g_lastVehicleDirectionSign = 0;
+        g_dbgSpeedBufferCount = 0u;
+        g_dbgSpeedValid = 0u;
+    }
+
+    IfxCpu_restoreInterrupts(intState);
+}
+
+void SpeedCalc_ResetBufferScan(void)
+{
+    boolean intState = IfxCpu_disableInterrupts();
+
+    SpeedCalc_ResetBufferScanInternal();
+
+    IfxCpu_restoreInterrupts(intState);
+}
+
+void SpeedCalc_SetBufferScanDutyPercent(uint8 dutyPercent)
+{
+    uint16 i;
+
+    if (dutyPercent > 100u)
+    {
+        dutyPercent = 100u;
+    }
+
+    g_speedBufferScanDutyPercent = dutyPercent;
+
+    for (i = 0u; i < SPEED_BUFFER_SCAN_COUNT; i++)
+    {
+        g_speedBufferScan[i].dutyPercent = dutyPercent;
+    }
+}
+
+boolean SpeedCalc_Get(VehicleSpeedValue *out)
+{
+    EncoderSnapshot snapshot;
+    uint32 deltaTick100us;
+    float32 leftAbsRpm;
+    float32 leftRawAbsRpm;
+    sint32 directionDelta;
+    boolean intState;
+
+    if (out == 0)
+    {
+        return FALSE;
+    }
+
+    SpeedCalc_ClearVehicleOutput(out);
+
+    intState = IfxCpu_disableInterrupts();
+    snapshot.leftCount = encoderLeftPos;
+    snapshot.rightCount = encoderRightPos;
+    snapshot.leftState = dbgEncoderLeftState;
+    snapshot.rightState = dbgEncoderRightState;
+    IfxCpu_restoreInterrupts(intState);
+
+    deltaTick100us = SPEED_SAMPLE_TICK100US;
+
+    SpeedCalc_UpdateWheel(&g_leftState, snapshot.leftCount, deltaTick100us, &out->left);
+    SpeedCalc_UpdateWheel(&g_rightState, snapshot.rightCount, deltaTick100us, &out->right);
+
+    leftAbsRpm = SpeedCalc_AbsFloat(out->left.avgRpm);
+    /* Keep the speed-control feedback identical to the working version 16. */
+    out->vehicleRpm = leftAbsRpm;
+    out->vehicleMps = SpeedCalc_RpmToMps(out->vehicleRpm);
+
+    directionDelta = out->left.deltaCount;
+
+    /* Measured on the current vehicle: forward traction produces a positive
+     * logical left-encoder delta after ENCODER_LEFT_COUNT_SIGN is applied. */
+    if (directionDelta > 0)
+    {
+        g_lastVehicleDirectionSign = 1;
+    }
+    else if (directionDelta < 0)
+    {
+        g_lastVehicleDirectionSign = -1;
+    }
+
+    if (out->vehicleRpm <= 0.0f)
+    {
+        g_lastVehicleDirectionSign = 0;
+        out->vehicleRpmSigned = 0.0f;
+    }
+    else
+    {
+        out->vehicleRpmSigned =
+            (float32)g_lastVehicleDirectionSign * out->vehicleRpm;
+    }
+    out->vehicleMpsSigned = SpeedCalc_RpmToMps(out->vehicleRpmSigned);
+    out->vehiclePositionM = ((float32)(-out->left.count) * 3.14159265f * WHEEL_DIAMETER_M) /
+                            (float32)COUNTS_PER_REV;
+    out->valid = out->left.valid;
+
+    g_dbgSpeedLeftCount = out->left.count;
+    g_dbgSpeedRightCount = out->right.count;
+    g_dbgSpeedLeftDeltaCount = out->left.deltaCount;
+    g_dbgSpeedRightDeltaCount = out->right.deltaCount;
+    g_dbgSpeedLeftRawRpm = out->left.rawRpm;
+    g_dbgSpeedRightRawRpm = out->right.rawRpm;
+    g_dbgSpeedLeftAvgRpm = out->left.avgRpm;
+    g_dbgSpeedRightAvgRpm = out->right.avgRpm;
+    g_dbgSpeedVehicleMps = out->vehicleMps;
+    g_dbgSpeedDeltaTick100us = deltaTick100us;
+    g_dbgSpeedValid = (out->valid == TRUE) ? 1u : 0u;
+    g_dbgSpeedBufferCount = (uint8)SpeedCalc_ClampBufferSize(g_speedAverageBufferSize);
+
+    if (g_speedBufferScanReset != 0u)
+    {
+        SpeedCalc_ResetBufferScanInternal();
+    }
+
+    if (out->left.rawTick100us != 0u)
+    {
+        leftRawAbsRpm = SpeedCalc_AbsFloat(out->left.rawRpm);
+        SpeedCalc_UpdateBufferScan(leftRawAbsRpm);
+    }
+
+    return out->valid;
+}

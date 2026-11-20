@@ -1,0 +1,47 @@
+VERSION "TC275 left encoder PID RPM monitor 2026-08-04"
+
+NS_ :
+    CM_
+    BA_DEF_
+    BA_
+    VAL_
+
+BS_:
+
+BU_: AURIX CANOE
+
+BO_ 290 DriveStatus: 8 AURIX
+ SG_ DriveDutyPercent : 0|8@1+ (1,0) [0|100] "%" CANOE
+ SG_ DriveDirection : 8|8@1+ (1,0) [0|2] "" CANOE
+ SG_ EstopActive : 16|8@1+ (1,0) [0|1] "" CANOE
+ SG_ AverageBufferSamples : 24|8@1+ (1,0) [0|255] "sample" CANOE
+ SG_ LeftDeltaCount : 32|16@1- (1,0) [-32768|32767] "count/5ms" CANOE
+ SG_ RightDeltaCount : 48|16@1- (1,0) [-32768|32767] "count/5ms" CANOE
+
+BO_ 293 SpeedControlStatus: 8 AURIX
+ SG_ TargetVehicleRpm : 0|16@1- (0.1,0) [-3276.8|3276.7] "rpm" CANOE
+ SG_ CurrentVehicleRpm : 16|16@1- (0.1,0) [-3276.8|3276.7] "rpm" CANOE
+ SG_ DutyCommandPercent : 32|16@1+ (0.1,0) [0|100] "%" CANOE
+ SG_ FeedforwardDutyPercent : 48|16@1+ (0.1,0) [0|100] "%" CANOE
+
+BO_ 294 WheelRpmDebug: 8 AURIX
+ SG_ LeftRawRpm : 0|16@1- (0.1,0) [-3276.8|3276.7] "rpm" CANOE
+ SG_ LeftAverageRpm : 16|16@1- (0.1,0) [-3276.8|3276.7] "rpm" CANOE
+ SG_ RightRawRpm : 32|16@1- (0.1,0) [-3276.8|3276.7] "rpm" CANOE
+ SG_ RightAverageRpm : 48|16@1- (0.1,0) [-3276.8|3276.7] "rpm" CANOE
+
+BO_ 301 JoystickCommand: 8 AURIX
+ SG_ JoystickPresent : 0|8@1+ (1,0) [0|1] "" CANOE
+ SG_ JoystickReceiverAlive : 8|8@1+ (1,0) [0|1] "" CANOE
+ SG_ JoystickButtons : 16|16@1+ (1,0) [0|65535] "" CANOE
+ SG_ JoystickTargetRpm : 32|16@1- (0.1,0) [-3276.8|3276.7] "rpm" CANOE
+ SG_ JoystickSteeringPulseUs : 48|16@1+ (1,0) [0|65535] "us" CANOE
+
+CM_ BO_ 293 "PID target and feedback. CurrentVehicleRpm is the 20-sample/100-ms left encoder average used by the speed PID.";
+CM_ BO_ 294 "Raw 5-ms RPM and 20-sample/100-ms moving-average RPM for each wheel.";
+CM_ BO_ 301 "Live joystick state and the RPM requested by the pressed speed button.";
+CM_ SG_ 293 TargetVehicleRpm "Requested speed converted to wheel RPM.";
+CM_ SG_ 293 CurrentVehicleRpm "Exact averaged left-wheel RPM supplied to the PID and reflected at the vehicle.";
+CM_ SG_ 294 LeftAverageRpm "Unsigned left-wheel moving average before forward/reverse sign is applied.";
+
+VAL_ 290 DriveDirection 0 "Stop" 1 "Forward" 2 "Reverse" ;

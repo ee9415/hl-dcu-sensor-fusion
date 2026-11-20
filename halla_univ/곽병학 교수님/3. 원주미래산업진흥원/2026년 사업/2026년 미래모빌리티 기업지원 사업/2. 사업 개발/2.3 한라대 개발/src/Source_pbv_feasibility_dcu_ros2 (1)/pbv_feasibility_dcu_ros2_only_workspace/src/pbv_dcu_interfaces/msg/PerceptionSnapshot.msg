@@ -1,0 +1,15 @@
+builtin_interfaces/Time stamp
+uint32 seq
+float32 lane_offset_m
+float32 lane_heading_rad
+float32 lane_confidence
+float32 target_distance_m
+float32 stop_line_distance_m
+float32 traffic_light_confidence
+float32 frame_fps
+uint32 frame_age_ms
+bool camera_ok
+bool lane_valid
+bool target_valid
+uint8 traffic_light_state
+uint32 flags
