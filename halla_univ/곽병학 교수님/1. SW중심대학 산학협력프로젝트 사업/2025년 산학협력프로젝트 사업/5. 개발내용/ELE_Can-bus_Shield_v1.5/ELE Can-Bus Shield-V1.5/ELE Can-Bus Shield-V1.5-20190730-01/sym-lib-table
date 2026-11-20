@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 0)
+  (lib (name "ELE Can-Bus Shield-V1.5-20190730-01-eagle-import")(type "KiCad")(uri "${KIPRJMOD}/ELE Can-Bus Shield-V1.5-20190730-01-eagle-import.kicad_sym")(options "")(descr ""))
+)

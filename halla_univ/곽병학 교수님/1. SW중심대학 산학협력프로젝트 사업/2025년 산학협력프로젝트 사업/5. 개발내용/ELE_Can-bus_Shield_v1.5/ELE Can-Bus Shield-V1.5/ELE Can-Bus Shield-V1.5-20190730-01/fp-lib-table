@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "ELE Can-Bus Shield-V1.5-20190730-01")(type "KiCad")(uri "$(KIPRJMOD)/ELE Can-Bus Shield-V1.5-20190730-01.pretty")(options "")(descr ""))
+)
