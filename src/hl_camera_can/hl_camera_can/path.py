@@ -17,6 +17,7 @@ def load_config(path):
 
 def validate_config(config):
     g, q, c = (config[name] for name in ('geometry', 'quality', 'can'))
+    c.setdefault('windows_monitor_only', False)
     for values in (g, q, c):
         for name, value in values.items():
             if isinstance(value, (int, float)) and not math.isfinite(value):
@@ -24,7 +25,7 @@ def validate_config(config):
     for name in ('calibrated', 'timing_verified', 'bench_test_active'):
         if type(g[name]) is not bool:
             raise ValueError('Expected boolean: '+name)
-    for name in ('allow_bench_active', 'allow_vcan', 'windows_allow_virtual'):
+    for name in ('allow_bench_active', 'allow_vcan', 'windows_allow_virtual', 'windows_monitor_only'):
         if type(c[name]) is not bool:
             raise ValueError('Expected boolean: '+name)
     if (g['width'], g['height']) != (320, 180):
@@ -50,6 +51,7 @@ def validate_config(config):
             0 < c['max_tx_age_ms'] < 150 and isinstance(c['interface'], str) and c['interface']):
         raise ValueError('Invalid CAN configuration')
     if (c['driver_backend'] not in ('windows_tcp', 'socketcan') or
+            (c['windows_monitor_only'] and c['driver_backend'] != 'windows_tcp') or
             not isinstance(c['windows_host'], str) or not c['windows_host'] or
             type(c['windows_port']) is not int or not 1 <= c['windows_port'] <= 65535 or
             not isinstance(c['windows_key_file'], str)):

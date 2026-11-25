@@ -78,6 +78,10 @@ ROS 시간이 멈춰도 steady 송신 타이머와 monotonic 경과시간으로 
 
 ## Windows Kvaser 연결
 
+AURIX 없이 중계 메시지만 확인할 때는 [Windows CAN 모니터](windows_can_monitor.md)를
+사용한다. windows_monitor_only=true인 전용 클라이언트는 캡처 서버에만 연결하며
+실제 송신 중계와 혼용하지 않는다. 물리 송신 없이 메시지를 확인할 수 있다.
+
 2026-11-25 읽기 전용 조회에서 채널0=Kvaser Leaf v3, CAN FD 지원을 확인했다.
 채널1·2는 가상 채널이었다. 채널 번호는 재연결 후 다시 조회한다.
 
@@ -122,7 +126,7 @@ bash tools/run_camera_can.sh config_path:=/절대/설정.json enable_driver:=tru
 ```
 
 Windows 중계는 인증된 단일 연결에서 한 요청씩만 처리하고 재생 큐를 만들지 않는다.
-매초 왕복으로 Windows·WSL 시각 offset의 하한을 추정하고10ms 여유를 차감한다.
+프레임별 왕복으로 Windows·WSL 시각 offset의 하한을 추정하고10ms 여유를 차감한다.
 왕복10ms 초과·시계 급변·인증 실패·기한 초과는 송신하지 않는다. ROS 프레임에도
 생성 monotonic 시각과 경로 만료 deadline을 넣어 대기열에서 늦어진 ACTIVE를 거부한다.
 이 메시지는 같은 제어컴의 WSL 노드 사이 전용이다(서로 다른 호스트의 monotonic

@@ -47,6 +47,7 @@ class SocketCanDriver:
             raise ValueError('Path deadline expired before SocketCAN write')
         if self.socket.send(frame) != len(frame):
             raise OSError('Short CAN FD write')
+        return True
 
     def close(self):
         self.socket.close()

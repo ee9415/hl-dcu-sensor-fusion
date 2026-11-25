@@ -29,14 +29,14 @@ class WindowsTransportTests(unittest.TestCase):
         self.driver = MemoryDriver()
         self.errors = []
 
-    def start_server(self, enabled=True):
+    def start_server(self, enabled=True, monitor=None):
         self.server = socket.socket()
         self.server.bind(('127.0.0.1', 0)); self.server.listen(1)
         self.port = self.server.getsockname()[1]
         def serve():
             try:
                 connection, _ = self.server.accept()
-                with connection:serve_connection(connection, self.key, self.driver if enabled else None)
+                with connection:serve_connection(connection, self.key, self.driver if enabled else None, monitor=monitor)
             except (OSError, ValueError) as exc:self.errors.append(str(exc))
         self.thread = threading.Thread(target=serve, daemon=True)
         self.thread.start()
@@ -70,6 +70,32 @@ class WindowsTransportTests(unittest.TestCase):
         self.start_server()
         with self.assertRaises(ValueError):self.client.send(packet(1), time.monotonic_ns()+5_000_000)
         self.assertEqual(self.driver.frames, [])
+
+    def test_monitor_receives_packet_and_never_reports_physical_send(self):
+        captured = []
+        self.start_server(enabled=False, monitor=lambda *args: captured.append(args))
+        self.client.monitor_only = True
+        data = packet(1, True, (.1, 0, 0, 0), 3., 80)
+        transmitted = self.client.send(data, time.monotonic_ns()+100_000_000)
+        self.assertFalse(transmitted)
+        self.assertEqual(captured[0][0], data)
+        self.assertEqual(self.driver.frames, [])
+
+    def test_monitor_client_rejects_physical_relay(self):
+        self.start_server()
+        self.client.monitor_only = True
+        with self.assertRaises(ValueError):self.client.send(packet(1), time.monotonic_ns()+100_000_000)
+        self.assertEqual(self.driver.frames, [])
+
+    def test_physical_client_rejects_monitor_endpoint(self):
+        captured = []
+        self.start_server(enabled=False, monitor=lambda *args: captured.append(args))
+        with self.assertRaises(ValueError):self.client.send(packet(1), time.monotonic_ns()+100_000_000)
+        self.assertEqual(captured, [])
+
+    def test_monitor_and_hardware_driver_cannot_be_combined(self):
+        with self.assertRaises(ValueError):
+            serve_connection(None, self.key, self.driver, monitor=lambda *args: None)
 
 
 if __name__ == '__main__':unittest.main()

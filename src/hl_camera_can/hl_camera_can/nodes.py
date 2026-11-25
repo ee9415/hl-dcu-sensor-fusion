@@ -114,6 +114,7 @@ class CanDriverNode(Node):
         self.enabled = self.declare_parameter('enabled', False).value
         self.driver = None
         self.sent, self.rejected, self.errors = 0, 0, 0
+        self.captured = 0
         self.last_error = ''
         if self.enabled:
             c = self.config['can']
@@ -121,7 +122,7 @@ class CanDriverNode(Node):
                 if not c['windows_key_file']:
                     raise ValueError('Set windows_key_file before enabling Windows CAN')
                 self.driver = WindowsCanClient(c['windows_host'], c['windows_port'],
-                    c['windows_key_file'], c['windows_allow_virtual'])
+                    c['windows_key_file'], c['windows_allow_virtual'], c['windows_monitor_only'])
             else:
                 self.driver = SocketCanDriver(c['interface'], c['allow_vcan'])
         self.create_subscription(CanFdFrame, 'can/tx', self.receive, QOS)
@@ -144,8 +145,11 @@ class CanDriverNode(Node):
                 raise ValueError('CAN path deadline expired before driver write')
             if not self.driver:
                 return  # Disabled by default; ROS diagnostics only, no physical write.
-            self.driver.send(bytes(message.data), message.valid_until_monotonic_ns)
-            self.sent += 1
+            transmitted = self.driver.send(bytes(message.data), message.valid_until_monotonic_ns)
+            if transmitted is False:
+                self.captured += 1
+            else:
+                self.sent += 1
             self.last_error = ''
         except (ValueError, TypeError, OverflowError) as exc:
             self.rejected += 1
@@ -158,6 +162,7 @@ class CanDriverNode(Node):
     def publish_status(self):
         self.status.publish(String(data=json.dumps(dict(enabled=self.enabled,
             backend=self.config['can']['driver_backend'],
+            monitor_only=self.config['can']['windows_monitor_only'], captured=self.captured,
             sent=self.sent, rejected=self.rejected, errors=self.errors, error=self.last_error))))
 
     def destroy_node(self):

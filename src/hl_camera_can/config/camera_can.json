@@ -26,7 +26,7 @@
   "can": {
     "driver_backend": "windows_tcp",
     "windows_host": "127.0.0.1", "windows_port": 53200,
-    "windows_key_file": "", "windows_allow_virtual": false,
+    "windows_key_file": "", "windows_allow_virtual": false, "windows_monitor_only": false,
     "allow_bench_active": false,
     "min_speed_kph": 0.0, "max_speed_kph": 3.0,
     "startup_quiet_ms": 200, "startup_inactive_ms": 200,

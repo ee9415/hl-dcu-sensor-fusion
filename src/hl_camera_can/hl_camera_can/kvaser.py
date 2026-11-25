@@ -4,6 +4,7 @@ import os
 import time
 
 from .protocol import CAN_ID, check_packet
+from .timebase import unix_ns
 
 DEFAULT_DLL = r'C:\Program Files\Kvaser\Drivers\canlib32.dll'
 
@@ -83,7 +84,7 @@ class KvaserDriver:
             raise OSError('Kvaser channel is closed')
         # Leave 20ms for the synchronous hardware write/ack. Never keep a
         # timed-out ACTIVE frame in a queue and silently retry it later.
-        if time.time_ns()+20_000_000 >= deadline_unix_ns:
+        if unix_ns()+20_000_000 >= deadline_unix_ns:
             raise ValueError('CAN deadline leaves insufficient hardware transmit budget')
         payload = (ctypes.c_ubyte*32).from_buffer_copy(data)
         status = self.api.dll.canWriteWait(self.handle, CAN_ID, payload, 32, 0x30002, 20)

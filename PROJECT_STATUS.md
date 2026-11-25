@@ -1,5 +1,11 @@
 # PROJECT_STATUS.md
 
+## 물리 CAN 미송신 Windows 메시지 모니터 (2026-11-25)
+
+- AURIX 미연결 확인용 Windows GUI 추가. WSL CAN브릿지→Windows 지점에서32바이트 캡처·CRC/Sequence/계수/속도/거리/상태 표시,JSONL저장. SDK import/채널 open 없음. 물리 중계와 모니터 전용모드는 상호거부,캡처와sent카운터 분리.
+- Windows고정밀Unix시각과 프레임별offset 갱신으로시계검사 정밀도개선.37테스트 중36통과/기존Kvaser통합1skip.실제GUI30초605개·약19.99Hz·패킷/Sequence오류0·물리송신0,CANlib DLL로드0. Windows모니터와WSL모니터전용ROS런치 실행유지.
+- 실행파일 tools/start_windows_can_monitor.cmd. [사용 안내](docs/operation/windows_can_monitor.md). 기본미보정 경로는INACTIVE/계수0이 정상이며,실제CAN트랜시버로 보내지 않는다.
+
 ## 카메라 목표 경로 발행자·CAN FD 브릿지·Windows Kvaser 중계 (2026-11-25)
 
 - 기존ROS 후처리 결과를 구독하는 camera_path_publisher→TargetPath→camera_can_bridge→CanFdFrame→camera_can_driver를 추가. 관측된 좌우 경계를 임시/실측 투영 설정으로 전륜축중앙/+X전방/+Y왼쪽의미터 경로로 피팅. 미보정·시간검증미완료 기본비활성.
