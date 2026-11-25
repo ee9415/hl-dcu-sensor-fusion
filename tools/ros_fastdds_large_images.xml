@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Large local images exceed Fast DDS's default 512 KiB SHM segment. -->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <transport_descriptors>
+    <transport_descriptor>
+      <transport_id>oak_large_shm</transport_id>
+      <type>SHM</type>
+      <segment_size>67108864</segment_size>
+    </transport_descriptor>
+  </transport_descriptors>
+  <participant profile_name="oak_large_images" is_default_profile="true">
+    <rtps>
+      <userTransports><transport_id>oak_large_shm</transport_id></userTransports>
+      <useBuiltinTransports>true</useBuiltinTransports>
+    </rtps>
+  </participant>
+</profiles>

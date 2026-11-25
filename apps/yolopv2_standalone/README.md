@@ -10,7 +10,13 @@
 
 전체 후처리를 켠 이전 도로 영상 비교는 입력10/15/20에 대해 실제 출력9.99/8.74/7.52FPS였습니다. 기본 인식 모드는 위 별도 검증을 참조하세요. 높은 입력이 항상 빠른 출력을 뜻하지 않습니다. [시험 조건·결과·복구](../../docs/verification/camera/input_fps_20261027.md).
 
-## 현재 모델 (2026-10-27)
+## 현재 모델 (2026-11-25)
+
+기본 모델은 추가 학습된 A-YOLOM v4입니다. `model_config.json`에 모델 계열, 672×384 입력, RVC4 아카이브 경로를 지정합니다. 실제 OAK-4D Pro PoE에 패키지 0.34.0으로 적용하여 라이브30초300프레임 약10.00FPS, 도로 영상200/200프레임 추론 완료 및 ROS 결과를 확인했습니다. OAK-D Pro PoE는 미연결로 적용하지 않았습니다. [실장치 검증 및 복구](../../docs/verification/camera/ayolom_v4_oak4_deployment_20261125.md).
+
+두 YOLOv8 DFL 검출 헤드(차량 / 사람·신호등3색)와 두 2채널 분할 헤드를 처리합니다. 입력은 RGB FP16 NHWC `[1,384,672,3]`, `pixel/255`, letterbox 패딩114입니다. ROS·경계 추적의 기존 좌표를 유지하도록 패딩 제거 후 분할 logits를320×180으로 보간하여 클래스 선택합니다. 모델 추론 입력은672×384입니다. `YOLOPV2_MODEL_FAMILY`, `YOLOPV2_MODEL_ARCHIVE`, `YOLOPV2_INPUT_WIDTH/HEIGHT`는 호환되는 모델·크기로 함께 지정해야 하며, 아카이브 입력 크기가 다르면 기동을 거부합니다.
+
+## 이전 모델 기록 (2026-10-27)
 
 기본 모델은 `models/yolopv2_person_320.rvc4.tar.xz`입니다. 사용자 지정 OAK_4D_PRO 폴더의 변환 파일을 로컬 빌드 폴더와 실행 중인 장치에 배포했습니다. `YOLOPV2_MODEL_ARCHIVE` 환경 변수로 경로를 재지정할 수 있습니다. 기존 `models/yolopv2_320.rvc4.tar.xz`는 보존했습니다. 바이너리는 Git에 포함되지 않으므로 새 checkout에서 빌드할 때 별도 준비해야 합니다.
 

@@ -1,0 +1,212 @@
+{
+  "date": "2026-11-25",
+  "platform": "RVC4",
+  "device": "OAK-4D Pro PoE",
+  "source_sha256": "196b3228339bc1e5004fd87bded5fd039ba67225a08d5d6dab00c6fed291981c",
+  "onnx_sha256": "46dca08efcd1671121a7ead6708698009f516cb7688bdd663ad4ed6124a549d6",
+  "archive": "apps/yolopv2_standalone/models/ayolom_v4_person_tl_20261110/oak_4d_pro_poe_rvc4/ayolom_v4_person_tl_672x384.rvc4.tar.xz",
+  "archive_sha256": "a2144ca62766806c5d8100f80ca2dca8eacffb395cd106b9266adac5be5c9a97",
+  "archive_bytes": 19666588,
+  "dlc_sha256": "742dfb46dbbc30fbc2e3af834dfb1e1bb0b55565d62eb8f0e2d3b03539e1cccc",
+  "dlc_bytes": 22927619,
+  "compiler_image": "ghcr.io/luxonis/modelconverter-rvc4:2.41.0-latest",
+  "compiler_image_digest": "sha256:7554639323ecc2c81c4652286f729029f37f6a31eea9ebcfb56b23d27fad09b9",
+  "config": {
+    "config_version": "1.0",
+    "model": {
+      "metadata": {
+        "name": "ayolom_v4_person_tl_672x384",
+        "path": "ayolom_v4_person_tl_672x384.dlc",
+        "precision": "float16"
+      },
+      "inputs": [
+        {
+          "name": "images",
+          "dtype": "float16",
+          "input_type": "image",
+          "shape": [
+            1,
+            384,
+            672,
+            3
+          ],
+          "layout": "NHWC",
+          "preprocessing": {
+            "mean": null,
+            "scale": null,
+            "reverse_channels": true,
+            "interleaved_to_planar": true,
+            "dai_type": "RGB888i",
+            "resize_mode": null
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "det_stride_8",
+          "dtype": "float16",
+          "shape": [
+            1,
+            48,
+            84,
+            65
+          ],
+          "layout": "NDEC"
+        },
+        {
+          "name": "det_stride_16",
+          "dtype": "float16",
+          "shape": [
+            1,
+            24,
+            42,
+            65
+          ],
+          "layout": "NDEC"
+        },
+        {
+          "name": "det_stride_32",
+          "dtype": "float16",
+          "shape": [
+            1,
+            12,
+            21,
+            65
+          ],
+          "layout": "NDEC"
+        },
+        {
+          "name": "drivable_area",
+          "dtype": "float16",
+          "shape": [
+            1,
+            384,
+            672,
+            2
+          ],
+          "layout": "NHWC"
+        },
+        {
+          "name": "lane_line",
+          "dtype": "float16",
+          "shape": [
+            1,
+            384,
+            672,
+            2
+          ],
+          "layout": "NHWC"
+        },
+        {
+          "name": "person_tl_stride_8",
+          "dtype": "float16",
+          "shape": [
+            1,
+            48,
+            84,
+            68
+          ],
+          "layout": "NDEC"
+        },
+        {
+          "name": "person_tl_stride_16",
+          "dtype": "float16",
+          "shape": [
+            1,
+            24,
+            42,
+            68
+          ],
+          "layout": "NDEC"
+        },
+        {
+          "name": "person_tl_stride_32",
+          "dtype": "float16",
+          "shape": [
+            1,
+            12,
+            21,
+            68
+          ],
+          "layout": "NDEC"
+        }
+      ],
+      "heads": []
+    }
+  },
+  "buildinfo": {
+    "cmd_info": {
+      "dlc_convert": [
+        "snpe-onnx-to-dlc",
+        "-i",
+        "/app/output/ayolom_v4_person_tl_672x384/intermediate_outputs/ayolom_v4_person_tl_672x384.onnx",
+        "--input_dim",
+        "images",
+        "1,3,384,672",
+        "--input_dtype",
+        "images",
+        "float32",
+        "--out_name",
+        "det_stride_8",
+        "--out_name",
+        "det_stride_16",
+        "--out_name",
+        "det_stride_32",
+        "--out_name",
+        "drivable_area",
+        "--out_name",
+        "lane_line",
+        "--out_name",
+        "person_tl_stride_8",
+        "--out_name",
+        "person_tl_stride_16",
+        "--out_name",
+        "person_tl_stride_32",
+        "--input_layout",
+        "images",
+        "NCHW",
+        "--float_bitwidth",
+        "16"
+      ],
+      "graph_prepare": [
+        "snpe-dlc-graph-prepare",
+        "--input_dlc",
+        "/app/output/ayolom_v4_person_tl_672x384/intermediate_outputs/ayolom_v4_person_tl_672x384.dlc",
+        "--output_dlc",
+        "/app/output/ayolom_v4_person_tl_672x384/ayolom_v4_person_tl_672x384.dlc",
+        "--set_output_tensors",
+        "det_stride_8,det_stride_16,det_stride_32,drivable_area,lane_line,person_tl_stride_8,person_tl_stride_16,person_tl_stride_32",
+        "--optimization_level",
+        "2",
+        "--htp_socs",
+        "sm8550",
+        "--use_float_io"
+      ]
+    },
+    "modelconverter_version": "0.6.2",
+    "snpe_version": "SNPE v2.41.0.251128145156_191518",
+    "target_devices": [
+      "sm8550"
+    ]
+  },
+  "tensor_schema_verified": true,
+  "source_onnx_hash_verified": true,
+  "dlc_matches_archive": true,
+  "graph_preparation": "sm8550 success, optimization_level 2, float IO",
+  "manual_tensor_input": "RGB NHWC FP16 [1,384,672,3], pixel/255; normalization not embedded",
+  "device_inference_verified": true,
+  "compiled_numerical_equivalence_verified": false,
+  "device_validation": {
+    "date": "2026-11-25",
+    "device_ip": "169.254.100.228",
+    "device_id": "1142227768",
+    "app_id": "d0fd9213-9d81-483f-b24c-bee7236ab061",
+    "app_version": "0.34.0",
+    "live_frames": 300,
+    "live_fps": 10.003402517863417,
+    "road_input_frames": 200,
+    "road_completed_frames": 200,
+    "sequence_mismatches": 0,
+    "evidence": "artifacts/ayolom_deployment_20261125"
+  }
+}

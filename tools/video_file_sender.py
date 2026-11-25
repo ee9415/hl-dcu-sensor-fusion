@@ -290,6 +290,7 @@ class VideoFileSender:
                         self._set(state='전송 중지')
                         return
                     selected = exchange(dict(op='select', source='pc'))
+                    ordered_input = selected.get('input_delivery_mode') == 'ordered'
                     device_fps = selected.get('input_fps_limit',10)
                     if not isinstance(device_fps,(int,float)) or not math.isfinite(device_fps) or device_fps<=0:
                         raise ValueError('Invalid device input FPS limit')
@@ -299,6 +300,7 @@ class VideoFileSender:
                     started = time.monotonic()
                     deadline = started
                     index, media_epoch, sent = first, 0, 0
+                    ordered_position = float(first)
                     loop_count = 1
                     last_sent_key = None
                     while not self.stop.is_set():
@@ -310,6 +312,7 @@ class VideoFileSender:
                                 position = min(last-1, position)
                             frame = seek_frame(position)
                             index = position; media_epoch += 1
+                            ordered_position = float(position)
                             started = time.monotonic() - (index-first)/source_fps
                             deadline = time.monotonic()
                         if self.paused.is_set() and request is None:
@@ -330,7 +333,8 @@ class VideoFileSender:
                         if self.stop.wait(max(0, deadline-time.monotonic())):
                             break
                         # 경과 시간으로 지금 보내야 할 원본 프레임 번호를 계산한다(뒤처지면 중간 프레임은 건너뜀).
-                        target = index if request is not None else first + int((time.monotonic()-started)*source_fps)
+                        target = (index if request is not None else int(ordered_position+1e-6)
+                                  if ordered_input else first + int((time.monotonic()-started)*source_fps))
                         eof = last is not None and target >= last
                         while not eof and index < target:
                             if self.stop.is_set():
@@ -346,6 +350,7 @@ class VideoFileSender:
                                 break
                             frame = seek_frame(first)
                             index = first; media_epoch += 1
+                            ordered_position = float(first)
                             loop_count += 1
                             started = deadline = time.monotonic()
                         if last_sent_key == (media_epoch,index):
@@ -359,6 +364,7 @@ class VideoFileSender:
                             media_time_s=index/source_fps, media_epoch=media_epoch,
                             file=self.path.name), encoded.tobytes())
                         sent += 1
+                        ordered_position += source_fps/send_fps
                         last_sent_key = (media_epoch,index)
                         self._set(state='일시정지' if self.paused.is_set() else '전송 중', sent=sent,
                                   acknowledged=response['received_frames'],

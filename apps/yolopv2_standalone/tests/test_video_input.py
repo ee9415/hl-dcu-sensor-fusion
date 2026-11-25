@@ -32,6 +32,38 @@ def jpeg(value=100):
 
 
 class TransportTests(unittest.TestCase):
+    def test_ordered_input_waits_for_consumer_instead_of_replacing_frame(self):
+        self.hub.preserve_frames=True
+        token=object()
+        self.command(token,'select',source='pc')
+        self.command(token,'frame',frame_index=0,media_time_s=0.,media_epoch=0)
+        result=[]
+        worker=threading.Thread(target=lambda:result.append(self.command(token,'frame',
+            frame_index=1,media_time_s=.1,media_epoch=0)))
+        worker.start()
+        time.sleep(.03)
+        self.assertTrue(worker.is_alive())
+        self.assertEqual(self.hub.take()[1]['source_frame_index'],0)
+        worker.join(timeout=1)
+        self.assertEqual(self.hub.take()[1]['source_frame_index'],1)
+        self.assertEqual(self.hub.dropped,0)
+        self.assertEqual(result[0]['input_delivery_mode'],'ordered')
+
+    def test_ordered_stop_waits_until_the_final_accepted_frame_is_consumed(self):
+        self.hub.preserve_frames=True
+        token=object()
+        self.command(token,'select',source='pc')
+        self.command(token,'frame',frame_index=9,media_time_s=.9,media_epoch=0)
+        worker=threading.Thread(target=lambda:self.command(token,'stop'))
+        worker.start()
+        time.sleep(.03)
+        self.assertTrue(worker.is_alive())
+        self.assertEqual(self.hub.take()[1]['source_frame_index'],9)
+        worker.join(timeout=1)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(self.hub.consumed,1)
+        self.assertEqual(self.hub.dropped,0)
+
     def test_explicit_preview_recovers_only_idle_pc_and_keeps_active_owner(self):
         """명시적 preview 요청은 '소유자가 없는 pc 모드'일 때만 camera로 복구하고,
         활성 송신자가 있으면 소유권/epoch를 건드리지 않는다."""

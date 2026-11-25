@@ -1,0 +1,123 @@
+{
+  "config_version": "1.0",
+  "model": {
+    "metadata": {
+      "name": "ayolom_v4_person_tl_672x384",
+      "path": "ayolom_v4_person_tl_672x384.dlc",
+      "precision": "float16"
+    },
+    "inputs": [
+      {
+        "name": "images",
+        "dtype": "float16",
+        "input_type": "image",
+        "shape": [
+          1,
+          384,
+          672,
+          3
+        ],
+        "layout": "NHWC",
+        "preprocessing": {
+          "mean": null,
+          "scale": null,
+          "reverse_channels": true,
+          "interleaved_to_planar": true,
+          "dai_type": "RGB888i",
+          "resize_mode": null
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "name": "det_stride_8",
+        "dtype": "float16",
+        "shape": [
+          1,
+          48,
+          84,
+          65
+        ],
+        "layout": "NDEC"
+      },
+      {
+        "name": "det_stride_16",
+        "dtype": "float16",
+        "shape": [
+          1,
+          24,
+          42,
+          65
+        ],
+        "layout": "NDEC"
+      },
+      {
+        "name": "det_stride_32",
+        "dtype": "float16",
+        "shape": [
+          1,
+          12,
+          21,
+          65
+        ],
+        "layout": "NDEC"
+      },
+      {
+        "name": "drivable_area",
+        "dtype": "float16",
+        "shape": [
+          1,
+          384,
+          672,
+          2
+        ],
+        "layout": "NHWC"
+      },
+      {
+        "name": "lane_line",
+        "dtype": "float16",
+        "shape": [
+          1,
+          384,
+          672,
+          2
+        ],
+        "layout": "NHWC"
+      },
+      {
+        "name": "person_tl_stride_8",
+        "dtype": "float16",
+        "shape": [
+          1,
+          48,
+          84,
+          68
+        ],
+        "layout": "NDEC"
+      },
+      {
+        "name": "person_tl_stride_16",
+        "dtype": "float16",
+        "shape": [
+          1,
+          24,
+          42,
+          68
+        ],
+        "layout": "NDEC"
+      },
+      {
+        "name": "person_tl_stride_32",
+        "dtype": "float16",
+        "shape": [
+          1,
+          12,
+          21,
+          68
+        ],
+        "layout": "NDEC"
+      }
+    ],
+    "heads": []
+  }
+}

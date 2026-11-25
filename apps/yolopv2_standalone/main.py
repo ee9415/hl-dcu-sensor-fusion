@@ -1,4 +1,7 @@
 import os
+import json
+import hashlib
+import tarfile
 import time
 from pathlib import Path
 
@@ -14,21 +17,35 @@ from stream_output import StreamOutput
 from depth_preview import DepthPreview
 from video_transport import VideoInputServer
 from video_input_node import VideoInputSelector
+from perception_export import load_config
 
 
 CAMERA_SIZE = (1920, 1080)
 STEREO_SIZE = (640, 400)
-MODEL_SIZE = (int(os.environ.get('YOLOPV2_INPUT_WIDTH', '320')),
-              int(os.environ.get('YOLOPV2_INPUT_HEIGHT', '320')))
-if MODEL_SIZE not in ((320, 320), (320, 192)):
-    raise ValueError('Supported model sizes are 320x320 and 320x192')
-FPS = int(os.environ.get('OAK_INPUT_FPS', '20'))
+MODEL_CONFIG = json.loads(Path(__file__).with_name('model_config.json').read_text())
+MODEL_FAMILY = os.environ.get('YOLOPV2_MODEL_FAMILY', MODEL_CONFIG['family'])
+MODEL_SIZE = (int(os.environ.get('YOLOPV2_INPUT_WIDTH', MODEL_CONFIG['input_width'])),
+              int(os.environ.get('YOLOPV2_INPUT_HEIGHT', MODEL_CONFIG['input_height'])))
+if MODEL_FAMILY not in ('yolopv2', 'ayolom_v4'):
+    raise ValueError(f'Unsupported model family: {MODEL_FAMILY}')
+if MODEL_SIZE not in ((320, 320), (320, 192), (672, 384)):
+    raise ValueError('Supported model sizes are 320x320, 320x192 and 672x384')
+FPS = int(os.environ.get('OAK_INPUT_FPS', str(load_config().get('input_fps', 20))))
 if FPS not in (10, 15, 20):
     raise ValueError('OAK_INPUT_FPS must be 10, 15 or 20')
 MODEL_ARCHIVE = Path(os.environ.get(
     'YOLOPV2_MODEL_ARCHIVE',
-    str(Path(__file__).parent / 'models' / 'yolopv2_person_320.rvc4.tar.xz'),
+    str(Path(__file__).parent / MODEL_CONFIG['archive']),
 ))
+with tarfile.open(MODEL_ARCHIVE, 'r:xz') as model_archive:
+    archive_config = json.load(model_archive.extractfile('config.json'))['model']
+if archive_config['inputs'][0]['shape'] not in (
+        [1, MODEL_SIZE[1], MODEL_SIZE[0], 3], [1, 3, MODEL_SIZE[1], MODEL_SIZE[0]]):
+    raise ValueError('Configured input size does not match the model archive')
+if MODEL_FAMILY == 'ayolom_v4':
+    from ayolom_postprocess import TENSOR_NAMES
+    if {output['name'] for output in archive_config['outputs']} != set(TENSOR_NAMES):
+        raise ValueError('A-YOLOM requires both detection heads and both segmentation heads')
 PIPELINE_STAGE = os.environ.get("PIPELINE_STAGE", "full").lower()
 VALID_STAGES = {"camera", "depth", "manip", "nn", "static_nn", "full"}
 
@@ -58,6 +75,7 @@ device = dai.Device()
 print(f"Device: {device.getDeviceInfo()}", flush=True)
 print(f"Pipeline stage: {PIPELINE_STAGE}", flush=True)
 print(f'Camera/input clock limit: {FPS} FPS', flush=True)
+print(f'MODEL_CONFIG {json.dumps(dict(family=MODEL_FAMILY, input_size=MODEL_SIZE, archive=str(MODEL_ARCHIVE), archive_sha256=hashlib.sha256(MODEL_ARCHIVE.read_bytes()).hexdigest()))}', flush=True)
 
 with dai.Pipeline(device) as pipeline:
     if PIPELINE_STAGE == "static_nn":
@@ -118,7 +136,8 @@ with dai.Pipeline(device) as pipeline:
 
     video_input = None
     if PIPELINE_STAGE == 'full':
-        video_input = VideoInputServer(input_fps=FPS)
+        video_input = VideoInputServer(input_fps=FPS,
+            preserve_frames=not load_config().get('camera_postprocess', True))
         source = pipeline.create(VideoInputSelector).build(camera_out, aligned_depth, video_input)
         camera_out, aligned_depth = source.video_out, source.depth_out
         print('PC video input: TCP 8558 (camera/PC source selection)', flush=True)
@@ -151,6 +170,8 @@ with dai.Pipeline(device) as pipeline:
         # ImageManip produces the fixed-size frame. Yolopv2Preprocess below
         # performs BGR->RGB and 0..255->0..1 explicitly before inference.
         manip.initialConfig.setFrameType(dai.ImgFrame.Type.BGR888i)
+        if MODEL_FAMILY == 'ayolom_v4':
+            manip.initialConfig.setBackgroundColor(114, 114, 114)
         manip.setMaxOutputFrameSize(MODEL_SIZE[0] * MODEL_SIZE[1] * 3)
         camera_out.link(manip.inputImage)
 
@@ -168,6 +189,7 @@ with dai.Pipeline(device) as pipeline:
             if PIPELINE_STAGE == "nn":
                 probe = pipeline.create(Yolopv2NnProbe).build(neural_network.out)
                 probe.model_size = MODEL_SIZE
+                probe.model_family = MODEL_FAMILY
             else:
                 postprocess = pipeline.create(Yolopv2Postprocess).build(
                     camera_out,
@@ -176,6 +198,7 @@ with dai.Pipeline(device) as pipeline:
                 )
                 postprocess.set_source_size(*CAMERA_SIZE)
                 postprocess.model_size = MODEL_SIZE
+                postprocess.model_family = MODEL_FAMILY
                 postprocess.video_input = video_input
                 visualizer.addTopic(
                     "SpatialDetections",

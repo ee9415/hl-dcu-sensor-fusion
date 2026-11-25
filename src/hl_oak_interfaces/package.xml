@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>hl_oak_interfaces</name><version>0.1.0</version>
+  <description>Synchronized OAK inference frame for host postprocessing</description>
+  <maintainer email="ee9415@gmail.com">qsentech</maintainer><license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <build_depend>rosidl_default_generators</build_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <depend>std_msgs</depend><depend>sensor_msgs</depend><depend>vision_msgs</depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

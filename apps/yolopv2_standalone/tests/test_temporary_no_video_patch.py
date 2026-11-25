@@ -16,7 +16,7 @@ class NoVideoDiagnosticPatchTests(unittest.TestCase):
         """패치 후에도 인지 처리·텔레메트리 호출은 남고, 결과/BEV 영상 출력 경로만 제거되며 코드가 컴파일된다."""
         main = patch.patch_main((ROOT/'apps/yolopv2_standalone/main.py').read_text(encoding='utf-8'))
         node = patch.patch_node((ROOT/'apps/yolopv2_standalone/yolopv2_node.py').read_text(encoding='utf-8'))
-        for name in ('self._boundary_tracker.update_contours(', 'segmentation_masks(', 'self.drivable.send(',
+        for name in ('self._boundary_tracker.update_contours(', 'masks(', 'ayolom.segmentation_masks', 'self.drivable.send(',
                      'self.lane.send(', 'self._telemetry.publish(', 'self._stop_line_tracker.update(',
                      'displayed_midpoint_guidance('):
             self.assertIn(name, node)

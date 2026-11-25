@@ -1,0 +1,290 @@
+{
+  "source": "apps/yolopv2_standalone/models/ayolom_v4_person_tl_20261110/v4_person_tl_final.pt",
+  "source_sha256": "196b3228339bc1e5004fd87bded5fd039ba67225a08d5d6dab00c6fed291981c",
+  "source_repository": "https://github.com/JiayuanWang-JW/YOLOv8-multi-task",
+  "source_commit": "9cf56e851339bd3ec2db7c9b278385ee1e98fee2",
+  "onnx_sha256": "46dca08efcd1671121a7ead6708698009f516cb7688bdd663ad4ed6124a549d6",
+  "input_shape": [
+    1,
+    3,
+    384,
+    672
+  ],
+  "input_order": "RGB",
+  "normalization": "pixel/255",
+  "letterbox_value": 114,
+  "opset": 12,
+  "detection_classes": [
+    1,
+    4
+  ],
+  "reg_max": 16,
+  "checkpoint_note": "A-YOLOM v4 + person + traffic light (red/yellow/green)",
+  "class_mapping": {
+    "base": [
+      "vehicle"
+    ],
+    "added": [
+      "person",
+      "tl_red",
+      "tl_yellow",
+      "tl_green"
+    ]
+  },
+  "names": {
+    "0": "vehicle",
+    "1": "person",
+    "2": "tl_red",
+    "3": "tl_yellow",
+    "4": "tl_green",
+    "5": "bike",
+    "6": "motor",
+    "7": "traffic light",
+    "8": "traffic sign",
+    "9": "train",
+    "10": "drivable",
+    "11": "lane"
+  },
+  "outputs": {
+    "det_stride_8": [
+      1,
+      65,
+      48,
+      84
+    ],
+    "det_stride_16": [
+      1,
+      65,
+      24,
+      42
+    ],
+    "det_stride_32": [
+      1,
+      65,
+      12,
+      21
+    ],
+    "drivable_area": [
+      1,
+      2,
+      384,
+      672
+    ],
+    "lane_line": [
+      1,
+      2,
+      384,
+      672
+    ],
+    "person_tl_stride_8": [
+      1,
+      68,
+      48,
+      84
+    ],
+    "person_tl_stride_16": [
+      1,
+      68,
+      24,
+      42
+    ],
+    "person_tl_stride_32": [
+      1,
+      68,
+      12,
+      21
+    ]
+  },
+  "detection_postprocess": "YOLOv8 DFL, stride grids, sigmoid class logits, NMS; no objectness",
+  "segmentation_postprocess": "Bilinear resize logits then channel argmax; preserve background channel",
+  "comparisons": [
+    {
+      "input": "image",
+      "name": "det_stride_8",
+      "shape": [
+        1,
+        65,
+        48,
+        84
+      ],
+      "max_abs_error": 4.00543212890625e-05
+    },
+    {
+      "input": "image",
+      "name": "det_stride_16",
+      "shape": [
+        1,
+        65,
+        24,
+        42
+      ],
+      "max_abs_error": 6.4849853515625e-05
+    },
+    {
+      "input": "image",
+      "name": "det_stride_32",
+      "shape": [
+        1,
+        65,
+        12,
+        21
+      ],
+      "max_abs_error": 1.621246337890625e-05
+    },
+    {
+      "input": "image",
+      "name": "drivable_area",
+      "shape": [
+        1,
+        2,
+        384,
+        672
+      ],
+      "max_abs_error": 1.2874603271484375e-05
+    },
+    {
+      "input": "image",
+      "name": "lane_line",
+      "shape": [
+        1,
+        2,
+        384,
+        672
+      ],
+      "max_abs_error": 2.09808349609375e-05
+    },
+    {
+      "input": "image",
+      "name": "person_tl_stride_8",
+      "shape": [
+        1,
+        68,
+        48,
+        84
+      ],
+      "max_abs_error": 6.103515625e-05
+    },
+    {
+      "input": "image",
+      "name": "person_tl_stride_16",
+      "shape": [
+        1,
+        68,
+        24,
+        42
+      ],
+      "max_abs_error": 5.53131103515625e-05
+    },
+    {
+      "input": "image",
+      "name": "person_tl_stride_32",
+      "shape": [
+        1,
+        68,
+        12,
+        21
+      ],
+      "max_abs_error": 4.76837158203125e-05
+    },
+    {
+      "input": "random",
+      "name": "det_stride_8",
+      "shape": [
+        1,
+        65,
+        48,
+        84
+      ],
+      "max_abs_error": 2.86102294921875e-05
+    },
+    {
+      "input": "random",
+      "name": "det_stride_16",
+      "shape": [
+        1,
+        65,
+        24,
+        42
+      ],
+      "max_abs_error": 1.9311904907226562e-05
+    },
+    {
+      "input": "random",
+      "name": "det_stride_32",
+      "shape": [
+        1,
+        65,
+        12,
+        21
+      ],
+      "max_abs_error": 1.6689300537109375e-05
+    },
+    {
+      "input": "random",
+      "name": "drivable_area",
+      "shape": [
+        1,
+        2,
+        384,
+        672
+      ],
+      "max_abs_error": 1.5735626220703125e-05
+    },
+    {
+      "input": "random",
+      "name": "lane_line",
+      "shape": [
+        1,
+        2,
+        384,
+        672
+      ],
+      "max_abs_error": 1.621246337890625e-05
+    },
+    {
+      "input": "random",
+      "name": "person_tl_stride_8",
+      "shape": [
+        1,
+        68,
+        48,
+        84
+      ],
+      "max_abs_error": 5.91278076171875e-05
+    },
+    {
+      "input": "random",
+      "name": "person_tl_stride_16",
+      "shape": [
+        1,
+        68,
+        24,
+        42
+      ],
+      "max_abs_error": 3.24249267578125e-05
+    },
+    {
+      "input": "random",
+      "name": "person_tl_stride_32",
+      "shape": [
+        1,
+        68,
+        12,
+        21
+      ],
+      "max_abs_error": 2.86102294921875e-05
+    }
+  ],
+  "torch_version": "2.5.1+cpu",
+  "onnx_version": "1.17.0",
+  "onnxruntime_version": "1.20.1",
+  "rvc2_status": "compiled, downloaded, input and all output shapes verified; device inference pending",
+  "rvc4_status": "compiled, deployed as 0.34.0 and actual device inference verified; compiled numerical equivalence not measured",
+  "device_validation": "RVC4 OAK-4D Pro PoE verified 2026-11-25: live 300 frames at 10.00 FPS, PC road 200/200; RVC2 not performed",
+  "rvc2_artifact": "apps/yolopv2_standalone/models/ayolom_v4_person_tl_20261110/oak_d_pro_poe_rvc2/ayolom_v4_person_tl_672x384_openvino_2022.1_6shave.blob",
+  "rvc2_sha256": "f6a39a651194090f03cf45a3788bbc50a79e48fa281cb042292565179ff52718",
+  "rvc2_preprocessing": "RGB U8 planar 0..255; divide by 255 embedded at compilation",
+  "rvc4_artifact": "apps/yolopv2_standalone/models/ayolom_v4_person_tl_20261110/oak_4d_pro_poe_rvc4/ayolom_v4_person_tl_672x384.rvc4.tar.xz",
+  "rvc4_sha256": "a2144ca62766806c5d8100f80ca2dca8eacffb395cd106b9266adac5be5c9a97",
+  "rvc4_preprocessing": "RGB NHWC FP16 [1,384,672,3], pixel/255; normalization not embedded"
+}

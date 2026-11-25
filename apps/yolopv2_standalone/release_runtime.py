@@ -212,7 +212,9 @@ def launch(store):
         state['pending']['attempted']=True;store.write_state(state)
     folder=store.folder(candidate) if candidate else store.app
     env=dict(os.environ,OAK_CODE_RELEASE=candidate or 'embedded',OAK_RUNTIME_FINGERPRINT=store.runtime)
-    env.setdefault('YOLOPV2_MODEL_ARCHIVE',str(store.app/'models/yolopv2_person_320.rvc4.tar.xz'))
+    profile_path=folder/'model_config.json'
+    profile=json.loads(profile_path.read_text()) if profile_path.exists() else {}
+    env.setdefault('YOLOPV2_MODEL_ARCHIVE',str(store.app/profile.get('archive','models/yolopv2_person_320.rvc4.tar.xz')))
     child=subprocess.Popen([sys.executable,'-u',str(folder/'main.py')],cwd=folder,env=env,start_new_session=True)
     def terminate(signum,frame):
         stop_child(child)

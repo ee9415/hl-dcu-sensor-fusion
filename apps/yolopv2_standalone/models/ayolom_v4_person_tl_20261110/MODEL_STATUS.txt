@@ -1,0 +1,10 @@
+2026-11-25
+Original checkpoint: v4_person_tl_final.pt
+onnx_shared/: verified 672x384 ONNX and PyTorch comparison report.
+oak_d_pro_poe_rvc2/: converted; camera not connected, device inference NOT verified.
+oak_4d_pro_poe_rvc4/: converted AND actual inference verified on OAK-4D Pro PoE, app 0.34.0.
+Live 30 seconds: 300 frames, 10.00 FPS; road replay 200/200 completions.
+RVC2 input: RGB U8 planar 0..255; divide by 255 embedded.
+RVC4 manual tensor input: RGB NHWC FP16 [1,384,672,3], pixel/255.
+ONNX input: RGB float32 NCHW [1,3,384,672], pixel/255.
+Compiled numerical equivalence and labeled accuracy are NOT evaluated.

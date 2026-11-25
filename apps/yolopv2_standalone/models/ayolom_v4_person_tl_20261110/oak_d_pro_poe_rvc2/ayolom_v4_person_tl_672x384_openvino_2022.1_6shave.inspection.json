@@ -1,0 +1,102 @@
+{
+  "path": "apps/yolopv2_standalone/models/ayolom_v4_person_tl_20261110/oak_d_pro_poe_rvc2/ayolom_v4_person_tl_672x384_openvino_2022.1_6shave.blob",
+  "sha256": "f6a39a651194090f03cf45a3788bbc50a79e48fa281cb042292565179ff52718",
+  "inputs": {
+    "images": {
+      "dims": [
+        672,
+        384,
+        3,
+        1
+      ],
+      "data_type": "DataType.U8F",
+      "order": "StorageOrder.NCHW"
+    }
+  },
+  "outputs": {
+    "person_tl_stride_8": {
+      "dims": [
+        84,
+        48,
+        68,
+        1
+      ],
+      "data_type": "DataType.FP16",
+      "order": "StorageOrder.NCHW"
+    },
+    "person_tl_stride_32": {
+      "dims": [
+        21,
+        12,
+        68,
+        1
+      ],
+      "data_type": "DataType.FP16",
+      "order": "StorageOrder.NCHW"
+    },
+    "lane_line": {
+      "dims": [
+        672,
+        384,
+        2,
+        1
+      ],
+      "data_type": "DataType.FP16",
+      "order": "StorageOrder.NCHW"
+    },
+    "det_stride_8": {
+      "dims": [
+        84,
+        48,
+        65,
+        1
+      ],
+      "data_type": "DataType.FP16",
+      "order": "StorageOrder.NCHW"
+    },
+    "person_tl_stride_16": {
+      "dims": [
+        42,
+        24,
+        68,
+        1
+      ],
+      "data_type": "DataType.FP16",
+      "order": "StorageOrder.NCHW"
+    },
+    "drivable_area": {
+      "dims": [
+        672,
+        384,
+        2,
+        1
+      ],
+      "data_type": "DataType.FP16",
+      "order": "StorageOrder.NCHW"
+    },
+    "det_stride_32": {
+      "dims": [
+        21,
+        12,
+        65,
+        1
+      ],
+      "data_type": "DataType.FP16",
+      "order": "StorageOrder.NCHW"
+    },
+    "det_stride_16": {
+      "dims": [
+        42,
+        24,
+        65,
+        1
+      ],
+      "data_type": "DataType.FP16",
+      "order": "StorageOrder.NCHW"
+    }
+  },
+  "shaves": 6,
+  "slices": 6,
+  "openvino": "Version.VERSION_2022_1",
+  "device_validation": "not performed"
+}

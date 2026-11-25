@@ -44,6 +44,17 @@ class Frame:
 
 
 class BoundaryPipelineTests(unittest.TestCase):
+    def _setup_export(self):
+        # These tests exercise the retained on-device processing mode. Do not
+        # bind a network export port or inherit the deployed ROS-offload mode.
+        self.export_patch = patch('perception_export.PerceptionServer')
+        self.export_patch.start()
+        self.addCleanup(self.export_patch.stop)
+        self.config_patch = patch('perception_export.load_config',
+                                  return_value={'camera_postprocess': True})
+        self.config_patch.start()
+        self.addCleanup(self.config_patch.stop)
+
     def test_temporal_overlay_survives_display_changes_and_resets_on_source_epoch(self):
         """표시 설정(경계선 숨김, raw_rgb)이 바뀌어도 경계선 추적은 그대로 유지되고, source epoch가 바뀔 때만 초기화된다."""
         class Host:
@@ -101,6 +112,7 @@ class BoundaryPipelineTests(unittest.TestCase):
             self.assertFalse(server.return_value.publish.call_args.args[0]['left_boundary_valid'])
 
     def setUp(self):
+        self._setup_export()
         # These assertions specify the legacy/off rendering and telemetry.
         """기본적으로 가상 가이던스를 끈 상태(기존 렌더링/텔레메트리 기준)로 테스트한다."""
         from virtual_guidance import GuidanceConfig

@@ -27,6 +27,10 @@ def patch_main(source):
 
 
 def patch_node(source):
+    if '    def _send_offloaded(' in source:
+        # Offload mode has its own debug streams; suppress those sends too.
+        source = source.replace('        self.result.send(result)\n', '')
+        source = source.replace('        self.bev.send(self._bev_frame(top, nn_data))\n', '')
     if '        # TOP video remains available in basic mode;' in source:
         source = replace_span(source,
             '        # TOP video remains available in basic mode;',

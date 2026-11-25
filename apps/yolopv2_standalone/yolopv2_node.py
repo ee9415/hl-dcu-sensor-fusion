@@ -4,7 +4,9 @@ from dataclasses import replace
 
 import depthai as dai
 import numpy as np
+import ayolom_postprocess as ayolom
 from telemetry_server import TelemetryServer
+from perception_export import PerceptionExport
 from stop_line import StopLineTracker, StopLineEstimate, draw_stop_line
 from image_boundaries import ImageBoundaryTracker, ImageBoundaryEstimate
 from virtual_guidance import GuidanceConfig, VirtualGuidance, GuidanceEstimate, draw_guidance
@@ -153,6 +155,8 @@ class Yolopv2NnProbe(dai.node.HostNode):
         return self
 
     def process(self, nn_data: dai.NNData) -> None:
+        if getattr(self, 'model_family', 'yolopv2') == 'ayolom_v4':
+            self.TENSOR_NAMES = ayolom.TENSOR_NAMES
         self._frames += 1
         now = time.monotonic()
         if self._tensor_shapes is None:
@@ -191,10 +195,12 @@ class Yolopv2NnProbe(dai.node.HostNode):
                 ("requested_nchw", tensors),
                 ("requested_nhwc", native_tensors),
             ):
-                decoded = non_max_suppression(
-                    decode_heads([candidate[name] for name in self.TENSOR_NAMES[:3]])
-                )
-                drivable, lane = segmentation_masks(
+                is_ayolom = getattr(self, 'model_family', 'yolopv2') == 'ayolom_v4'
+                prediction = (ayolom.decode_prediction(candidate, self.model_size) if is_ayolom else
+                              decode_heads([candidate[name] for name in self.TENSOR_NAMES[:3]]))
+                decoded = non_max_suppression(prediction)
+                masks = ayolom.segmentation_masks if is_ayolom else segmentation_masks
+                drivable, lane = masks(
                     candidate[self.TENSOR_NAMES[3]],
                     candidate[self.TENSOR_NAMES[4]],
                     (1920, 1080),
@@ -254,8 +260,11 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self.result = self.createOutput(possibleDatatypes=img_frame_type)
         self._source_size = (1920, 1080)
         self.model_size = (320, 320)
+        self.model_family = 'yolopv2'
+        self._model_reported = False
         self._result_size = (960, 540)
         self._telemetry = TelemetryServer()
+        self._perception_export = PerceptionExport()
         self._confidence_threshold = 0.30
         self._iou_threshold = 0.45
         self._frames = 0
@@ -506,6 +515,56 @@ class Yolopv2Postprocess(dai.node.HostNode):
         result.setSequenceNum(preview.getSequenceNum())
         return result
 
+    def _send_offloaded(self, preview, nn_data, depth, drivable, lane,
+                        detections, measurements, source):
+        """Keep monitoring streams live, with temporal processing owned by ROS."""
+        rendered = np.ascontiguousarray(preview.getCvFrame()[::2, ::2])
+        h, w = rendered.shape[:2]
+        ys = np.arange(h)*lane.shape[0]//h
+        xs = np.arange(w)*lane.shape[1]//w
+        self._blend_mask(rendered, drivable[ys[:, None], xs], (0, 255, 0), .25)
+        self._blend_mask(rendered, lane[ys[:, None], xs], (0, 0, 255), .6)
+        for detection, measurement in zip(detections, measurements):
+            self._draw_box(rendered, detection)
+            self._draw_distance(rendered, detection, measurement)
+        self._draw_text(rendered, 'POSTPROCESS ROS', 10, 12, (0, 220, 255))
+        result = dai.ImgFrame()
+        result.setCvFrame(rendered, dai.ImgFrame.Type.NV12)
+        result.setTimestamp(preview.getTimestamp())
+        result.setSequenceNum(preview.getSequenceNum())
+        self.result.send(result)
+        # The existing TOP port remains an explicitly labelled placeholder.
+        # ROS publishes the actual processed TOP image on its debug topic.
+        top = np.zeros((480, 640, 3), dtype=np.uint8)
+        self._draw_text(top, 'TOP POSTPROCESS ROS', 10, 12, (0, 220, 255))
+        self.bev.send(self._bev_frame(top, nn_data))
+        self.drivable.send(self._mask_frame(drivable, nn_data))
+        self.lane.send(self._mask_frame(lane, nn_data))
+        # Immutable runtime health checks expect the full inference pipeline.
+        # Report the processing owner separately from that legacy health field.
+        self._telemetry.publish(dict(source, processing_mode='full',
+            postprocess_mode='ros_offload', postprocess_location='ros', frame_seq=int(preview.getSequenceNum()),
+            nn_seq=int(nn_data.getSequenceNum()), depth_seq=int(depth.getSequenceNum()),
+            capture_timestamp_s=preview.getTimestamp().total_seconds(),
+            depth_available=source.get('input_source', 'camera') == 'camera',
+            boundary_valid=False, guidance_valid=False, stop_line_valid=False,
+            objects=[dict(label=d.label, confidence=d.confidence,
+                          xmin=d.xmin, ymin=d.ymin, xmax=d.xmax, ymax=d.ymax,
+                          depth_valid=bool(m.valid), z_m=m.z_mm/1000 if m.valid else None)
+                     for d, m in zip(detections, measurements)]))
+        self._frames += 1
+        now = time.monotonic()
+        if self._frames == 1 or now-self._last_health_at >= 5:
+            print('HEALTH '+json.dumps(dict(status='running', processing_mode='ros_offload',
+                model_family=self.model_family, input_shape=[1,3,self.model_size[1],self.model_size[0]],
+                frames=self._frames, average_fps=round(self._frames/max(now-self._started_at, .001), 2),
+                export_rejected=self._perception_export.rejected,
+                export_errors=self._perception_export.server.errors,
+                export_accepted=self._perception_export.server.accepted,
+                export_encoded=self._perception_export.server.encoded,
+                export_queue_high_water=self._perception_export.server.high_water)), flush=True)
+            self._last_health_at = now
+
     def process(
         self,
         preview: dai.ImgFrame,
@@ -549,8 +608,22 @@ class Yolopv2Postprocess(dai.node.HostNode):
             intrinsics = np.asarray(
                 depth_transformation.getIntrinsicMatrix(), dtype=np.float64
             )
-        heads = [self._tensor(nn_data, name) for name in self.TENSOR_NAMES[:3]]
-        prediction = decode_heads(heads)
+        if self.model_family == 'ayolom_v4':
+            self.TENSOR_NAMES = ayolom.TENSOR_NAMES
+            tensors = {name: self._tensor(nn_data, name) for name in self.TENSOR_NAMES}
+            prediction = ayolom.decode_prediction(tensors, self.model_size)
+            source = dict(source, model_family=self.model_family, model_input_size=list(self.model_size),
+                          class_names=list(ayolom.CLASS_NAMES))
+            if not self._model_reported:
+                print('NN_MODEL '+json.dumps(dict(family=self.model_family,
+                    input_shape=[1,3,self.model_size[1],self.model_size[0]],
+                    outputs={name:dict(shape=list(value.shape),finite=bool(np.isfinite(value).all()),
+                                       min=float(value.min()),max=float(value.max()))
+                             for name,value in tensors.items()})), flush=True)
+                self._model_reported = True
+        else:
+            heads = [self._tensor(nn_data, name) for name in self.TENSOR_NAMES[:3]]
+            prediction = decode_heads(heads)
         decoded = non_max_suppression(
             prediction,
             confidence_threshold=self._confidence_threshold,
@@ -609,12 +682,19 @@ class Yolopv2Postprocess(dai.node.HostNode):
             spatial_detections.setTransformation(depth_transformation)
         self.spatial_detections.send(spatial_detections)
 
-        drivable, lane = segmentation_masks(
+        masks = ayolom.segmentation_masks if self.model_family == 'ayolom_v4' else segmentation_masks
+        drivable, lane = masks(
             self._tensor(nn_data, self.TENSOR_NAMES[3]),
             self._tensor(nn_data, self.TENSOR_NAMES[4]),
             self._source_size,
             self.model_size,
         )
+        self._perception_export.publish(preview, nn_data, aligned_depth, depth_frame,
+            intrinsics, drivable, lane, detection_messages, measurements, source, self.model_size)
+        if not self._perception_export.camera_postprocess:
+            self._send_offloaded(preview, nn_data, aligned_depth, drivable, lane,
+                                 detection_messages, measurements, source)
+            return
         boundary_started = time.monotonic()
         from lane_contours import extract_lane_contours
         # Perception is independent of display switches. Full mode uses one
@@ -625,7 +705,10 @@ class Yolopv2Postprocess(dai.node.HostNode):
         self._lane_preview_error=None
         if self._lane_overlay_mode != 'raw_rgb':
             try:
-                self._lane_scores=crop_lane_scores(self._tensor(nn_data,self.TENSOR_NAMES[4]),lane.shape,self.model_size)
+                self._lane_scores=(ayolom.segmentation_scores(
+                    self._tensor(nn_data,self.TENSOR_NAMES[4]),self._source_size,self.model_size)
+                    if self.model_family == 'ayolom_v4' else crop_lane_scores(
+                        self._tensor(nn_data,self.TENSOR_NAMES[4]),lane.shape,self.model_size))
             except ValueError as exc:
                 self._lane_preview_error=str(exc)
         from top_view_controls import top_view_config

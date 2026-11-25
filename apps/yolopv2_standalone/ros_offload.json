@@ -1,0 +1,7 @@
+{
+  "camera_postprocess": false,
+  "input_fps": 10,
+  "export_fps": null,
+  "port": 8560,
+  "max_sync_error_s": 0.075
+}

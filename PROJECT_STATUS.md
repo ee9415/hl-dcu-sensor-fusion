@@ -1,5 +1,49 @@
 # PROJECT_STATUS.md
 
+## ROS 영상 몰림 DDS 설정 원인 확인 (2026-11-25)
+
+- debug1.56MB/TOP0.92MB 대비 Fast DDS 기본 SHM영역약0.5MB. 결과JSON100ms간격 대비 영상최대약3초 몰림.64MiB 프로필 적용 후 단일노드 구성·PC도로영상30초 각299개·약10FPS,최대166ms·250ms초과공백/stale/순서단절0.
+- ROS 실행기와 뷰어에 기본 프로필 적용,사용자 명시프로필 보존.현재 확대설정·PC영상·결과화면 실행 유지. [원인 비교와 한계](docs/verification/camera/ros_dds_image_jitter_20261125.md).
+
+## ROS 후처리 영상 단절·노드 종료 복구 (2026-11-25)
+
+- processor가 ROS 프레임 순서 단절 RuntimeError로 종료되는 문제 확인. bridge에 프레임별 완료 확인·0.5초 재전송, processor에 중복 확인·오류 명시·추적 초기화 복구 추가. 카메라 앱·모델·PC 도로 영상 입력 유지.
+- RELIABLE 결과 뷰어를 새 프레임만 그리도록 변경.120초 debug/TOP/result 각각1,200개·약10.004FPS, 순서 단절/stale0. TOP 최대 간격236.5ms, debug322.8ms(250ms초과3회). 호스트 처리 지연 P95 80.3ms.0.65초 일시 정지 후1회 재전송·FIFO 복구 확인.
+- ROS 두 패키지 빌드 및 관련18개 테스트 통과. bridge/processor/뷰어 실행 유지. [검증·한계](docs/verification/camera/ros_stream_recovery_20261125.md), [실행 안내](docs/operation/oak_ros_offload.md).
+
+## A-YOLOM v4 추가 학습 모델 OAK4 적용·672×384 실추론 확인 (2026-11-25)
+
+- 사용자 `v4_person_tl_final.pt`에서 변환한 RVC4 FP16 아카이브를 CAM01 OAK-4D Pro PoE(169.254.100.228 /1142227768)에 적용했다. 기본 모델 설정672×384, YOLOv8 DFL 검출2개와2채널 도로·차선 분할을 처리한다. 기존 ROS 마스크 좌표320×180은 유지한다.
+- 실행환경·기본 코드·모델 포함 전체 패키지0.34.0을 새 UUID `d0fd9213-9d81-483f-b24c-bee7236ab061`로 설치·실행했다. 기존0.33.10 UUID `61fbe0c1-ad26-42dc-93c4-a8d2b5191fce`와 활성 코드12c21dba…는 중지·보존했다. 새 앱은 embedded 코드, runtime b945fc7184d97c72db54bf9f0c72af2e7e47e05eecccd774a76b3cc1249fe641, pending 없음.
+- 라이브30초300프레임 약10.003FPS·고유300·sequence 불일치/전송누락0. 실제8개NN 텐서 shape·유한값·모델SHA256 일치. 도로 영상20초 입력200→NN완료200, 누락0, 도로·차선 마스크 및 검출 출력 확인. 정답 정확도와 ONNX 대비 수치 동등성 평가는 별도다.
+- ROS bridge만 실행 중이던 상태에서 기존 후처리 노드를 다시 시작했다.20초 실제 frame201/result203/debug203/TOP203, stale0 확인(구독 시작 시점 차이로 개수는 다름). 현재 새 모델·라이브 카메라·실제Depth·ROS 두 노드 유지. OAK-D Pro PoE는 미연결로 배포하지 않았다.
+- 카메라의 외부DNS 실패/1970 시계로 일반 build가 실패해, 검증된0.33.10 패키지의 두 런타임 레이어를 해시 그대로 재사용하고 앱 레이어를 로컬 재구성했다. 카메라 네트워크/시계는 변경하지 않았다. [검증·재현·복구](docs/verification/camera/ayolom_v4_oak4_deployment_20261125.md), 자료 `artifacts/ayolom_deployment_20261125`.
+
+## 추론 결과10FPS 순서 보존 및 ROS 변환 최적화 (2026-11-25)
+
+- 5FPS 제한 제거(export_fps=null), 입력10FPS, 카메라/호스트 FIFO8·역압으로 이전 결과 덮어쓰기 제거. PC JPEG 입력도 ordered·마지막 프레임 소비 후 종료. RGB raw/마스크·원본Depth zlib, ROS uint8 배열 직접 복사·버퍼 뷰, RELIABLE32/결과64 적용.
+- 도로 영상60초 입력600→NN 완료600→ROS 원본600→후처리600, RGB/두 마스크/Depth/두 CameraInfo/객체/debug/TOP도 각각600. 누락·중복·sequence불일치·Depth혼입0, 실제9.967FPS. 전송→결과 수신 평균272.91ms/P95 388.09ms, 호스트 전달354.87→17.10ms. 별도 실제Depth 라이브30초 frame/result309개·stale0, 카메라export 오류0·큐 high-water1.
+- 전체432개+ROS 직렬화3개 통과. 실행환경0.33.10 유지,95,196bytes 코드 배포. active12c21dba0a11cddaae23331faacbb3ad6711d66ac8434870cc7daa452b9a64cd, pending/failure 없음·직전e9f2f1d… 복구본. 현재 라이브 입력·ROS 실행 중. [검증·재현](docs/verification/camera/ros_offload_ordered10_20261125.md).
+
+## PC 영상→카메라→ROS 결과 발행 지연 실측 (2026-11-24)
+
+- 같은 CAM01 원본30초·입력10FPS·전송상한5FPS에서117개 표본 수집. 첫3초 제외106개 기준 전송 시작→결과 publish 반환 평균685.31ms/P95 809.55ms. JPEG준비 포함687.28ms.
+- 카메라 왕복/추론/압축/호스트 복원279.13ms, ROS 변환/전달/콜백 대기354.87ms, 호스트 후처리50.89ms, 결과직렬화/발행0.42ms. NN추론 단독 시간은 미분리. 호스트 monotonic clock과 원본frame_index로 대응했다.
+- ROS에 구독 시 발행하는 timing 토픽 추가·재빌드/재시작. 카메라 코드 변경 없이 라이브 입력 복구, ROS 유지. [측정 정의와 결과](docs/verification/camera/ros_offload_latency_20261124.md).
+
+## ROS 후처리 도로 영상 전체 재생 검증 (2026-11-24)
+
+- 사용자 CAM01 원본984.5초/9,845프레임을 실제 OAK 추론→ROS 후처리로 끝까지 재생. 전송/소비9,845개, ROS3,799개 동일 프레임의 원본·결과·debug·TOP 저장. timeout0·PC Depth 혼입0·TOP 중점 불일치0. 종료 후 라이브 카메라·실제 Depth 복구 확인, ROS 노드 유지.
+- 현재 양쪽 observed207개(5.45%), 추정 경로3,588개, 경로 없음4개. 양쪽 held1,163개, 최장10:04.9~10:38.8의33.9초. 현재 관측보다 추정/유지 의존이 높아 유지 시간·재관측 조건 개선 필요. 정확도 수치가 아닌 상태 집계이며 알고리즘 변경 없음.
+- 원본 시간축4분할 결과 ros_replay.mp4와 프레임별 진단은 artifacts/ros_offload/road_replay_20261124. [검증 결과](docs/verification/camera/ros_offload_road_replay_20261124.md).
+
+## OAK4 추론·원본 전송과 WSL ROS 2 후처리 분리 (2026-11-24)
+
+- 카메라는 YOLOPv2 추론·NMS·원본 마스크·객체 거리 계산, ROS는 기존 모듈로 경계 추적·정지선·안내 경로·TOP 계산. TCP8560으로 RGB·마스크·원본16비트 Depth·객체·보정·프레임 출처를 묶어 전송한다. ROS 원자적 입력 메시지와 개별 센서/디버그 토픽 추가.
+- CAM01 169.254.100.228/1142227768, 실행환경0.33.10 UUID61fbe0c1-ad26-42dc-93c4-a8d2b5191fce 유지.94,329bytes 코드 적용, active e9f2f1d52d6ed026ba238ea9ca6bf52a9c154d79f3ea88de38461adb89fd7396, pending/failure 없음·직전7da3df0d… 복구본 유지. 장치 후처리 끔, ROS 두 노드 실행 중.
+- 전체427개 통과, ROS 두 패키지 빌드 성공. 실카메라20초 frame/result/debug/TOP 각각76개·stale0. Depth1920×1080 16UC1·RGB/Depth 차이 약0.471ms. 격리 합성 입력 중단 후 stale3개 확인. 실내 전송/실행 검증이며 도로 검출 정확도 검증은 별도다.
+- 기존 멀티뷰의 원본·Depth·추론 결과는 유지하며 장치 TOP은 ROS 안내 화면이다. 실제 후처리 TOP은 /oak/postprocess/top_image. [실행·토픽·복구 안내](docs/operation/oak_ros_offload.md), 자료 artifacts/ros_offload.
+
 ## 고정 시작점→탑뷰 표시 차선 중점의 2차 추종 경로 (2026-11-17)
 
 - 시작점은 기존 원본159.5/178.105(320×180) 유지. 탑뷰 헤더 아래 공통 가시 높이에서 실제 분홍 차선 두 교점의 평균을 끝점으로 사용한다. 추정 차선도 표시 모델 그대로 사용하며 별도 폭 추정·끝점 평활화는 제거했다. TOP에서 시작 접선0인 단일2차 곡선을 만들고 원본에는 동일 경로를 역투영한다.

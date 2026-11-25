@@ -1,0 +1,15 @@
+name: ayolom_v4_person_tl_672x384
+input_model: ../onnx_shared/ayolom_v4_person_tl_672x384.onnx
+shape: [1, 3, 384, 672]
+layout: NCHW
+data_type: float32
+encoding: RGB
+mean_values: null
+scale_values: null
+keep_intermediate_outputs: true
+onnx_simplification: false
+onnx_optimizations: false
+rvc4:
+  quantization_mode: FP16_STANDARD
+  htp_socs: [sm8550]
+  optimization_level: 2

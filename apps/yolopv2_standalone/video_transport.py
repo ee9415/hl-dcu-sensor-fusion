@@ -77,11 +77,13 @@ def jpeg_size(data):
 
 class VideoInputServer:
     """One publisher, one pending frame, and bounded per-frame provenance."""
-    def __init__(self, port=PORT, host='0.0.0.0', input_fps=20):
+    def __init__(self, port=PORT, host='0.0.0.0', input_fps=20, preserve_frames=False):
         if input_fps not in (10,15,20):
             raise ValueError('Input FPS must be 10, 15 or 20')
         self.input_fps = input_fps
         self.lock = threading.Lock()
+        self.condition = threading.Condition(self.lock)
+        self.preserve_frames = preserve_frames
         self.mode = 'camera'
         self.processing_mode = 'full'
         self.processing_epoch = 0
@@ -149,6 +151,7 @@ class VideoInputServer:
                 self.owner = token if source == 'pc' else None
                 self.epoch += 1
                 self.latest = None
+                self.condition.notify_all()
                 self.last_frame_index = self.last_media_epoch = None
             elif op == 'frame':
                 if self.mode != 'pc' or self.owner is not token:
@@ -163,7 +166,9 @@ class VideoInputServer:
                 if (self.last_media_epoch != media_epoch or
                         (self.last_frame_index is not None and index < self.last_frame_index)):
                     self.epoch += 1
-                if self.latest is not None:
+                if self.preserve_frames:
+                    self._wait_input_slot(token)
+                elif self.latest is not None:
                     self.dropped += 1
                 self.latest = (payload, dict(input_source='pc', source_epoch=self.epoch,
                     source_frame_index=index, source_media_time_s=media,
@@ -233,6 +238,8 @@ class VideoInputServer:
                     self.lane_overlay_epoch+=1
             elif op == 'stop':
                 if self.owner is token:
+                    if self.preserve_frames:
+                        self._wait_input_slot(token)
                     self.latest = None
                     self.owner = None
                     self.epoch += 1
@@ -240,12 +247,24 @@ class VideoInputServer:
                 raise ValueError('Unknown video input command')
             return self._status()
 
+    def _wait_input_slot(self, token):
+        # Called with the condition lock held; wait releases it for take().
+        deadline = time.monotonic()+2.
+        while self.latest is not None:
+            if self.mode != 'pc' or self.owner is not token:
+                raise ValueError('PC input source changed while waiting')
+            remaining = deadline-time.monotonic()
+            if remaining <= 0:
+                raise ValueError('PC input consumer stalled; frame was not overwritten')
+            self.condition.wait(timeout=remaining)
+
     def _status(self):
         return dict(source=self.mode, source_epoch=self.epoch,
                     **self._preview_metadata(),
                     boundary_visible=self.boundary_visible,boundary_display_epoch=self.boundary_display_epoch,
                     processing_mode=self.processing_mode,processing_epoch=self.processing_epoch,
                     input_fps_limit=self.input_fps,
+                    input_delivery_mode='ordered' if self.preserve_frames else 'latest',
                     publisher_connected=self.owner is not None,
                     received_frames=self.received, consumed_frames=self.consumed,
                     dropped_frames=self.dropped)
@@ -264,8 +283,10 @@ class VideoInputServer:
         with self.lock:
             if self.owner is token:
                 self.owner = None
-                self.latest = None
+                if not self.preserve_frames:
+                    self.latest = None
                 self.epoch += 1
+                self.condition.notify_all()
                 # Deliberately wait in PC mode; never silently show camera footage.
 
     def take(self):
@@ -277,6 +298,7 @@ class VideoInputServer:
                                   processing_mode=self.processing_mode,processing_epoch=self.processing_epoch,
                                   source_frame_index=None, source_media_time_s=None)
             pending, self.latest = self.latest, None
+            self.condition.notify_all()
             if pending is None:
                 return None, None
             self.consumed += 1

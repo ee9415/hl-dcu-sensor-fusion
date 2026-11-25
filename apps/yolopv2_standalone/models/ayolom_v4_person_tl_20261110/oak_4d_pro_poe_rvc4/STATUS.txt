@@ -1,0 +1,12 @@
+2026-11-25
+OAK-4D Pro PoE / RVC4
+Status: CONVERSION AND DEVICE INFERENCE VERIFIED.
+Archive: ayolom_v4_person_tl_672x384.rvc4.tar.xz
+DLC: ayolom_v4_person_tl_672x384.dlc
+Input: RGB NHWC FP16 [1,384,672,3], pixel/255.
+SNPE 2.41.0, sm8550, DepthAI 3.8.0.
+Device 1142227768 at 169.254.100.228, app 0.34.0 d0fd9213-9d81-483f-b24c-bee7236ab061
+Live: 300/300 unique frames in 30 seconds, 10.00 FPS, sequence mismatch 0.
+Road replay: 200/200 inference completions; road/lane masks and detection outputs observed.
+ROS frame/result/debug/TOP verified; live camera source restored.
+Numerical equivalence against ONNX on the same input and labeled detection accuracy are NOT evaluated.
