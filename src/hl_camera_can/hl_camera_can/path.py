@@ -1,4 +1,4 @@
-"""Observed lane midpoint in vehicle meters; display TOP geometry is never used."""
+"""Tracked/virtual lane midpoint in vehicle meters; confidence gates activation."""
 from dataclasses import dataclass, replace
 import json
 import math
@@ -18,6 +18,11 @@ def load_config(path):
 def validate_config(config):
     g, q, c = (config[name] for name in ('geometry', 'quality', 'can'))
     c.setdefault('windows_monitor_only', False)
+    q.setdefault('boundary_state_weights', dict(observed=1., inferred=.65, held=.55, predicted=.4, aligning=.25))
+    q.setdefault('held_confidence_tau_s', .5)
+    if (q['held_confidence_tau_s'] <= 0 or not math.isfinite(q['held_confidence_tau_s']) or
+            any(not math.isfinite(v) or not 0 <= v <= 1 for v in q['boundary_state_weights'].values())):
+        raise ValueError('Invalid boundary state confidence weights')
     for values in (g, q, c):
         for name, value in values.items():
             if isinstance(value, (int, float)) and not math.isfinite(value):
@@ -134,12 +139,39 @@ def target_from_result(result, config):
             base = replace(base, bench_only=True)
         if result.get('continuity_error'):
             raise ValueError('frame_continuity_error')
-        if any(result.get(side+'_boundary_state') != 'observed' for side in ('left', 'right')):
-            raise ValueError('held_or_estimated_boundary')
+        states = [result.get(side+'_boundary_state') for side in ('left', 'right')]
         scores = [result[side+'_boundary_confidence'] for side in ('left', 'right')]
-        if not all(math.isfinite(s) and q['min_boundary_confidence'] <= s <= 1 for s in scores):
+        if not all(math.isfinite(s) and 0 <= s <= 1 for s in scores):
             raise ValueError('boundary_confidence')
-        points = [result[side+'_boundary_supported_image'] for side in ('left', 'right')]
+        diagnostics = result.get('boundary_detection_diagnostics') or []
+        weighted = []
+        for i, (state, score) in enumerate(zip(states, scores)):
+            weight = q['boundary_state_weights'].get(state, 0.)
+            if state in ('held', 'predicted') and i < len(diagnostics):
+                age = diagnostics[i].get('missing_s')
+                if age is not None:
+                    if not math.isfinite(age) or age < 0:raise ValueError('invalid_boundary_age')
+                    weight *= math.exp(-age/q['held_confidence_tau_s'])
+            weighted.append(score*weight)
+        evidence_confidence = sum(weighted)/2
+        base = replace(base, confidence=math.floor(100*evidence_confidence))
+        if not evidence_confidence:
+            raise ValueError('no_boundary_evidence')
+        # Reuse the tracker's complete modeled boundaries, including virtual
+        # sides. Their states affect confidence instead of categorical rejection.
+        points = [result.get(side+'_boundary_image', result.get(side+'_boundary_supported_image', []))
+                  for side in ('left', 'right')]
+        visible = []
+        for samples in points:
+            pixels = np.asarray(samples, dtype=float)
+            if pixels.ndim != 2 or pixels.shape[1] != 2 or not np.isfinite(pixels).all():
+                raise ValueError('invalid_boundary_pixels')
+            # Tracked curves can extend outside the image; use their in-frame
+            # portion rather than clamping coordinates or rejecting the whole curve.
+            inside = ((pixels[:, 0] >= 0) & (pixels[:, 0] < g['width']) &
+                      (pixels[:, 1] >= 0) & (pixels[:, 1] < g['height']))
+            visible.append(pixels[inside])
+        points = visible
         if any(len(p) < q['min_points'] for p in points):
             raise ValueError('insufficient_observed_points')
         left, right = (ground_points(p, g) for p in points)
@@ -165,13 +197,14 @@ def target_from_result(result, config):
         origin_uncertainty = max(rmse, .01)*float(np.linalg.norm(np.linalg.pinv(design)[0]))
         if rmse > q['max_fit_rmse_m'] or origin_uncertainty > q['max_origin_fit_uncertainty_m']:
             raise ValueError('fit_or_extrapolation_error')
-        confidence = math.floor(100*min(scores)*math.exp(-rmse/q['max_fit_rmse_m'])*
+        confidence = math.floor(100*evidence_confidence*math.exp(-rmse/q['max_fit_rmse_m'])*
             (1-.25*near/max(q['max_near_extrapolation_m'], .001)))
+        base = replace(base, confidence=confidence)
         if confidence < q['min_confidence']:
             raise ValueError('path_confidence')
         validate_path(tuple(coeff), far, confidence)
         return replace(base, coefficients=tuple(float(c) for c in coeff), valid_length_m=float(far),
             observed_start_m=float(near), fit_rmse_m=rmse, confidence=confidence,
-            valid=True, reason='bench_only' if base.bench_only else 'observed_lane_midpoint')
+            valid=True, reason=('bench_only:' if base.bench_only else '')+'lane_midpoint:'+ '/'.join(states))
     except (ValueError, TypeError, KeyError, OverflowError, np.linalg.LinAlgError) as exc:
         return replace(base, reason=str(exc))

@@ -206,13 +206,41 @@ class GeometryTests(unittest.TestCase):
         _, result = self.example()
         self.assertFalse(target_from_result(result, config()).valid)
 
-    def test_held_lane_pc_input_and_excessive_near_gap_are_invalid(self):
+    def test_low_confidence_held_lane_pc_input_and_excessive_near_gap_are_invalid(self):
         cfg, result = self.example()
         held = copy.deepcopy(result); held['left_boundary_state'] = 'held'
         pc = copy.deepcopy(result); pc['source']['input_source'] = 'pc'
         for changed in [held, pc]:self.assertFalse(target_from_result(changed, cfg).valid)
         cfg['quality']['max_near_extrapolation_m'] = .8
         self.assertFalse(target_from_result(result, cfg).valid)
+
+    def test_virtual_side_can_activate_at_sufficient_combined_confidence(self):
+        cfg, result = self.example()
+        cfg['quality']['min_confidence'] = 50
+        original = target_from_result(result, cfg)
+        result['right_boundary_state'] = 'inferred'
+        result['right_boundary_image'] = result.pop('right_boundary_supported_image')
+        target = target_from_result(result, cfg)
+        self.assertTrue(target.valid, target.reason)
+        self.assertLess(target.confidence, original.confidence)
+        self.assertIn('inferred', target.reason)
+
+    def test_low_confidence_candidate_retains_score_but_is_invalid(self):
+        cfg, result = self.example()
+        cfg['quality']['min_confidence'] = 70
+        result['right_boundary_state'] = 'inferred'
+        target = target_from_result(result, cfg)
+        self.assertFalse(target.valid)
+        self.assertGreater(target.confidence, 0)
+        self.assertLess(target.confidence, cfg['quality']['min_confidence'])
+
+    def test_held_evidence_decays_with_missing_observation_age(self):
+        cfg, result = self.example()
+        result['left_boundary_state'] = result['right_boundary_state'] = 'held'
+        result['boundary_detection_diagnostics'] = [dict(missing_s=5.), dict(missing_s=5.)]
+        target = target_from_result(result, cfg)
+        self.assertFalse(target.valid)
+        self.assertEqual(target.confidence, 0)
 
     def test_bench_candidate_is_marked_and_never_claims_calibrated(self):
         cfg, result = self.example()

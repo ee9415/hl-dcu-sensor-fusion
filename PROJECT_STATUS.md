@@ -1,5 +1,10 @@
 # PROJECT_STATUS.md
 
+## 가상 경계 신뢰도 기반 경로 ACTIVE 판정 (2026-11-25)
+
+- 사용자 요청으로 양쪽observed 전용 조건 제거. 관측·가상·유지 경계 모델을 차량 좌표로 투영하고 상태별가중치/유지시간감쇠/피팅·외삽감점으로 신뢰도 산출. 기준미달·경로부재는INACTIVE,정상3영상 후ACTIVE. 낮은후보점수는ROS에보존,CAN비활성payload0 규격유지.
+- 실제기존40샘플33후보통과/7저신뢰비활성.40개 테스트 중39통과/기존Kvaser통합1skip. 재시작 후15초 후보150개·CAN301개중ACTIVE101개 확인(나머지는재활성화/만료등기존조건포함).예시C=[0.07323,-0.11827,0.12633,-0.02693],신뢰도36,가상우측포함.모니터캡처·sent0확인. [정책](docs/operation/camera_can_fd.md).
+
 ## 모니터 전용 임시 보정값 적용 (2026-11-25)
 
 - 사용자 실험 요청으로 별도monitor_bench override 추가.높이0.65m/pitch25°/fx=fy190px/전방·좌우0/yaw·roll0,시간불확실성50ms는미실측가정.기본프로필유지,calibrated/timing_verified=false·bench_only=true·Windows모니터전용 고정.

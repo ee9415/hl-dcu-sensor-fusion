@@ -10,6 +10,8 @@
     "pitch_down_deg": 12.0, "yaw_left_deg": 0.0, "roll_deg": 0.0
   },
   "quality": {
+    "boundary_state_weights": {"observed": 1.0, "inferred": 0.65, "held": 0.55, "predicted": 0.4, "aligning": 0.25},
+    "held_confidence_tau_s": 0.5,
     "max_image_age_ms": 300,
     "reactivation_frames": 3,
     "min_confidence": 60,
