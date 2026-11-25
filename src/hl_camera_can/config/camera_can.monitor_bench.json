@@ -1,0 +1,25 @@
+{
+  "geometry": {
+    "calibrated": false,
+    "timing_verified": false,
+    "bench_test_active": true,
+    "capture_uncertainty_ms": 50,
+    "fx": 190.0, "fy": 190.0, "cx": 159.5, "cy": 89.5,
+    "camera_forward_m": 0.0, "camera_left_m": 0.0, "camera_height_m": 0.65,
+    "pitch_down_deg": 25.0, "yaw_left_deg": 0.0, "roll_deg": 0.0
+  },
+  "quality": {
+    "min_confidence": 15,
+    "min_boundary_confidence": 0.3,
+    "min_points": 6,
+    "min_observed_span_m": 0.5,
+    "max_near_extrapolation_m": 1.2,
+    "max_fit_rmse_m": 0.2,
+    "max_origin_fit_uncertainty_m": 0.3,
+    "min_lane_width_m": 0.4,
+    "max_lane_width_m": 6.0,
+    "max_lane_width_std_m": 2.0,
+    "max_length_m": 8.0
+  },
+  "can": {"allow_bench_active": true, "driver_backend": "windows_tcp", "windows_monitor_only": true}
+}

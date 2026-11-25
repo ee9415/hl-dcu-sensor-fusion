@@ -44,6 +44,29 @@ enable_driver=true는 이 구성에서는 TCP 캡처 전달만 뜻한다. 실제
 현재 보정 미완료 기본 설정에서는 Header0x81/INACTIVE,계수·속도·거리·신뢰도0의
 패킷이20Hz로 보이는 것이 정상이다. Sequence와 CRC는 계속 변한다.
 
+### 임시 보정 시험 프로필 (2026-11-25)
+
+사용자 요청으로 실측이 아닌 초기 실험값을 분리했다.
+`src/hl_camera_can/config/camera_can.monitor_bench.json`은 기본 설정에 합치는
+override 파일이며, 단독 config_path로 쓰지 않는다.
+
+```bash
+bash tools/run_camera_can_monitor.sh 172.18.192.1 53200 bench
+```
+
+초기값: 높이0.65m,전륜축 중앙과 같은전방/좌우위치0m,pitch하향25°,yaw/roll0°,
+320×180의fx/fy190px,cx159.5/cy89.5. 촬영시각 불확실성50ms도 실측값이 아닌
+시험용 가정이다. calibrated/timing_verified는false,bench_only는true를 유지한다.
+시험 품질값은 최소신뢰도15,경계신뢰도0.3,관측점6개,관측구간0.5m,
+근거리외삽최대1.2m,피팅오차0.2m,원점오차지표0.3m,거리최대8m다.
+실제 보정값으로 간주하거나 물리 송신 설정에 사용하지 않는다.
+
+관측·NaN·범위·만료·연속3프레임 검사는 유지한다. 임시값을 넣어도 추정/held 경계,
+짧은 관측구간,피팅실패 등에서는INACTIVE/계수0이다. 현재40개 영상 샘플 중39개는
+양쪽동시관측조건 미충족,1개는관측겹침구간부족으로 비활성임을 확인했다.
+프로필을 적용한 실제 노드도bench_only=true,물리송신0이며,계수를 임의로 만들어
+정상 경로처럼 송신하지 않는다. 기본 실행(bench 인자 없음)은 기존 미보정 차단으로 돌아간다.
+
 ## 화면
 
 - ID0x320,Standard/FD/BRS,32bytes와DLC13 표시.

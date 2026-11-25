@@ -1,5 +1,10 @@
 # PROJECT_STATUS.md
 
+## 모니터 전용 임시 보정값 적용 (2026-11-25)
+
+- 사용자 실험 요청으로 별도monitor_bench override 추가.높이0.65m/pitch25°/fx=fy190px/전방·좌우0/yaw·roll0,시간불확실성50ms는미실측가정.기본프로필유지,calibrated/timing_verified=false·bench_only=true·Windows모니터전용 고정.
+- 시험용 품질조건 분리,추정/held·범위·만료·연속3영상 조건 유지.샘플40개중39개동시관측부족·1개관측겹침구간부족으로비활성.실제노드에시험값적용·물리송신0확인. [실행·값](docs/operation/windows_can_monitor.md).
+
 ## 물리 CAN 미송신 Windows 메시지 모니터 (2026-11-25)
 
 - AURIX 미연결 확인용 Windows GUI 추가. WSL CAN브릿지→Windows 지점에서32바이트 캡처·CRC/Sequence/계수/속도/거리/상태 표시,JSONL저장. SDK import/채널 open 없음. 물리 중계와 모니터 전용모드는 상호거부,캡처와sent카운터 분리.
