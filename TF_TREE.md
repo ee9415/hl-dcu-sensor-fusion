@@ -1,5 +1,13 @@
 # TF_TREE.md
 
+## Camera CAN Vehicle Frame (2026-11-25)
+
+사용자 확정 목표 경로 frame_id는 `vehicle_front_axle`이다. 원점은 전륜축 중앙,
++X 차량 전방,+Y 왼쪽,+Z 위이며 위치 단위m다. 카메라 광학좌표/미보정 TOP과 구분한다.
+기존 TF를 바꾸거나 임의의 static TF를 발행하지 않는다. 현재 카메라→차량 투영은
+별도 보정 설정을 사용하며 기본 미보정 상태다. 실측 extrinsic과 기존 base frame의
+관계를 검증한 뒤 TF 연결을 추가해야 한다. [설정](docs/operation/camera_can_fd.md).
+
 ## 1. Purpose
 
 구현된 frame 사용과 목표 TF 구조를 구분한다.

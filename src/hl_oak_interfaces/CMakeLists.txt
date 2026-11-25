@@ -7,6 +7,8 @@ find_package(sensor_msgs REQUIRED)
 find_package(vision_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/PerceptionFrame.msg"
+  "msg/TargetPath.msg"
+  "msg/CanFdFrame.msg"
   DEPENDENCIES std_msgs sensor_msgs vision_msgs)
 ament_export_dependencies(rosidl_default_runtime)
 ament_package()

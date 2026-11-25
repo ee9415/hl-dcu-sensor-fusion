@@ -1,5 +1,12 @@
 # PROJECT_STATUS.md
 
+## 카메라 목표 경로 발행자·CAN FD 브릿지·Windows Kvaser 중계 (2026-11-25)
+
+- 기존ROS 후처리 결과를 구독하는 camera_path_publisher→TargetPath→camera_can_bridge→CanFdFrame→camera_can_driver를 추가. 관측된 좌우 경계를 임시/실측 투영 설정으로 전륜축중앙/+X전방/+Y왼쪽의미터 경로로 피팅. 미보정·시간검증미완료 기본비활성.
+- 0x320/32bytes/20Hz/CRC·Sequence,촬영시각300ms+불확실성 만료,서로다른3개 정상 관측 재활성화,200ms 무송신·200ms 비활성 재시작. 드라이버 직전deadline·중복/시계정지/역행 검사.
+- Windows CANlib에서 채널0 Leaf v3 FD지원 읽기전용확인. Windows 인증TCP중계+Kvaser FD500k/2M/BRS 드라이버구현. 실제채널은 열지 않고 가상1→2의32바이트FD/BRS 수신·CRC일치 확인. WSL→Windows가상40개/2초·최대RPC4.07ms,실제ROS전체경로도 통과.
+- 별도빌드 성공. 최종30테스트 중29통과/조건부1skip(해당Windows가상전체경로는 선행검증통과). 현재 실제카메라입력+기본비활성ROS세노드 실행,약20.14Hz·물리송신0. 실측보정·실제Leaf↔AURIX통합·주행미검증. [검증](docs/verification/camera/camera_can_fd_20261125.md), [실행](docs/operation/camera_can_fd.md).
+
 ## ROS 영상 몰림 DDS 설정 원인 확인 (2026-11-25)
 
 - debug1.56MB/TOP0.92MB 대비 Fast DDS 기본 SHM영역약0.5MB. 결과JSON100ms간격 대비 영상최대약3초 몰림.64MiB 프로필 적용 후 단일노드 구성·PC도로영상30초 각299개·약10FPS,최대166ms·250ms초과공백/stale/순서단절0.

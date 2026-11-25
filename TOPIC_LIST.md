@@ -1,5 +1,20 @@
 # TOPIC_LIST.md
 
+## Camera CAN Interface (2026-11-25)
+
+기존 토픽을 유지하고 사용자 확정 발행자/구독자 구조로 다음을 추가한다.
+
+| Topic | Type | Publisher → Subscriber | QoS/주기 |
+|---|---|---|---|
+| `/camera/target_path` | `hl_oak_interfaces/TargetPath` | camera_path_publisher → camera_can_bridge | RELIABLE/1, 후처리 입력 시 |
+| `/can/tx` | `hl_oak_interfaces/CanFdFrame` | camera_can_bridge → camera_can_driver | RELIABLE/1, 독립20Hz |
+| `/camera/can_status` | `std_msgs/String` | camera_can_bridge → 진단 | RELIABLE/1,1Hz |
+| `/can/driver_status` | `std_msgs/String` | camera_can_driver → 진단 | RELIABLE/1,1Hz |
+
+경로 좌표는 vehicle_front_axle의m 단위. capture stamp, 소스·프레임 식별자,
+보정/시간 검증/bench 플래그를 함께 전달한다. CanFdFrame은 동일 제어컴 내
+monotonic deadline을 포함한다. [실행·규격](docs/operation/camera_can_fd.md).
+
 ## 1. Purpose
 
 실제 구현된 ROS2 topic과 향후 후보 interface를 구분하여 관리한다.

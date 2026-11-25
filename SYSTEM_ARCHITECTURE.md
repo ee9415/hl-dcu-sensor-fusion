@@ -1,5 +1,14 @@
 # SYSTEM_ARCHITECTURE.md
 
+## Camera Target Path / CAN Bridge (2026-11-25)
+
+OAK 추론→기존 WSL ROS 후처리→camera_path_publisher(`/camera/target_path`)
+→camera_can_bridge(`/can/tx`,20Hz)→camera_can_driver→Windows TCP 중계
+→Kvaser CANlib/Leaf v3→AURIX의 분리 구조를 추가했다. 기존 ROS 노드·토픽은 유지한다.
+기본 상태는 미보정 경로/물리 드라이버 비활성이며, 최종 조향·제어는 AURIX에 남긴다.
+현재 Windows+WSL 구성에서는 Windows 드라이버를 WSL SocketCAN으로 가정하지 않는다.
+Linux SocketCAN은 별도 배포용 선택지다. [상세·검증](docs/operation/camera_can_fd.md).
+
 ## 1. Purpose
 
 이 문서는 현재 구현된 실행 경로와 목표 ROS2 통합 구조를 구분한다.

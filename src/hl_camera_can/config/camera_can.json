@@ -1,0 +1,36 @@
+{
+  "geometry": {
+    "calibrated": false,
+    "timing_verified": false,
+    "bench_test_active": false,
+    "capture_uncertainty_ms": 1000,
+    "width": 320, "height": 180,
+    "fx": 230.0, "fy": 230.0, "cx": 159.5, "cy": 89.5,
+    "camera_forward_m": 0.3, "camera_left_m": 0.0, "camera_height_m": 1.2,
+    "pitch_down_deg": 12.0, "yaw_left_deg": 0.0, "roll_deg": 0.0
+  },
+  "quality": {
+    "max_image_age_ms": 300,
+    "reactivation_frames": 3,
+    "min_confidence": 60,
+    "min_boundary_confidence": 0.7,
+    "min_points": 12,
+    "min_observed_span_m": 1.0,
+    "max_near_extrapolation_m": 0.8,
+    "max_fit_rmse_m": 0.1,
+    "max_origin_fit_uncertainty_m": 0.15,
+    "min_lane_width_m": 1.5, "max_lane_width_m": 5.0,
+    "max_lane_width_std_m": 0.5,
+    "max_length_m": 12.0
+  },
+  "can": {
+    "driver_backend": "windows_tcp",
+    "windows_host": "127.0.0.1", "windows_port": 53200,
+    "windows_key_file": "", "windows_allow_virtual": false,
+    "allow_bench_active": false,
+    "min_speed_kph": 0.0, "max_speed_kph": 3.0,
+    "startup_quiet_ms": 200, "startup_inactive_ms": 200,
+    "max_tx_age_ms": 100,
+    "interface": "can0", "allow_vcan": false
+  }
+}
